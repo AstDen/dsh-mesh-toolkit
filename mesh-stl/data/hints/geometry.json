@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "topic": "geometry-and-stl",
+  "cards": [
+    {
+      "id": "stl-contract",
+      "title": "STL — контракт: watertight, согласованные нормали, мм",
+      "topics": ["stl", "qa", "geometry", "units"],
+      "status": "verified",
+      "when": "любой STL собирается идти в мешер",
+      "statement": "В объёмное меширование идёт только STL: замкнутый (watertight), с согласованными нормалями (consistent winding), в миллиметрах, с паспортом в stl/registry.csv. Битый STL сначала чинится, потом мешится; «построилось без ошибок» ≠ «пригодно».",
+      "recipe": [
+        "tools/qa/stl_qa.py --stl <file> --expect-volume <мм³> --expect-bodies <n> --json",
+        "вердикт PASS обязателен перед snappy/cfMesh; exit 0 pass / 1 fail / 2 input",
+        "в params.json фиксировать единицы, seed, допуски тесселяции"
+      ],
+      "evidence": ["AGENTS.md R9 и §4; registry.csv содержит поля watertight, units, volume_mm3, path"],
+      "improves": ["предсказуемость мешинга"],
+      "appliesTo": ["stl_check", "stl_generate", "mesh_build"]
+    },
+    {
+      "id": "stl-cleanup",
+      "title": "Чистка STL — обязательный шаг для CAD/CSG вывода",
+      "topics": ["stl", "cleanup", "cad", "qa"],
+      "status": "verified",
+      "when": "STL получен из CadQuery/OCC или из булевых операций",
+      "statement": "Сырой STL OCC содержит вырожденные грани на полюсах и швах и почти всегда не watertight. Чистка stl_qa.py --clean-out пересобирает поверхность: слияние вершин, удаление вырожденных/дублирующихся граней, согласование обхода.",
+      "recipe": [
+        "tools/qa/stl_qa.py --stl raw.stl --clean-out clean.stl --json report.json",
+        "сравнить raw и cleaned метрики: volume/area/bbox не должны меняться больше допуска",
+        "в мешер отдавать clean.stl, raw.stl оставлять для протокола"
+      ],
+      "evidence": ["exp-002/D-007: сырой OCC STL не watertight, чистка обязательна", "stl_qa.py отдаёт блок cleaned{triangles,is_watertight,bodies,volume,area}"],
+      "improves": ["watertight", "устойчивость мешинга"],
+      "appliesTo": ["stl_check", "stl_generate cad-porous"]
+    },
+    {
+      "id": "cadquery-tessellation",
+      "title": "Тесселяцию CadQuery задаёт angularTolerance, а не tolerance",
+      "topics": ["cadquery", "tessellation", "geometry", "volume"],
+      "status": "verified",
+      "when": "CAD-геометрия экспортируется в STL и важен объём/форма",
+      "statement": "Точность триангуляции управляется angularTolerance: 0.1 даёт точный объём, 0.2–0.3 — грубее и годится для мешинга (меньше треугольников). Параметр tolerance на тесселяцию не влияет.",
+      "recipe": [
+        "точный объём: angularTolerance 0.1",
+        "мешинг/большие модели: angularTolerance 0.2–0.3",
+        "после смены angularTolerance перезамерить volume и записать в params.json"
+      ],
+      "evidence": ["exp-002 и D-017: angularTolerance определяет тесселяцию, tolerance — нет"],
+      "improves": ["triangles count", "volume accuracy"],
+      "appliesTo": ["stl_generate cad-porous"]
+    },
+    {
+      "id": "gap-rule",
+      "title": "Минимальный зазор ≥ 2·MeshSizeMin",
+      "topics": ["geometry", "design", "refinement", "mesh-size"],
+      "status": "verified",
+      "when": "проектируется поровая/канальная геометрия под объёмную сетку",
+      "statement": "Если зазор между поверхностями меньше двух минимальных ячеек, мешер физически не может его разрешить: получаются сливеры, односторонние интерфейсы и неортогональность у 70–90°. Зазор — параметр геометрии, а не настройка мешера.",
+      "recipe": [
+        "перед генерацией: gap ≥ 2 × MeshSizeMin",
+        "контакт «нулевого зазора» между телами запрещён — тела должны либо пересекаться, либо иметь зазор",
+        "если зазор не выдержать — уменьшать MeshSizeMin и пересчитывать бюджет ячеек"
+      ],
+      "evidence": ["D-007 и D-008: правило проектирования; exp-002 — тетра-сетка на таком STL непригодна"],
+      "improves": ["maxNonOrtho", "skewness", "число сливеров"],
+      "appliesTo": ["stl_generate", "mesh_build"]
+    },
+    {
+      "id": "gmsh-tetra-unfit",
+      "title": "Тетра-сетка gmsh непригодна для поровых STL",
+      "topics": ["gmsh", "tetra", "limitations"],
+      "status": "verified",
+      "when": "хочется быстро получить объёмную сетку из порового STL через gmsh",
+      "statement": "На поровом STL тетра-сетка gmsh стабильно даёт maxNonOrtho 89.37–89.69°; 12 конфигураций (Algorithm3D 1/4/10, netgen, laplace) не помогли. Gmsh-тетра допустима только как проверка «STL замкнут, объём сходится», для расчётов — snappyHexMesh/cfMesh.",
+      "recipe": [
+        "для проверки замкнутости: gmsh tetra → объём ↔ stl_qa volume",
+        "для расчёта: snappy (hex-dominant + layers) или cfMesh cartesianMesh",
+        "исключение — conformal CHT из OCC-геометрии (route D), см. hint gmsh-route-d"
+      ],
+      "evidence": ["exp-002: maxNonOrtho 89.37–89.69° на 12 конфигурациях"],
+      "improves": ["выбор мешера без потери времени"],
+      "appliesTo": ["mesh_build gmsh"]
+    },
+    {
+      "id": "channel-named-patches",
+      "title": "Именованные патчи в STL экономят renameBoundary",
+      "topics": ["stl", "patches", "snappy", "cfmesh"],
+      "status": "derived",
+      "when": "у границы есть разные физические роли (inlet/outlet/walls/interface)",
+      "statement": "gen_channel_spheres.py с --fluid-patches пишет fluid_patches.stl, в котором грани уже разделены по патчам (inlet, outlet, walls, interface, interface_necks). snappy переносит имена через refinementSurfaces patchInfo; cfMesh требует renameBoundary только для unmatched.",
+      "recipe": [
+        "в snappyHexMeshDict перечислить каждый STL/имя в refinementSurfaces с patchInfo { type wall/patch; }",
+        "для cfMesh — meshDict renameBoundary.newPatchNames по этим именам",
+        "после мешинга проверить patch list в checkMesh и совпадение площадей с stl_qa --expect-area"
+      ],
+      "evidence": ["gen_channel_spheres.py CLI/выходные файлы; exp-017 cases/cfmesh/system/meshDict (renameBoundary)"],
+      "improves": ["BC без ручной правки boundary"],
+      "appliesTo": ["stl_generate channel-spheres", "mesh_build"]
+    },
+    {
+      "id": "packing-pipeline",
+      "title": "Упаковка сфер — два шага, JSON между ними",
+      "topics": ["packing", "pipeline", "stl"],
+      "status": "verified",
+      "when": "нужна полидисперсная/моно упаковка сфер с шейками",
+      "statement": "Сначала gen_packing_table.py считает таблицу шаров и контактов (CSV), затем gen_packing_stl.py строит solid и fluid STL по этой таблице. Пропуск таблицы или ручная правка CSV ломают воспроизводимость — seed и параметры фиксируются в params.json.",
+      "recipe": [
+        "step 1: --params-file params.json --out balls.csv --contacts-out contacts.csv",
+        "step 2: --balls balls.csv --contacts contacts.csv --solid-out solid.stl --fluid-out fluid.stl",
+        "большие упаковки считать на расчётной машине (MACHINES.md), не на ноутбуке"
+      ],
+      "evidence": ["geometry/packings/gen_packing_table.py и gen_packing_stl.py CLI; exp-010/exp-011 (алгоритм и STL в масштабе)"],
+      "improves": ["воспроизводимость упаковки"],
+      "appliesTo": ["stl_generate packing"]
+    },
+    {
+      "id": "units-mm",
+      "title": "Единицы: STL в мм, кейс OpenFOAM в метрах",
+      "topics": ["units", "stl", "openfoam"],
+      "status": "verified",
+      "when": "любая связка STL → OpenFOAM",
+      "statement": "Канонические STL проекта — в мм, а кейс OpenFOAM — в метрах. Три места, где это фиксируется: (1) блокмеш в мм → convertToMeters 0.001; (2) geometry{...} в snappyHexMeshDict → scale 0.001 (пока STL в мм); (3) locationInMesh/locationsInMesh — в метрах. Скаффолд mesh_build пишет кейс сразу в метрах (convertToMeters 1), но scale 0.001 на geometry остаётся. Рассогласование даёт «точка не внутри сетки» или сетку в 1000 раз больше.",
+      "recipe": [
+        "STL: мм (bbox_mm в stl_qa отчёте)",
+        "blockMeshDict: convertToMeters 0.001",
+        "snappy geometry: scale 0.001; locationInMesh в метрах"
+      ],
+      "evidence": ["AGENTS.md §8 и §13; exp-003"],
+      "improves": ["отсутствие ошибок масштаба"],
+      "appliesTo": ["stl_generate", "mesh_build"]
+    }
+  ]
+}

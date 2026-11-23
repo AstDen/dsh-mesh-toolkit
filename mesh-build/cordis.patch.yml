@@ -1,0 +1,16 @@
+# mesh-build bundle patch: one plugin row.
+#
+# Portable defaults live in lib/common.js (DEFAULTS). Machine-specific settings
+# belong to an external file:
+#   ~/.config/mesh-build/config.json   (or $XDG_CONFIG_HOME/mesh-build/config.json,
+#                                       or $MESH_BUILD_CONFIG=/path/to/config.json)
+# Example:
+#   { "projectRoot": "/path/to/Mesh_3D_pore_scale",
+#     "caseRoot": "experiments", "np": 6 }
+# Environment overrides: MESH_BUILD_PROJECT_ROOT, MESH_BUILD_PYTHON,
+# MESH_BUILD_WORK_ROOT, MESH_BUILD_CASE_ROOT, MESH_BUILD_NP, MESH_BUILD_TIMEOUT_MS,
+# MESH_BUILD_OPENFOAM_BASHRC, MESH_BUILD_OPENFOAM_ROOTS.
+- insert:
+    - id: mesh-build
+      name: mesh-build
+      config: {}

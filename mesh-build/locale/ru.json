@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Mesh Build",
+    "description": "Объёмные сетки и шлюз качества: snappyHexMesh (hex + слои + CHT), cfMesh, gmsh route D, проверка по порогам проекта.",
+    "detail": "Три инструмента: mesh_hints (карточки знаний), mesh_build (маршруты из data/engine.json + скаффолд кейса snappy по STL), mesh_check (checkMesh + mesh_gate по каждому региону). Маршруты и подсказки расширяются JSON-данными без правки кода."
+  }
+}

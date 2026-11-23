@@ -1,0 +1,57 @@
+{
+  "name": "mesh-stl",
+  "version": "0.1.1",
+  "private": true,
+  "description": "DSH plugin for pore-scale STL geometry: generate from verified families (FCC cell, channel with spheres, double-layer burner, packings, CadQuery CAD), run the STL contract QA (watertight, winding, mm units), clean up and write passports to stl/registry.csv.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "data",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "scripts"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-skill": ">=0.2.1-rc.5 <0.3.0"
+  },
+  "scripts": {
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "stl",
+    "geometry",
+    "pore-scale",
+    "cadquery",
+    "trimesh",
+    "watertight",
+    "mesh-preparation",
+    "qa",
+    "passport",
+    "generator-presets"
+  ]
+}

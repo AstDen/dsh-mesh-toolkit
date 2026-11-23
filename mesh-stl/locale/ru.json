@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Mesh STL",
+    "description": "Генерация и проверка STL: семейства генераторов, чистка, паспорт геометрии, подсказки проекта.",
+    "detail": "Три инструмента: stl_hints (карточки знаний), stl_generate (реестр генераторов из data/generators.json), stl_check (watertight/объём/bbox + чистка + stl/registry.csv). Данные расширяются JSON-файлами без правки кода."
+  }
+}
