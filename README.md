@@ -137,20 +137,26 @@ profiles, scaffold options and the reload rule.
 
 ## Benchmark
 
-Two reproducible tasks exercise the toolkit on generic primitives rather than project
-data:
+[benchmark/TESTS.md](benchmark/TESTS.md) is the universal regression suite for both
+plugins: 10 groups (A–V, L) with exact parameters, analytic references, gate acceptance
+and time budgets —
 
-1. **Primitives** — a 10 mm cube with a 3×3×3 lattice of R=0.9 mm spheres (expected
-   917.5520 mm³ / 874.8265 mm²) and a 12×6×6 mm block with six crossing R=0.8 mm
-   cylinders (expected 367.8097 mm³), both meshed with snappyHexMesh.
-2. **Sphere packing** — seeded monodisperse (R=0.8 mm) and polydisperse (0.6–1.4 mm)
-   packings in an 8×8×12 mm box; both STL sets QA'd, the fluid volume meshed.
+- **A** primitives: cube, sphere, cylinder, box override, STL accuracy;
+- **B** channel with 6/28 spheres: snappy, cfMesh, parallel run;
+- **C** external flow: sphere refinement study, cube, cylinder, crossing-cylinder block;
+- **D** dispersed/multiphase geometry: suspension packing, interface refinement, a
+  documented gap for a stratified channel;
+- **E** porous media: FCC cell (baseline 27 424 cells / 41.34°), mono- and
+  polydisperse packings;
+- **F** hints: query → expected card ids, including the advisory/refusal behaviour;
+- **G/H** tool contracts and negative tests; **V** version comparison
+  com2512 / com2606 / org14; **L** delivery packaging.
 
-The task text, exact parameters, negative tests, scoring rubric (geometry 25 · mesh 25
-· robustness 20 · ergonomics 15 · performance 15) and report template live in
-[benchmark/PROMPT.md](benchmark/PROMPT.md). A run writes
-`benchmark/run-<ts>/{calls.csv,metrics.json,REPORT.md}` and ends with a prioritized
-P0/P1/P2 backlog.
+A run writes `benchmark/run-<ts>/{calls.csv,metrics.json,REPORT.md}` and is scored
+geometry 20 · mesh 25 · robustness 20 · ergonomics 20 · performance 15.
+
+[benchmark/PROMPT.md](benchmark/PROMPT.md) is the shorter two-task variant (primitives
+and packings) for a quick evaluation pass.
 
 ## Limits
 
@@ -172,7 +178,8 @@ P0/P1/P2 backlog.
 
 ```
 README.md                 this file
-benchmark/PROMPT.md       strict two-task evaluation protocol
+benchmark/TESTS.md         universal regression suite (A–V, L)
+benchmark/PROMPT.md       shorter two-task evaluation protocol
 docs/extending.md         data schemas, routes, thresholds, reload rule
 sim-core/                 shared library (not installed as a bundle)
   lib/config.js           layered config + sim-project.json discovery
