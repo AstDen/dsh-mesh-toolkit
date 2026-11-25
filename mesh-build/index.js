@@ -11,14 +11,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
-  PKG_VERSION, displayPath, executionCwd, expandStlInputs, jsonSafe, normalizeConfig, resolveProjectPath,
-  tail, unconfiguredPayload,
+  PACKAGE_ROOT, PKG_VERSION, displayPath, executionCwd, expandStlInputs, jsonSafe, normalizeConfig,
+  resolveProjectPath, tail, unconfiguredPayload, versionInfo,
 } from './lib/common.js'
 import { gateCase } from './lib/gate.js'
-import { catalogHints, hintsOverview, loadHints, searchHints } from './lib/hints.js'
+import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
 import {
-  catalogRoutes, loadEngine, makeContext, planRoute, preflight, runRoute,
+  catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
+import { readCasePatches } from './lib/patches.js'
+import {
+  buildCaseManifest, buildMeshPassport, passportFreshness, readMeshPassport,
+  writeCaseManifest, writeMeshPassport,
+} from '../sim-core/lib/passport.js'
 import { isEmptyDir, installStl, writeSnappyCase } from './lib/scaffold.js'
 import { SKILL } from './lib/skill.js'
 
@@ -62,12 +67,20 @@ export function apply(ctx, rawConfig) {
   const config = normalizeConfig(rawConfig)
   const configFor = (exec) => normalizeConfig(rawConfig, executionCwd(exec))
   const engine = loadEngine(join(config.packageRoot, 'data'))
-  const hints = loadHints(join(config.packageRoot, 'data', 'hints'))
+  // own cards first, then the mesh-stl cards (STL contract, cleanup, units) — one knowledge base for the agent
+  const hints = ensureHints(ctx, { owner: name, dirs: [join(PACKAGE_ROOT, 'data', 'hints')] }).store
+  /** Tool handlers, reused by the simMesh capability service below. */
+  const handlers = {}
 
   const requireProject = (cfg) => (cfg.configured ? null : unconfiguredPayload(cfg))
-  const resolveCase = (cfg, args) => {
+  const resolveCase = (cfg, args, { mustExist = false, hint = null } = {}) => {
     if (!args.caseDir) throw new Error(`caseDir is required, e.g. "${displayPath(cfg, join(cfg.projectRoot, cfg.caseRoot, 'exp-NNN/case'))}"`)
-    return resolveProjectPath(cfg, String(args.caseDir))
+    const dir = resolveProjectPath(cfg, String(args.caseDir))
+    if (mustExist && !existsSync(dir)) {
+      const reason = hint ?? 'scaffold:true creates it, scaffold:false needs an existing case'
+      throw new Error(`case directory not found: ${displayPath(cfg, dir)} — ${reason}`)
+    }
+    return dir
   }
   const routeById = (id) => {
     const route = engine.routes.find((r) => r.id === id)
@@ -90,6 +103,7 @@ export function apply(ctx, rawConfig) {
   }
 
   function register(def) {
+    handlers[def.name] = (args, exec) => def.execute(args, exec ? configFor(exec) : config)
     const tool = defineTool({
       ...def,
       output: jsonOutput,
@@ -104,7 +118,10 @@ export function apply(ctx, rawConfig) {
     ctx.tools.register(tool)
   }
 
-  ctx.skills.register({ ...SKILL, source: 'bundled', version })
+  try {
+    const skills = ctx.get('skills')
+    if (skills?.register) skills.register({ ...SKILL, source: 'bundled', version })
+  } catch { /* the skills service is optional: tools keep working without it */ }
 
   register({
     name: 'mesh_hints',
@@ -118,16 +135,18 @@ export function apply(ctx, rawConfig) {
     },
     async execute(args, config) {
       if (args.id) {
-        const card = hints.cards.find((c) => c.id === args.id)
-        if (!card) return { found: false, id: args.id, available: hints.cards.map((c) => c.id) }
+        const card = hints.get(args.id)
+        if (!card) return { found: false, id: args.id, available: hints.list().map((c) => c.id) }
         return { found: true, card }
       }
       if (args.query) {
-        const found = searchHints(hints.cards, args.query, Math.min(20, Math.max(1, args.limit ?? 5)))
-        return { ...found, loadErrors: hints.errors.length ? hints.errors : undefined }
+        const found = hints.search(args.query, Math.min(20, Math.max(1, args.limit ?? 5)))
+        const { errors } = hints.stats()
+        return { ...found, loadErrors: errors.length ? errors : undefined }
       }
       return {
-        ...hintsOverview(hints.cards, hints.files, version),
+        ...hints.overview(),
+        versionInfo: versionInfo(),
         routes: catalogRoutes(engine).map((r) => r.id),
         profiles: Object.keys(engine.profiles ?? {}),
         next: [
@@ -175,11 +194,32 @@ export function apply(ctx, rawConfig) {
         }
       }
       const route = routeById(args.route)
-      const caseDir = resolveCase(config, args)
-      const stlInputs = expandStlInputs(config, args.stl ?? [])
+      const caseDir = resolveCase(config, args, { mustExist: args.scaffold !== true && args.dryRun !== true })
+      // expandStlInputs returns { files, missing } — keep the array, the object is not a path list
+      const { files: stlInputs, missing: stlMissing } = expandStlInputs(config, args.stl ?? [])
+      if (stlMissing.length) {
+        return {
+          ok: false,
+          phase: 'inputs',
+          tool: 'mesh_build',
+          error: 'STL not found',
+          missing: stlMissing.map((p) => displayPath(config, p)),
+          next: 'pass stl: ["<path>.stl"] with paths relative to the project root (or absolute inside it)',
+        }
+      }
+      if (args.scaffold === true && stlInputs.length === 0) {
+        return {
+          ok: false,
+          phase: 'inputs',
+          tool: 'mesh_build',
+          error: 'scaffold:true needs at least one STL',
+          next: 'pass stl: ["<path>.stl"]; surfaces are named after the file stems',
+        }
+      }
       const np = Math.max(1, Math.floor(Number(args.np) || config.np || 1))
       const locations = args.scaffoldOptions?.locationInMesh ?? args.scaffoldOptions?.locationsInMesh
-      const multiLocation = Array.isArray(locations) && locations.length > 1
+      // A bare [x, y, z] point is ONE location; only an array of {point, name} objects is multi-region.
+      const multiLocation = Array.isArray(locations) && locations.length > 0 && typeof locations[0] === 'object'
       const splitRegions = args.splitRegions ?? (args.scaffold === true && multiLocation)
       const runArgs = {
         ...args,
@@ -191,27 +231,59 @@ export function apply(ctx, rawConfig) {
       }
       const options = scaffoldOptions({ ...args, np }, stlInputs, np)
 
-      // --- dry run: preview scaffold in a temp dir, then plan the route ---
+      // --- dry run: preview scaffold in a temp dir, preflight, then plan the route ---
       if (args.dryRun) {
+        const ctx = makeContext(config, runArgs, caseDir)
         let preview = null
         if (args.scaffold) {
           const temp = mkdtempSync(join(tmpdir(), 'mesh-build-scaffold-'))
           try {
             preview = writeSnappyCase(config, temp, options)
+          } catch (error) {
+            return {
+              dryRun: true,
+              ok: false,
+              phase: 'scaffold',
+              route: route.id,
+              caseDir: displayPath(config, caseDir),
+              error: error.message,
+              next: 'check scaffoldOptions: domainMin/domainMax (meters), cellSize or cells, locationInMesh',
+            }
           } finally {
             rmSync(temp, { recursive: true, force: true })
           }
         }
-        const plan = planRoute(route, makeContext(config, runArgs, caseDir)).map((step) => ({
-          index: step.index, name: step.name, when: step.when, run: step.run,
+        // preflight runs here too: a dry run must say what is missing, not just print a plan
+        let problems = preflight(config, route, runArgs, caseDir)
+        if (args.scaffold !== true && !existsSync(caseDir)) {
+          problems = [`case directory not found: ${displayPath(config, caseDir)} — this route runs in an existing case`, ...problems]
+        }
+        if (preview) {
+          // the scaffold itself writes these two dictionaries
+          problems = problems.filter((p) => !p.startsWith('missing system/blockMeshDict')
+            && !p.startsWith('missing system/snappyHexMeshDict'))
+        }
+        const plan = planRoute(route, ctx).map((step) => ({
+          index: step.index,
+          name: step.name,
+          when: step.when,
+          run: renderCommand(step.run, ctx),
+          unresolved: ['msh', 'gmshScript'].filter((key) => !ctx[key] && String(step.run).includes(`{${key}}`)),
         }))
         return {
           dryRun: true,
+          ok: problems.length === 0,
           route: route.id,
           caseDir: displayPath(config, caseDir),
+          requires: route.requires ?? [],
+          problems,
           scaffold: preview ? { files: preview.files, surfaces: preview.surfaces, locations: preview.locations, cells: preview.cells, patchType: preview.patchType, units: preview.units } : null,
           plan,
-          next: `mesh_build({ route: "${route.id}", caseDir: "${displayPath(config, caseDir)}", scaffold: ${Boolean(args.scaffold)}, ... })`,
+          next: problems.length
+            ? [`missing input: ${problems.join('; ')}`, problems.some((p) => p.includes('meshDict'))
+              ? 'cfmesh needs system/meshDict and mesh_build has no cfmesh scaffold — write the dictionary first (hint cfmesh-layers-tetra)'
+              : 'pass the missing argument (gmshScript + msh for the gmsh route)']
+            : [`mesh_build({ route: "${route.id}", caseDir: "${displayPath(config, caseDir)}", scaffold: ${Boolean(args.scaffold)}, ... }) without dryRun`],
         }
       }
 
@@ -225,7 +297,26 @@ export function apply(ctx, rawConfig) {
             next: 'pass overwrite:true, or choose a fresh caseDir',
           }
         }
-        Object.assign(written, { scaffold: writeSnappyCase(config, caseDir, options) })
+        const scaffold = writeSnappyCase(config, caseDir, options)
+        Object.assign(written, { scaffold })
+        const patches = [
+          ...scaffold.surfaces.map((surface) => ({ name: surface.name, type: 'wall', role: 'surface' })),
+          { name: 'world', type: scaffold.patchType, role: 'domain' },
+        ]
+        try {
+          written.manifest = displayPath(config, writeCaseManifest(caseDir, buildCaseManifest({
+            solver: splitRegions ? 'foamMultiRun (cht)' : 'foamRun (incompressibleFluid)',
+            algorithm: 'snappyHexMesh',
+            compressible: false,
+            phases: splitRegions ? 2 : 1,
+            units: 'm',
+            dimension: 3,
+            patches,
+            createdBy: `${name}@${version}`,
+          })))
+        } catch (error) {
+          written.manifestError = error.message
+        }
       } else if (stlInputs.length) {
         Object.assign(written, { installed: installStl(config, caseDir, stlInputs) })
       }
@@ -268,11 +359,39 @@ export function apply(ctx, rawConfig) {
       // --- optional gate ---
       if (args.gate !== false) {
         payload.gate = gateCase(config, caseDir, {
-          profile: args.profile ?? 'project',
+          profile: args.profile ?? config.gate?.profile,
           minVol: args.minVol ?? args.scaffoldOptions?.minVol,
         })
         payload.verdict = payload.gate.verdict
+        try {
+          const base = payload.gate.results.find((r) => (r.region ?? 'base') === 'base') ?? payload.gate.results[0]
+          const passport = buildMeshPassport({
+            caseDir,
+            route: route.id,
+            regions: payload.gate.regions ?? [],
+            gate: base,
+            gateTargets: payload.gate.results ?? [],
+            units: 'm',
+            layers: payload.layers ?? null,
+            logs: snappyLog ? [snappyLog] : [],
+            generator: { name, version, scaffold: Boolean(args.scaffold) },
+          })
+          const file = writeMeshPassport(caseDir, passport)
+          payload.passport = {
+            path: displayPath(config, file),
+            cells: passport.cells,
+            gate: passport.gate?.verdict ?? null,
+            regions: passport.regions,
+            freshness: passportFreshness(caseDir, passport),
+          }
+        } catch (error) {
+          payload.passport = { error: error.message }
+        }
       }
+      // what a solver actually sees: patch names/types, read back from polyMesh/boundary
+      try {
+        payload.patches = readCasePatches(caseDir)
+      } catch { /* boundary unreadable — not fatal */ }
       payload.next = payload.verdict === 'PASS'
         ? ['tools/deliver/make_delivery.sh --case <case> --name <name> --out <dir> (hint delivery-bundle)']
         : ['read gate.results[].metrics and mesh_hints, adjust geometry/interface level/layers, rerun']
@@ -282,24 +401,26 @@ export function apply(ctx, rawConfig) {
 
   register({
     name: 'mesh_check',
-    description: 'Quality verdict for an existing mesh: checkMesh + tools/qa/mesh_gate.sh --profile project '
-      + '(threshold checks, not just "Mesh OK") for every region. Returns PASS/FAIL with maxNonOrtho, '
-      + 'skewness, minVolume, threshold violations and log paths. Does not modify the case.',
+    description: 'Quality verdict for an existing mesh: the sim-core JS gate (checkMesh -meshQuality with a complete '
+      + 'meshQualityDict) for every region, verdict from the log text (checkMesh exits 0 even on failures). '
+      + 'Returns PASS/FAIL with maxNonOrtho, skewness, minVolume, threshold violations and log paths. '
+      + 'minVol is absolute (h_min^3/6): pass it per mesh; without it the check is disabled with a warning. '
+      + 'Does not modify the case.',
     parameters: {
       caseDir: { type: 'string', description: 'Case directory (relative to the project root or absolute inside it).' },
       regions: { type: 'array', items: { type: 'string' }, description: 'Region names to check; default: auto-detect constant/<region>/polyMesh, else the base case.' },
-      profile: { type: 'string', description: 'Gate profile: project (default) or gate.' },
-      minVol: { type: 'number', description: 'Absolute minVol threshold (m^3), e.g. 1e-14. Omit for the profile default.' },
+      profile: { type: 'string', description: 'Gate profile: from sim-project.json gate.profile (project), gate or relaxed.' },
+      minVol: { type: 'number', description: 'Absolute minVol threshold (m^3), e.g. 1e-14. Omit to use the profile value; when neither is set the check is disabled and reported.' },
     },
     async execute(args, config) {
       const blocked = requireProject(config)
       if (blocked) return blocked
-      const caseDir = resolveCase(config, args)
+      const caseDir = resolveCase(config, args, { mustExist: true, hint: 'mesh_check needs a built case with constant/polyMesh' })
       if (!existsSync(join(caseDir, 'constant'))) {
         return { error: `no constant/ directory in ${displayPath(config, caseDir)}` }
       }
       const gate = gateCase(config, caseDir, {
-        profile: args.profile ?? 'project',
+        profile: args.profile ?? config.gate?.profile,
         minVol: args.minVol,
         regions: Array.isArray(args.regions) ? args.regions.map(String) : undefined,
       })
@@ -309,18 +430,38 @@ export function apply(ctx, rawConfig) {
           gate.layers = parseSnappyLayers(readFileSync(snappyLog, 'utf8'))
         } catch { /* ignore */ }
       }
+      const passport = readMeshPassport(caseDir)
+      const freshness = passport ? passportFreshness(caseDir, passport) : null
+      let patches = null
+      try {
+        patches = readCasePatches(caseDir)
+      } catch { /* ignore */ }
       return {
         configured: true,
         caseDir: displayPath(config, caseDir),
-        profile: args.profile ?? 'project',
+        profile: args.profile ?? config.gate?.profile,
         verdict: gate.verdict,
+        patches,
         pass: gate.pass,
         failingRegions: gate.failingRegions,
         regions: gate.regions,
         layers: gate.layers ?? null,
+        advisory: gate.advisory,
+        passport: passport ? {
+          status: freshness.status,
+          fresh: freshness.fresh,
+          createdAt: passport.createdAt,
+          recordedVerdict: passport.gate?.verdict ?? null,
+          recordedCells: passport.cells ?? null,
+          agree: passport.gate?.verdict === gate.verdict,
+          changed: freshness.changed,
+        } : null,
         results: gate.results.map((r) => ({
           target: r.region,
           pass: r.pass,
+          failKind: r.failKind ?? null,
+          minVolSuggestion: r.minVolSuggestion ?? null,
+          advisory: r.advisory ?? [],
           metrics: r.metrics,
           log: r.log,
           stderrTail: r.pass ? undefined : tail(r.stderrTail ?? '', 2000),
@@ -330,5 +471,20 @@ export function apply(ctx, rawConfig) {
           : ['fix the failing metric — see mesh_hints for the matching card, adjust and rebuild'],
       }
     },
+  })
+
+  // Capability seam: a solver/Suite plugin calls these handlers instead of importing files.
+  provideService(ctx, 'simMesh', {
+    version: CAPABILITIES.simMesh,
+    owner: name,
+    capabilities: ['hints', 'build', 'check'],
+    invoke: (tool, args, exec) => {
+      const handler = handlers[tool]
+      if (!handler) throw new Error(`simMesh: unknown tool "${tool}"`)
+      return handler(args, exec)
+    },
+    hints: (args, exec) => handlers.mesh_hints(args, exec),
+    build: (args, exec) => handlers.mesh_build(args, exec),
+    check: (args, exec) => handlers.mesh_check(args, exec),
   })
 }

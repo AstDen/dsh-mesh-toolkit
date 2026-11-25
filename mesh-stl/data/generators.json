@@ -266,6 +266,34 @@
         "stl-cleanup",
         "gmsh-tetra-unfit"
       ]
+    },
+    {
+      "id": "primitive",
+      "title": "Портируемые примитивы (куб, сфера, цилиндр)",
+      "description": "STL из встроенного генератора в JS: без Python, без CAD, без данных проекта. Нужен, чтобы проверить маршрут мешинга на чужой машине и в бенчмарке.",
+      "engine": "primitive",
+      "script": "mesh-stl/lib/primitives.js",
+      "preset": {
+        "dir": "@package/data/primitives",
+        "default": "cube_10mm.json",
+        "ext": ".json",
+        "include": [
+          "*.json"
+        ]
+      },
+      "steps": [],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{cleanOut}",
+          "qa": true
+        }
+      ],
+      "notes": "Единицы — мм, одна замкнутая оболочка, нормали наружу. Параметры: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Вне проекта STL пишется, QA недоступен без tools/qa/stl_qa.py.",
+      "hints": [
+        "stl-contract",
+        "units-mm"
+      ]
     }
   ]
 }

@@ -129,6 +129,18 @@
       "evidence": ["AGENTS.md §8 и §13; exp-003"],
       "improves": ["отсутствие ошибок масштаба"],
       "appliesTo": ["stl_generate", "mesh_build"]
+    },
+    {
+      "id": "cadquery-cutting-traps",
+      "title": "CadQuery: компаундный cut теряет объём пересечения полостей",
+      "topics": ["cadquery", "cut", "boolean", "volume", "geometry", "cad-porous", "cylinders"],
+      "status": "verified",
+      "when": "блок минус несколько полостей (сферы/цилиндры), особенно пересекающихся",
+      "statement": "base.cut(Compound.makeCompound(tools)) вычитает общие области полостей дважды: объём выходит меньше аналитики. Проверено 2026-11-23 на блоке 12x6x6 с двумя пересекающимися цилиндрами R=0.8: компаунд даёт 407.872568 мм³, sequential и cut(fuse) дают 410.603235 мм³. На 6 цилиндрах с тремя перекрёстками это 8.192 мм³ = 2.219 % — ровно 3·(16/3)·R³.",
+      "recipe": ["geometry/cad/cq_common.py: cut_tools(..., strategy=\"sequential\") — по умолчанию; \"fused\" тоже верен, \"single\" только для заведомо непересекающихся полостей", "сверять occ_volume с аналитикой ДО экспорта: gen_cq_porous.py падает (rc=1) при |ΔV_occ| > 0.5 %", "для пересекающихся цилиндров V = V_box − Σ πR²h + Σ_перекрёстков (16/3)R³", "single-стратегию можно ловить через --strategy both: расхождение объёмов > 1e-6 % = пересечения"],
+      "evidence": ["min-тест 2026-11-23: compound 407.872568 / sequential 410.603235 / cut(fuse) 410.603235 мм³", "benchmark 1B (6 цилиндров): V=359.647702 против аналитики 367.809705 (−2.219 %), generator.json strategy_used=single"],
+      "improves": ["точность объёма CAD-геометрии", "трассируемость ошибки"],
+      "appliesTo": ["stl_generate", "stl_check"]
     }
   ]
 }

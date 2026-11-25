@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "sim-project.schema.json",
+  "title": "sim-project.json",
+  "description": "Project profile read by every Sim plugin. Only project-level data belongs here; machine paths (python, OpenFOAM bashrc) stay in machine config.",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": { "type": "string" },
+    "units": { "enum": ["mm", "m"] },
+    "caseRoots": { "type": "array", "items": { "type": "string" } },
+    "scratch": { "type": "string" },
+    "foam": {
+      "type": "object",
+      "properties": {
+        "distribution": { "enum": ["com", "org"] },
+        "version": { "type": "string" },
+        "bashrc": { "type": "string" },
+        "root": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "fluent": {
+      "type": "object",
+      "properties": { "version": { "type": "string" }, "root": { "type": "string" } },
+      "additionalProperties": false
+    },
+    "gate": {
+      "type": "object",
+      "properties": {
+        "engine": { "enum": ["js", "script"] },
+        "profile": { "type": "string" },
+        "minVol": { "type": ["number", "null"] },
+        "script": { "type": "string" },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "maxNonOrtho": { "type": "number" },
+              "maxInternalSkewness": { "type": "number" },
+              "maxBoundarySkewness": { "type": "number" },
+              "minFaceWeight": { "type": "number" },
+              "minVolRatio": { "type": "number" },
+              "minDeterminant": { "type": "number" },
+              "minLayerCoverage": { "type": "number" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "geometry": {
+      "type": "object",
+      "properties": {
+        "registry": { "type": "string" },
+        "workRoot": { "type": "string" },
+        "scriptRoots": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "cores": {
+      "type": "object",
+      "properties": { "np": { "type": "integer", "minimum": 1 } },
+      "additionalProperties": true
+    },
+    "physics": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

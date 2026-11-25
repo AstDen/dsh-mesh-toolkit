@@ -6,10 +6,12 @@
  *   --full  also runs one real generator into <project>/.cache/mesh-smoke (fcc-cell).
  */
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { normalizeConfig } from '../lib/common.js'
-import { catalogFamilies, loadRegistry, runFamily } from '../lib/generators.js'
-import { loadHints, searchHints } from '../lib/hints.js'
+import { catalogFamilies, declaredBodies, loadRegistry, qaFile, runFamily } from '../lib/generators.js'
+import { loadHintsWithFallback, searchHints } from '../lib/hints.js'
+import { versionInfo } from '../lib/common.js'
 
 const full = process.argv.includes('--full')
 const fail = (message) => { console.error(`FAIL ${message}`); process.exitCode = 1 }
@@ -24,10 +26,26 @@ if (!config.configured) {
 }
 
 const dataDir = join(config.packageRoot, 'data')
-const hints = loadHints(join(dataDir, 'hints'))
+const hints = loadHintsWithFallback(join(dataDir, 'hints'), { dir: join(config.packageRoot, '..', 'mesh-build', 'data', 'hints'), label: 'mesh-build' })
 assert.ok(hints.cards.length >= 10, `expected hint cards, got ${hints.cards.length}`)
 assert.equal(hints.errors.length, 0, `hint load errors: ${JSON.stringify(hints.errors)}`)
-console.log(`hints        : ${hints.cards.length} cards from ${hints.files.length} files`)
+console.log(`hints        : ${hints.cards.length} cards from ${hints.files.length} files (borrowed ${hints.borrowed} from mesh-build)`)
+// meshing questions must be answerable from the STL side too
+const cross = searchHints(hints.cards, 'cfMesh layers tetra', 3).matches.map((m) => m.id)
+assert.ok(cross.includes('cfmesh-layers-tetra'), `cross-plugin hit missing: ${cross}`)
+console.log(`cross-plugin : ${cross.join(', ')}`)
+
+const vi = versionInfo(config.packageRoot)
+assert.equal(vi.stale, false, `version on disk differs from the loaded one: ${JSON.stringify(vi)}`)
+console.log(`version      : ${vi.reported} (disk ${vi.onDisk})`)
+
+// closed-shell expectations come from the generator report, never from a hardcoded 1
+assert.equal(declaredBodies({ expected_bodies: 28 }, 'solid'), 28)
+assert.equal(declaredBodies({ n_bodies: 15, fluid_out: { n_bodies: 16 } }, 'solid'), 15)
+assert.equal(declaredBodies({ n_bodies: 15, fluid_out: { n_bodies: 16 } }, 'fluid'), 16)
+assert.equal(declaredBodies({}, 'solid'), undefined)
+assert.equal(declaredBodies(null, 'fluid'), undefined)
+console.log('bodies roles : solid/fluid expectations mapped')
 
 const search = searchHints(hints.cards, 'minVol layers', 3)
 assert.ok(search.matches.length > 0, 'search returned nothing')
@@ -59,5 +77,16 @@ if (full) {
   console.log(`generated    : ${result.files.map((f) => `${f.path}:${f.qa?.verdict ?? 'no-qa'}`).join(', ')}`)
 } else {
   console.log('real generation skipped (pass --full)')
+}
+// QA without expectBodies must not invent a shell count (default used to be 1)
+const qaStl = join(config.projectRoot, 'stl', 'fcc_cell_r049_v1.stl')
+if (existsSync(qaStl)) {
+  const qa = qaFile(config, qaStl)
+  assert.ok(!qa.error, `qa failed: ${qa.error}`)
+  assert.equal(qa.expectedBodies, null, `qa invented a body expectation: ${qa.expectedBodies}`)
+  assert.ok(!(qa.problems ?? []).some((p) => String(p).startsWith('тел:')), `body problem reported: ${qa.problems}`)
+  console.log(`qa bodies    : expectedBodies=${qa.expectedBodies}, shells=${qa.bodies}, verdict ${qa.verdict}`)
+} else {
+  console.log(`qa skipped: ${qaStl} not found`)
 }
 if (!process.exitCode) console.log('SMOKE OK')

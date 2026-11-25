@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.3.0 — 2026-11-25
+Шлюз качества переехал в `sim-core`, появились паспорта и манифест кейса.
+
+- **JS-шлюз авторитетный:** `sim-core/lib/gate.js` пишет полный `meshQualityDict` (все 13 ключей),
+  делает overlay `<case>/.mesh-gate/<target>`, запускает `checkMesh -meshQuality` и выносит вердикт
+  **по тексту** — `checkMesh` возвращает 0 даже при `Failed N mesh checks`.
+- **`minVol` абсолютный и осознанный:** не задан профилем/вызовом → в словарь пишется `-1`
+  (проверка отключена) и результат помечается `disabled-minVol-not-configured`; при провале
+  выдаётся совет `minVol = minVolume/12`. `minTetQuality = minVol/100`.
+- **Профили из профиля проекта:** пороги `gate`/`project`/`relaxed` можно переопределять в
+  `sim-project.json.gate.profiles`, а `gate.engine:"script"` + `gate.script` оставлены как escape hatch
+  на bash-скрипт (паритет с `tools/qa/mesh_gate.sh`).
+- **Паспорт и манифест:** после scaffold пишется `case-manifest.json`, после шлюза — `mesh-passport.json`
+  (route, cells, regions, gate, sha256/size/mtime полимеша). `mesh_check` показывает свежесть паспорта
+  и расхождение записанного вердикта с текущим.
+- **Сервис `simMesh`:** `build`/`check`/`hints` для других плагинов семейства.
+- **Логи:** `checkMesh` пишет `<case>/logs/checkMesh-<target>.log`; overlay не попадает в `.cache` проекта.
+
+## 0.2.0 — 2026-11-23
+Исправления по бенчмарку `benchmark/verify-20261123-1851` (оценка была 33/100, мешинг был
+заблокирован).
+
+- **Блокер снят:** `mesh_build` падал на любом `scaffold:true` с `STL not found: .../[object Object]`.
+  `expandStlInputs()` возвращает `{files, missing}`, а `scaffold.js` ждал массив. Теперь `index.js`
+  разбирает объект, отдаёт структурную ошибку со списком недостающих файлов, а `writeSnappyCase()`
+  дополнительно принимает `{files:[...]}`.
+- **Dry run стал настоящим preflight:** `dryRun` гоняет `preflight()`, рендерит команды через
+  `renderCommand()` (поле `unresolved`), возвращает `problems`/`requires` и не создаёт каталоги.
+  `cfmesh` без `system/meshDict` теперь говорит `missing system/meshDict (cfMesh dictionary)`.
+- **Проверка входа `caseDir`:** `resolveCase({mustExist})` — ошибка `case directory not found: <path> — <reason>`
+  до запуска; `mesh_check` подсказывает, что нужен собранный кейс.
+- **Локальная точка входа в метрах:** `scaffoldOptions.locationInMesh` принимает и `[x,y,z]`,
+  и `[{point:[x,y,z], name}]` (как обещает описание инструмента).
+- **Патчи в ответе:** новый `lib/patches.js` — `mesh_build` и `mesh_check` возвращают `patches`
+  (`{name, type, nFaces}` по регионам) и `notes`: один тип на все патчи, `symmetry` (ретипировать
+  после мешинга), отсутствие `patch`/`cyclic`.
+- **Диагностика шлюза:** результат несёт `failKind`, `minVolSuggestion` и `advisory`. Если нарушен
+  только абсолютный `minVol`, шлюз объясняет, что порог не масштабируется с сеткой, и даёт рабочее
+  значение (`V_min/12`); если виноваты `face twist` — что это сливеры на зазорах меньше ячейки.
+- **Карточки соседнего плагина:** `mesh_hints` видит `data/hints` плагина `mesh-stl` (hit@3 = 5/5).
+- **Версия сверяется с диском:** `versionInfo()` → `{reported, onDisk, stale}`.
+- Smoke-тесты дополнены регрессиями на все перечисленные пункты.
+
 ## 0.1.1 — 2026-11-23
 - Портируемость: из README/примеров убраны абсолютные пути машины; лицензионный сервер Fluent в карточке заменён плейсхолдером.
 - OpenFOAM-окружение настраивается: `openfoamRoots` / `MESH_BUILD_OPENFOAM_ROOTS` (стандартные каталоги — дефолт).

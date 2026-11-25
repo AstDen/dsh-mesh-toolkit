@@ -54,7 +54,11 @@ function enabled(when, ctx) {
   switch (when ?? 'always') {
     case 'always': return true
     case 'blockMesh': return args.skipBlockMesh !== true
-    case 'features': return args.features !== false && existsSync(join(ctx.caseDir, 'system', 'surfaceFeatureExtractDict'))
+    case 'features':
+      // A dry run previews the scaffold in a temp dir, so the dictionary is not on disk yet —
+      // scaffold promises one, therefore the step will exist at run time.
+      return args.features !== false
+        && (args.scaffold === true || existsSync(join(ctx.caseDir, 'system', 'surfaceFeatureExtractDict')))
     case 'parallel': return np > 1
     case 'serial': return np <= 1
     case 'splitRegions': return args.splitRegions === true

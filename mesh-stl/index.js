@@ -10,12 +10,13 @@ import { existsSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
-  PKG_VERSION, displayPath, executionCwd, jsonSafe, normalizeConfig, resolveProjectPath, stem, unconfiguredPayload,
+  PACKAGE_ROOT, PKG_VERSION, displayPath, executionCwd, jsonSafe, normalizeConfig, resolveProjectPath, stem,
+  unconfiguredPayload, versionInfo,
 } from './lib/common.js'
 import {
   catalogFamilies, loadRegistry, qaFile, runFamily,
 } from './lib/generators.js'
-import { catalogHints, hintsOverview, loadHints, searchHints } from './lib/hints.js'
+import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
 import { appendRegistryRow, formatBbox } from './lib/registry.js'
 import { SKILL } from './lib/skill.js'
 
@@ -34,12 +35,18 @@ export function apply(ctx, rawConfig) {
   const config = normalizeConfig(rawConfig)
   const configFor = (exec) => normalizeConfig(rawConfig, executionCwd(exec))
   const registry = loadRegistry(join(config.packageRoot, 'data'))
-  const hints = loadHints(join(config.packageRoot, 'data', 'hints'))
+  // One knowledge store per agent: every Sim plugin registers its own data/hints into `simHints`,
+  // so snappy/gate cards from mesh-build are visible here without reading its files by path.
+  const hints = ensureHints(ctx, { owner: name, dirs: [join(PACKAGE_ROOT, 'data', 'hints')] }).store
+  /** Tool handlers, reused by the simGeometry capability service below. */
+  const handlers = {}
 
   /** Null when the project is configured, otherwise the actionable payload. */
   const requireProject = (cfg) => (cfg.configured ? null : unconfiguredPayload(cfg))
 
   function register(def) {
+    const handler = (args, exec) => def.execute(args, exec ? configFor(exec) : config)
+    handlers[def.name] = handler
     const tool = defineTool({
       ...def,
       output: jsonOutput,
@@ -51,7 +58,10 @@ export function apply(ctx, rawConfig) {
     ctx.tools.register(tool)
   }
 
-  ctx.skills.register({ ...SKILL, source: 'bundled', version })
+  try {
+    const skills = ctx.get('skills')
+    if (skills?.register) skills.register({ ...SKILL, source: 'bundled', version })
+  } catch { /* the skills service is optional: tools keep working without it */ }
 
   register({
     name: 'stl_hints',
@@ -64,18 +74,20 @@ export function apply(ctx, rawConfig) {
     },
     async execute(args, config) {
       if (args.id) {
-        const card = hints.cards.find((c) => c.id === args.id)
-        if (!card) return { found: false, id: args.id, available: hints.cards.map((c) => c.id) }
+        const card = hints.get(args.id)
+        if (!card) return { found: false, id: args.id, available: hints.list().map((c) => c.id) }
         return { found: true, card }
       }
       if (args.query) {
-        const found = searchHints(hints.cards, args.query, Math.min(20, Math.max(1, args.limit ?? 5)))
-        return { ...found, loadErrors: hints.errors.length ? hints.errors : undefined }
+        const found = hints.search(args.query, Math.min(20, Math.max(1, args.limit ?? 5)))
+        const { errors } = hints.stats()
+        return { ...found, loadErrors: errors.length ? errors : undefined }
       }
       return {
-        ...hintsOverview(hints.cards, hints.files, version),
+        ...hints.overview(),
+        versionInfo: versionInfo(),
         dataDir: 'data/hints',
-        loadErrors: hints.errors.length ? hints.errors : undefined,
+        loadErrors: hints.stats().errors.length ? hints.stats().errors : undefined,
         next: [
           'stl_generate({ family: "fcc-cell" }) — list presets and run a generator',
           'stl_check({ stl: "<file>.stl", cleanup: true, register: true }) — verify and register',
@@ -134,9 +146,9 @@ export function apply(ctx, rawConfig) {
       cleanOut: { type: 'string', description: 'Cleaned STL path; default <stl dir>/<stem>.clean.stl.' },
       expectVolume: { type: 'number', description: 'Expected volume, mm^3 (enables the volume check).' },
       expectArea: { type: 'number', description: 'Expected surface area, mm^2.' },
-      expectBodies: { type: 'number', description: 'Expected number of closed bodies.' },
-      maxVolumeErr: { type: 'number', description: 'Relative volume tolerance (0.01 = 1%).' },
-      maxAreaErr: { type: 'number', description: 'Relative area tolerance.' },
+      expectBodies: { type: 'number', description: 'Expected number of closed shells (1 + enclosed voids: a block with 27 internal spheres has 28). Omit to skip — the count depends on the geometry.' },
+      maxVolumeErr: { type: 'number', description: 'Volume tolerance in PERCENT (1 = 1 %; 0.01 = 0.01 %).' },
+      maxAreaErr: { type: 'number', description: 'Area tolerance in PERCENT (1 = 1 %).' },
       register: { type: 'boolean', description: 'Append a passport row to stl/registry.csv.' },
       family: { type: 'string', description: 'Registry family label (default "plugin").' },
       generator: { type: 'string', description: 'Registry generator/script label.' },
@@ -170,6 +182,9 @@ export function apply(ctx, rawConfig) {
         maxAreaErr: args.maxAreaErr,
       })
       if (qa.error) return { error: qa.error, file: displayPath(config, stlPath), qa }
+      if (args.maxVolumeErr != null && args.maxVolumeErr > 0 && args.maxVolumeErr <= 0.05) {
+        qa.warnings = [...(qa.warnings ?? []), 'maxVolumeErr is a PERCENT value: 0.01 means 0.01 %, not 1 % — pass 1 for a 1 % tolerance']
+      }
 
       let registered = null
       if (args.register) {
@@ -202,7 +217,8 @@ export function apply(ctx, rawConfig) {
         bytes: info.size,
         qa,
         cleanedFile: cleanOut ? displayPath(config, cleanOut) : undefined,
-        cleaned: cleanOut ? qaFile(config, cleanOut) : undefined,
+        // the cleaned file carries the same surface: report what cleanup changed, do not re-judge it
+        cleaned: cleanOut ? { file: displayPath(config, cleanOut), cleanup: qa.clean ?? null } : undefined,
         registered,
         verdict: qa.verdict,
         next: qa.verdict === 'PASS'
@@ -213,5 +229,21 @@ export function apply(ctx, rawConfig) {
             ],
       }
     },
+  })
+
+  // Capability seam: other Sim plugins call these handlers instead of importing this
+  // package's files or reading its hints by relative path.
+  provideService(ctx, 'simGeometry', {
+    version: CAPABILITIES.simGeometry,
+    owner: name,
+    capabilities: ['hints', 'generate', 'qa'],
+    invoke: (tool, args, exec) => {
+      const handler = handlers[tool]
+      if (!handler) throw new Error(`simGeometry: unknown tool "${tool}"`)
+      return handler(args, exec)
+    },
+    hints: (args, exec) => handlers.stl_hints(args, exec),
+    generate: (args, exec) => handlers.stl_generate(args, exec),
+    qa: (args, exec) => handlers.stl_check(args, exec),
   })
 }

@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import {
   displayPath, jsonSafe, q, readJson, resolveProjectPath, runPython, slugify, stem, tail,
 } from './common.js'
+import { buildPrimitive } from './primitives.js'
 
 /** Load the registry and validate the minimum shape. */
 export function loadRegistry(dataDir) {
@@ -19,8 +20,9 @@ export function loadRegistry(dataDir) {
   const raw = readJson(file, 'generators.json')
   const families = Array.isArray(raw.families) ? raw.families : []
   for (const family of families) {
-    if (!family.id || !family.script || !Array.isArray(family.steps) || family.steps.length === 0) {
-      throw new Error(`generators.json: family ${family.id ?? '<without id>'} needs id, script, steps[]`)
+    const internal = family.engine === 'primitive'
+    if (!family.id || !family.script || !Array.isArray(family.steps) || (!internal && family.steps.length === 0)) {
+      throw new Error(`generators.json: family ${family.id ?? '<without id>'} needs id, script, steps[] (empty steps are allowed only for engine "primitive")`)
     }
   }
   return { version: raw.version ?? 1, families, file }
@@ -46,7 +48,7 @@ export function catalogFamilies(registry, config) {
 
 /** Available presets for a family (optionally filtered by preset.include globs). */
 export function listPresets(family, config) {
-  const dir = family.preset?.dir ? resolveProjectPath(config, family.preset.dir) : ''
+  const dir = presetDirectory(config, family)
   if (!dir || !existsSync(dir)) return []
   const ext = family.preset?.ext ?? '.json'
   const include = Array.isArray(family.preset?.include) ? family.preset.include : ['*.json']
@@ -76,7 +78,7 @@ export function resolvePreset(family, preset, config) {
   if (!preset) {
     const def = family.preset?.default
     if (!def) return null
-    return resolveProjectPath(config, join(family.preset?.dir ?? '', def))
+    return join(presetDirectory(config, family), def)
   }
   const asPath = resolveProjectPath(config, preset)
   if (existsSync(asPath)) return asPath
@@ -110,14 +112,16 @@ export function buildContext(family, config, args) {
     ? resolveProjectPath(config, args.paramsFile)
     : resolvePreset(family, args.preset, config)
   const name = slugify(args.name || (presetFile ? stem(presetFile) : `${family.id}-${Date.now()}`), family.id)
-  const paramsDir = family.preset?.dir ? resolveProjectPath(config, family.preset.dir) : config.projectRoot
+  const paramsDir = presetDirectory(config, family) || config.projectRoot
   if (presetFile && !existsSync(presetFile)) {
     const available = listPresets(family, config).map((p) => p.name).join(', ') || '(none)'
     throw new Error(`preset not found: ${args.preset ?? presetFile}\navailable presets: ${available}`)
   }
   const paramsFile = join(outDir, `${name}.params.json`)
+  const script = resolveScript(config, family.script)
   const ctx = {
-    script: family.script,
+    script: script.file,
+    scriptResolvedFrom: script.resolvedFrom,
     paramsDir,
     presetFile: presetFile ?? '',
     paramsFile,
@@ -136,6 +140,36 @@ export function buildContext(family, config, args) {
     packingJson: join(outDir, `${name}.packing.json`),
   }
   return { ctx, outDir, name, presetFile, paramsFile }
+}
+
+/** Preset directory: `@package/...` comes from this bundle, everything else from the project. */
+function presetDirectory(config, family) {
+  const dir = family.preset?.dir
+  if (!dir) return ''
+  if (String(dir).startsWith('@package/')) return join(config.packageRoot, String(dir).slice('@package/'.length))
+  return resolveProjectPath(config, dir)
+}
+
+/**
+ * Resolve a generator script: absolute, project-relative, or one of
+ * `geometry.scriptRoots` from sim-project.json (shared/portable generator trees).
+ */
+export function resolveScript(config, script) {
+  const raw = String(script ?? '')
+  if (!raw) return { file: '', resolvedFrom: null }
+  if (isAbsolute(raw)) return { file: raw, resolvedFrom: 'absolute' }
+  const roots = [config.projectRoot, ...(config.geometry?.scriptRoots ?? [])].filter(Boolean)
+  for (const root of roots) {
+    const file = resolve(root, raw)
+    if (existsSync(file)) {
+      return { file, resolvedFrom: root === config.projectRoot ? 'project' : root }
+    }
+  }
+  return {
+    file: resolve(config.projectRoot ?? config.geometry?.base ?? process.cwd(), raw),
+    resolvedFrom: 'project',
+    missing: true,
+  }
 }
 
 /** Write the params file: preset copy, or preset + user overrides. */
@@ -157,7 +191,7 @@ export function prepareParams(config, family, ctx, presetFile, overrides) {
 
 /** Build argv lists without executing anything (for dryRun and tests). */
 export function planSteps(family, ctx) {
-  const executable = family.script
+  const executable = ctx.script ?? family.script
   return family.steps.map((step, index) => ({
     index: index + 1,
     script: render(step.script ?? executable, ctx),
@@ -172,7 +206,10 @@ export async function runFamily(config, family, args) {
   const params = args.dryRun
     ? { mode: 'dry-run', file: ctx.paramsFile, base: presetFile ?? null }
     : prepareParams(config, family, ctx, presetFile, args.params)
-  const steps = planSteps(family, ctx)
+  let steps = planSteps(family, ctx)
+  if (family.engine === 'primitive') {
+    steps = [{ index: 1, script: 'builtin:primitive', args: [], description: 'builtin STL primitive (no Python)' }]
+  }
   const logDir = join(outDir, 'logs')
   if (!args.dryRun) mkdirSync(logDir, { recursive: true })
 
@@ -181,6 +218,17 @@ export async function runFamily(config, family, args) {
   for (const step of steps) {
     if (args.dryRun) {
       executed.push({ ...step, executed: false })
+      continue
+    }
+    if (step.script === 'builtin:primitive') {
+      const params = readJson(ctx.paramsFile, ctx.paramsFile)
+      const info = buildPrimitive(params, ctx.cleanOut)
+      writeFileSync(ctx.json, `${JSON.stringify({ ...info, generated_by: 'mesh-stl/lib/primitives.js' }, null, 2)}\n`)
+      writeFileSync(join(logDir, 'step-1.log'), `$ builtin primitive ${info.shape} -> ${ctx.cleanOut}\n`)
+      executed.push({
+        ...step, executed: true, code: 0, durationMs: 0,
+        output: displayPath(config, ctx.cleanOut), triangles: info.triangles,
+      })
       continue
     }
     const result = runPython(config, step.script, step.args, { cwd: config.projectRoot })
@@ -215,6 +263,12 @@ export async function runFamily(config, family, args) {
       qa: entry.qa !== false,
     }
   ))
+  // the generator report is read first: it declares how many closed shells each output must have
+  let generatorReport = null
+  if (existsSync(ctx.json)) {
+    try { generatorReport = readJson(ctx.json, ctx.json) } catch (error) { generatorReport = { error: error.message } }
+  }
+
   const files = []
   const missing = []
   for (const entry of declared) {
@@ -224,14 +278,9 @@ export async function runFamily(config, family, args) {
     }
     const fileInfo = { role: entry.role, path: entry.path, display: displayPath(config, entry.path), bytes: statSync(entry.path).size }
     if (!args.dryRun && entry.qa !== false) {
-      fileInfo.qa = qaFile(config, entry.path)
+      fileInfo.qa = qaFile(config, entry.path, { expectBodies: declaredBodies(generatorReport, entry.role) })
     }
     files.push(fileInfo)
-  }
-
-  let generatorReport = null
-  if (existsSync(ctx.json)) {
-    try { generatorReport = readJson(ctx.json, ctx.json) } catch (error) { generatorReport = { error: error.message } }
   }
 
   const plannedPrimary = declared.find((d) => d.role === 'solid')
@@ -250,7 +299,9 @@ export async function runFamily(config, family, args) {
     outDir,
     outDirDisplay: displayPath(config, outDir),
     params,
-    commands: steps.map((s) => `${config.python} ${s.script} ${s.args.join(' ')}`),
+    commands: steps.map((s) => (s.script === 'builtin:primitive'
+      ? 'builtin: primitive STL (mesh-stl/lib/primitives.js)'
+      : `${config.python} ${s.script} ${s.args.join(' ')}`)),
     steps: executed,
     files,
     missingOutputs: missing,
@@ -263,6 +314,14 @@ export async function runFamily(config, family, args) {
           'mesh_build({ route: "snappy", scaffold: true, caseDir: "...", stl: [...], scaffoldOptions: {...} }) to turn the STL into a volume mesh (scaffold:false for an existing case)',
         ],
   }
+}
+
+/** Closed-shell count the generator report declares for one output role (undefined = not declared). */
+export function declaredBodies(report, role) {
+  if (!report || typeof report !== 'object') return undefined
+  const pick = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : undefined)
+  if (role === 'fluid') return pick(report.fluid_out?.n_bodies ?? report.fluid_n_bodies)
+  return pick(report.n_bodies ?? report.expected_bodies)
 }
 
 /** Run stl_qa.py on a single file and return its JSON. */
@@ -293,6 +352,8 @@ export function qaFile(config, file, options = {}) {
   return {
     verdict: report.verdict ?? null,
     problems: report.qa_problems ?? [],
+    warnings: report.warnings ?? [],
+    expectedBodies: report.expected_bodies ?? null,
     watertight: report.cleaned?.is_watertight ?? report.is_watertight ?? null,
     windingConsistent: report.cleaned?.is_winding_consistent ?? report.is_winding_consistent ?? null,
     triangles: report.cleaned?.triangles ?? report.triangles ?? null,
@@ -301,6 +362,7 @@ export function qaFile(config, file, options = {}) {
     areaMm2: report.cleaned?.area ?? report.area ?? null,
     bboxMm: report.bbox_size ?? null,
     degenerateFaces: report.degenerate_faces ?? null,
+    clean: report.clean ?? null,
     raw: options.includeRaw ? report : undefined,
   }
 }

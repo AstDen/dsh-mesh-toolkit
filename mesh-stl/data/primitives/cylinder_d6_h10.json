@@ -1,0 +1,9 @@
+{
+  "shape": "cylinder",
+  "radius_mm": 3,
+  "height_mm": 10,
+  "sections": 48,
+  "center_mm": [0, 0, 0],
+  "units": "mm",
+  "note": "Цилиндр R=3 мм, H=10 мм вдоль Z."
+}

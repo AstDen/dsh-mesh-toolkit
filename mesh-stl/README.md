@@ -80,6 +80,20 @@ cadquery — по семействам), `tools/qa/stl_qa.py`.
 
 Если проект не найден, инструменты не падают, а возвращают `configured: false` и что именно указать.
 
+## Общее ядро и портируемые примитивы
+
+Механика (конфиг, профиль `sim-project.json`, резолвер путей, процесс-раннер, карточки, QA) живёт в
+`../sim-core` (пакет `sim-core`, 0.3.0); `lib/common.js` — тонкий фасад. Плагин регистрирует сервис
+`simGeometry` (`hints`/`generate`/`qa`) и складывает свои карточки в общий `simHints`.
+
+Семейство `primitive` пишет STL на чистом JS (`lib/primitives.js`): `shape` = `box` | `sphere` | `cylinder`,
+параметры `size_mm` / `radius_mm`+`height_mm` / `center_mm` / `segments`/`rings`/`sections`.
+Это единственный генератор, который работает **без проекта**: Python, CAD и `tools/qa/stl_qa.py`
+не нужны (QA тогда недоступен, STL всё равно пишется). Пресеты — в `data/primitives/`.
+
+Генераторы вне проекта задаются в `sim-project.json.geometry.scriptRoots` (абсолютные пути):
+резолвер вернёт `resolvedFrom`; project-relative путь ищется в проекте первым.
+
 ## Семейства генераторов (`data/generators.json`)
 
 | id | скрипт | пресеты |

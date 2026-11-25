@@ -35,6 +35,14 @@ function vec(p) {
 
 /** Normalise locationsInMesh input into [{ point, name }]. */
 export function normalizeLocations(locations, defaultName = 'fluid') {
+  // A single point is accepted in both documented forms, with or without the outer list:
+  // [x,y,z] and { point: [x,y,z], name } are normalised to a one-element list.
+  if (Array.isArray(locations) && locations.length === 3
+      && locations.every((v) => (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.trim() !== ''))) {
+    locations = [locations]
+  } else if (locations && !Array.isArray(locations) && Array.isArray(locations.point)) {
+    locations = [locations]
+  }
   if (!Array.isArray(locations) || locations.length === 0) {
     throw new Error('locationInMesh is required: [x,y,z] in meters, or [{ point:[x,y,z], name:"fluid" }, ...]')
   }
@@ -308,8 +316,17 @@ function writeFile(path, content) {
  * @returns {{caseDir: string, files: string[], warnings: string[], surfaces: object[], locations: object[]}}
  */
 export function writeSnappyCase(config, caseDir, options) {
-  const stlInputs = Array.isArray(options.stl) ? options.stl : options.stl ? [options.stl] : []
+  // accept the expandStlInputs() result ({ files, missing }) as well as a plain path or a list of paths
+  const rawStl = options.stl
+  const stlInputs = Array.isArray(rawStl)
+    ? rawStl
+    : rawStl && Array.isArray(rawStl.files)
+      ? rawStl.files
+      : rawStl ? [rawStl] : []
   if (stlInputs.length === 0) throw new Error('scaffold needs stl: one or more STL paths (mm)')
+  if (stlInputs.some((p) => typeof p !== 'string' || !p.trim())) {
+    throw new Error('scaffold.stl must be STL paths (strings); got a non-path entry — pass { stl: ["<path>.stl"] }')
+  }
   const domainMin = (options.domainMin ?? []).map(Number)
   const domainMax = (options.domainMax ?? []).map(Number)
   if (domainMin.length !== 3 || domainMax.length !== 3) throw new Error('domainMin and domainMax must be [x,y,z] in meters')

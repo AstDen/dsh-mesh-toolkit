@@ -3,6 +3,21 @@
 Rule of thumb: **data first, code second**. Everything that changes often is JSON;
 code changes only when a tool's own behaviour changes.
 
+## 0. Where code lives
+
+- `sim-core/lib/*` — shared behaviour (config, profile, paths, processes, cards,
+  checkMesh parsing, gate, passports). Change it once and both plugins get it.
+- `mesh-stl/lib/*`, `mesh-build/lib/*` — only what is specific to that tool family:
+  generator registry, scaffold, routes, patches. `lib/common.js` is a thin facade that
+  re-exports sim-core and adds the package's own defaults/env aliases.
+- Cross-package imports are relative (`../sim-core/lib/gate.js`). Keep the three
+  directories siblings; `sim-core` is not a bundle.
+- Cross-plugin communication goes through services, never through the other plugin's
+  files: `simHints` (cards), `simGeometry` (`generate`, `qa`, `hints`), `simMesh`
+  (`build`, `check`, `hints`). Provider side: `provideService(ctx, name, impl)` from
+  `sim-core/lib/index.js` (get-then-provide, so a second provider fails loudly).
+  Consumer side: `ctx.get(name)`, and degrade with `missingServicePayload(name)`.
+
 ## 1. Generator family (`mesh-stl/data/generators.json`)
 
 ```json
@@ -23,6 +38,12 @@ code changes only when a tool's own behaviour changes.
 `include` globs decide which presets a family shows; `default` is used when
 `stl_generate` gets no `preset`. Every declared output is QA-checked unless
 `"qa": false`.
+
+`"engine": "primitive"` declares a JS family with `"steps": []`: it writes the STL
+through `lib/primitives.js` (`box` / `sphere` / `cylinder`) and needs neither Python
+nor a project checkout. Presets may live under the package: `"presets": "@package/data/primitives"`.
+External generator scripts are allowed through `sim-project.json →
+geometry.scriptRoots`; the resolver reports which root matched in `resolvedFrom`.
 
 Context placeholders available in `args` and `outputs`:
 
@@ -76,9 +97,10 @@ never estimated. `topics` and `appliesTo` are search metadata used by
 }
 ```
 
-Step conditions: `always`, `blockMesh` (when the case has `blockMeshDict`),
-`features` (when `surfaceFeatureExtractDict` exists), `parallel` / `serial`
-based on `np`, `splitRegions` when `splitRegions` is requested.
+Step conditions: `always`, `blockMesh` (unless `skipBlockMesh`), `features` (when the
+case has `surfaceFeatureExtractDict`, or right after a dry-run scaffold), `parallel` /
+`serial` based on `np`, `splitRegions` only when the call asks for it (more than one
+`{point, name}` location).
 
 Command placeholders: `{caseDir}` (shell-quoted), `{np}`, `{python}`, `{msh}`,
 `{gmshScript}`, `{gmshArgs}`.
@@ -92,8 +114,12 @@ Quality profiles live in the same file:
 }
 ```
 
-The gate calls `tools/qa/mesh_gate.sh`; the project source of truth for thresholds
-is `journal/DECISIONS.md` and `AGENTS.md §6`.
+These built-ins can be overridden per project in `sim-project.json.gate.profiles`
+(merged over the built-in profile). The gate itself is JS (`sim-core/lib/gate.js`):
+it writes a complete `meshQualityDict` (13 keys) into `<case>/.mesh-gate/<target>`,
+runs `checkMesh -meshQuality`, parses the log and decides from the **text**, since
+`checkMesh` exits 0 even on `Failed N mesh checks`. `tools/qa/mesh_gate.sh` remains a
+parity reference and is used only with `gate.engine: "script"` + `gate.script`.
 
 ## 4. Scaffold options (`mesh_build scaffoldOptions`)
 

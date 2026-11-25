@@ -97,13 +97,27 @@ serial | splitRegions`. Плейсхолдеры: `{caseDir} {np} {msh} {python}
 `refinementLevels {surface:level}`, `defaultLevel`, `layerSurfaces`, `nLayers`, `layerThickness`,
 `minThickness`, `symmetryDomain`, `minVol`, `maxNonOrtho`, `resolveFeatureAngle`.
 
+## Общее ядро и паспорта
+
+Шлюз, парсер `checkMesh`, конфиг, пути и карточки живут в `../sim-core` (пакет `sim-core`, 0.3.0);
+этот плагин — провайдер сервиса `simMesh` (`build`/`check`/`hints`) и потребитель `simHints`.
+Профиль проекта — `sim-project.json` в корне (units, caseRoots, scratch, foam, gate, geometry, cores).
+После scaffold пишется `case-manifest.json`, после шлюза — `mesh-passport.json`:
+route, cells, regions, gate, sha256/size/mtime полимеша. `mesh_check` показывает свежесть паспорта
+и расхождение записанного вердикта с текущим.
+
 ## Шлюз качества
 
-`mesh_check` (и автоматически после успешного `mesh_build` при `gate` ≠ false) вызывает
-`tools/qa/mesh_gate.sh --profile project` на overlay-копии каждого региона и возвращает
-`{ verdict: PASS|FAIL, failingRegions, results[{target, pass, metrics}] }`, где `metrics` —
-`cells`, `maxNonOrtho`, `avgNonOrtho`, `maxSkewness`, `minVolume`, `thresholdViolations`, слои
-(`Added N out of M cells (P%)`). Голый `checkMesh` без `-meshQuality` вердиктом не считается.
+`mesh_check` (и автоматически после успешного `mesh_build` при `gate` ≠ false) вызывает JS-шлюз
+`sim-core/lib/gate.js`: пишет полный `meshQualityDict` (13 ключей), делает overlay
+`<case>/.mesh-gate/<target>` и запускает `checkMesh -meshQuality`. Вердикт считается **по тексту**:
+`checkMesh` возвращает 0 даже при `Failed N mesh checks`. Результат:
+`{ verdict: PASS|FAIL|ERROR, failingRegions, results[{target, pass, failKind, metrics}] }`, где `metrics` —
+`cells`, `maxNonOrtho`, `avgNonOrtho`, `maxSkewness`, `minVolume`, `violations`, слои
+(`Added N out of M cells (P%)`). `minVol` абсолютный: не задан профилем/вызовом → в словарь пишется `-1`
+(проверка отключена) и в ответе будет `disabled-minVol-not-configured`; при провале — совет
+`minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` оставлен как escape hatch на
+`tools/qa/mesh_gate.sh`.
 
 ## Карточки знаний (`data/hints/`)
 
