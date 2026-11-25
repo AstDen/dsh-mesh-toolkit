@@ -172,3 +172,29 @@ register({
 
 After any change: `node --check index.js`, run the smoke test, then reload the
 bundle (disable → enable). A repeated `enabled: true` does not re-import the module.
+
+## 6. OpenFOAM installations (`sim-project.json → foam`)
+
+Version-specific behaviour is data, not code. Add an installation:
+
+```json
+"foam": {
+  "default": "com2512",
+  "installations": {
+    "com2512": { "bashrc": "/usr/lib/openfoam/openfoam2512/etc/bashrc", "distribution": "com", "version": "2512" },
+    "org14":   { "bashrc": "env/openfoam/org14/opt/openfoam14/etc/bashrc", "distribution": "org", "version": "14" }
+  }
+}
+```
+
+- Every tool takes `openfoam: "<id>"` or an absolute `etc/bashrc`; omit it to use `foam.default`.
+- `sim-core/lib/foam.js`: `resolveFoam(config, selector)` → record, `withFoam(config, selector)` → config copy
+  whose `openfoamBashrc` is the selected install (throws with the list of declared ids on a typo).
+- `mesh-build/lib/routes.js`: `probeInstallation(config)` (cached per bashrc) reports
+  `{tools, mergeTol, surfaceFeatures}`; `preflight` turns a missing `route.requires` tool into an
+  actionable message instead of a failed run.
+- Route step conditions that depend on the build: `featuresLegacy` / `featuresNew`
+  (`surfaceFeatureExtract` vs `surfaceFeatures`), `parallelMergeTol` / `parallelNoMergeTol`,
+  and the `{mergeTol}` placeholder (`-mergeTol 1e-6` or empty).
+- The mesh passport records `environment {id, distribution, version, bashrc}`.
+- To reproduce the capability matrix: `tools/qa/of_matrix.sh --json --bashrc <bashrc> --out <file>`.

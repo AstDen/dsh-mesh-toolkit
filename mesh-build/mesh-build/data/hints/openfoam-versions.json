@@ -1,0 +1,46 @@
+{
+  "cards": [
+    {
+      "id": "openfoam-versions",
+      "title": "Версии OpenFOAM: cfMesh только в com, surfaceFeatures только в org",
+      "topics": [
+        "openfoam",
+        "version",
+        "org14",
+        "com2606",
+        "cfmesh",
+        "surfaceFeatures",
+        "mergeTol",
+        "locationsInMesh"
+      ],
+      "status": "verified",
+      "when": "маршрут мешинга должен работать не только на OpenFOAM.com; выбор версии или непонятная ошибка инструмента",
+      "statement": "Версии OpenFOAM не взаимозаменяемы по инструментам. com (v2412, v2506, v2512, v2606) содержит cfMesh (cartesianMesh, pMesh, tetMesh, foamyHexMesh), reconstructParMesh -mergeTol и locationsInMesh (мультирегион snappy); org (v14) не содержит cfMesh, surfaceFeatureExtract в нём — заглушка (rc=0, файлов не пишет), reconstructParMesh без -mergeTol, locationsInMesh нет (только единственный locationInMesh), зато есть surfaceFeatures + system/surfaceFeaturesDict и foamRun/foamMultiRun. Один и тот же STL даёт разное качество: куб 10 мм, 16³ ячеек — com2512/com2606 maxNonOrtho 9.7073°, org14 25.2146° при одинаковых 2584 ячейках (exp-019).",
+      "recipe": [
+        "установки объявлены в sim-project.json → foam.installations {id: {bashrc}}, default выбирает одну",
+        "mesh_build / mesh_check / mesh_deliver принимают openfoam: \"<id>\" или абсолютный путь к etc/bashrc",
+        "перед запуском маршрута полезно снять матрицу: tools/qa/of_matrix.sh --json --bashrc <bashrc> --out .cache/of-matrix/<id>.json",
+        "cfmesh на org: preflight вернёт route cfmesh needs \"cartesianMesh\" … pass openfoam:\"com2606\" or use route snappy/gmsh",
+        "org14 + snappy: scaffold сам пишет system/surfaceFeaturesDict и явный file \"<name>.stl\" в geometry; вызов surfaceFeatureExtract на org бессмыслен",
+        "org14 + CHT: locationsInMesh не поддерживается — route D (gmsh OCC) или прогон по регионам; com остаётся основным для мультирегиона",
+        "org-deb при распаковке в нестандартный путь требует патча FOAM_INST_DIR (в deb он равен /opt)"
+      ],
+      "evidence": [
+        "exp-019_openfoam-version-matrix: матрица инструментов и E2E куба на com2512 / com2606 / org14",
+        "com2512: 2584 cells, 9.7073°, 0.261026; com2606: 2584, 9.7073°, 0.261026; org14: 2584, 25.2146°, 0.334515",
+        "cfMesh присутствует только в com; org14: cartesianMesh/pMesh/tetMesh/foamyHexMesh отсутствуют",
+        "exp-019: gmshToFoam OK на com2512 и org14; поставка org14-куба через make_delivery — rc=0, round-trip сошёлся",
+        "meshing/OPENFOAM_VERSIONS.md — таблица, команды установки, ловушки"
+      ],
+      "improves": [
+        "переносимость маршрутов мешинга между сборками OpenFOAM",
+        "диагностику «инструмент не найден» без запуска мешера"
+      ],
+      "appliesTo": [
+        "mesh_build",
+        "mesh_check",
+        "mesh_deliver"
+      ]
+    }
+  ]
+}

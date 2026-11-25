@@ -1,16 +1,16 @@
 # dsh-mesh-toolkit
 
-> **0.4.0** · Three packages for **DeepSeek Harness**: a shared core plus two
+> **0.5.0** · Three packages for **DeepSeek Harness**: a shared core plus two
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
-> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 32 searchable knowledge
-> cards per catalog, no build step.
+> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 19–23 searchable knowledge
+> cards per catalog, no build step. Meshing routes adapt to OpenFOAM.com **or** OpenFOAM.org.
 
 | Package | Jobs | Tools |
 |---|---|---|
 | [`sim-core/`](sim-core/) | config layering, `sim-project.json`, path resolver, checkMesh parser, JS quality gate, passports, shared cards | library, no tools |
 | [`mesh-stl/`](mesh-stl/) | STL families and portable primitives, contract QA, cleanup, passport row | `stl_hints` · `stl_generate` · `stl_check` |
-| [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D, JS quality gate, mesh passport, OF+Fluent delivery | `mesh_hints` · `mesh_build` · `mesh_check` · `mesh_deliver` |
+| [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D on any OpenFOAM build, JS quality gate, mesh passport, OF+Fluent delivery | `mesh_hints` · `mesh_build` · `mesh_check` · `mesh_deliver` |
 
 Thin wrappers over the project's real generators and OpenFOAM binaries. No invented
 metrics: every number comes from a real run, full logs stay on disk, the tool returns
@@ -19,15 +19,15 @@ a compact JSON summary. Plugins talk to each other through Cordis services
 
 ## Status
 
-Validated on **OpenFOAM v2512** (ESI), **ParaView 6.2.1**, **gmsh 4.15.2**,
-**CadQuery 2.8.0**, Node 24.
+Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
+**gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 
-**7 tools · 32 cards per catalog · 2 skills · 3 services · smoke and live tested
+**7 tools · 33 cards (mesh-build) / 32 (mesh-stl) · 2 skills · 3 services · smoke and live tested
 
 ## Install
 
 Requirements: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`, **`sim-core/` next to the
-bundles** (relative import `../sim-core/...`), OpenFOAM v2512. A project checkout with
+bundles** (relative import `../sim-core/...`), an OpenFOAM installation (com or org). A project checkout with
 `.venv/` and `tools/qa/` is needed for project generator families and STL QA; the
 `primitive` family and existing-case meshing work without it.
 
@@ -51,6 +51,25 @@ node mesh-stl/scripts/smoke.mjs
 node mesh-build/scripts/smoke.mjs
 ```
 
+## OpenFOAM versions
+
+Installations live in `sim-project.json → foam.installations`; each tool accepts
+`openfoam: "<id>"` or an absolute `etc/bashrc`, defaulting to `foam.default`.
+
+| Capability | OpenFOAM.com (v2412…v2606) | OpenFOAM.org (v14) |
+|---|---|---|
+| cfMesh (`cartesianMesh`, `pMesh`, …) | yes | **no** |
+| `surfaceFeatureExtract` | yes | stub (rc=0, writes nothing) |
+| `surfaceFeatures` + `surfaceFeaturesDict` | no | yes |
+| `reconstructParMesh -mergeTol` | yes | no |
+| `locationsInMesh` (multi-region snappy) | yes | **no** (single `locationInMesh`) |
+| `foamRun` / `foamMultiRun` | no | yes |
+
+The snappy route picks the feature dictionary and the merge flag automatically; `cfmesh`
+preflight refuses on org with an actionable message. Same STL and settings gave
+`maxNonOrtho` 9.7073° on com2512/com2606 and 25.2146° on org14 with identical 2584 cells —
+compare metrics between builds, not only between runs. Matrix: `tools/qa/of_matrix.sh`.
+
 ## Configuration
 
 A project is described by **`sim-project.json`** in its root (schema:
@@ -70,7 +89,8 @@ Precedence: `sim-project.json` → `config` in `cordis.patch.yml` →
 | `workRoot` | `stl/generated` / `.cache/mesh-build` | project-relative output root |
 | `registry` | `stl/registry.csv` | STL passport |
 | `caseRoot` | `experiments` | mesh-build case lookup root |
-| `openfoamBashrc` | auto | explicit `etc/bashrc`; otherwise `openfoamRoots`, then `/usr/lib/openfoam`, `/opt/openfoam`, `~/openfoam` (newest wins) |
+| `foam.installations` / `foam.default` | profile | named OpenFOAM builds (`{id: {bashrc}}`); every tool takes `openfoam: "<id>|<bashrc>"` |
+| `openfoamBashrc` | auto | explicit `etc/bashrc`; otherwise `foam.default`, `openfoamRoots`, then `/usr/lib/openfoam`, `/opt/openfoam`, `~/openfoam` (newest wins) |
 | `openfoamRoots` | `[]` | extra trees, `MESH_*_OPENFOAM_ROOTS` (colon-separated) |
 | `python` | `<project>/.venv/bin/python` | interpreter for generators and gmsh |
 
@@ -84,7 +104,8 @@ OpenFOAM locations are placeholders. When the project cannot be found, a tool re
 project profile, path resolver with `resolvedFrom`, process runner (`source bashrc` →
 `set -u`), `checkMesh -meshQuality` parser, quality gate, artifact passports, knowledge
 store. `meshQualityDict` is written with all 13 keys; the verdict comes from the log
-text, because `checkMesh` exits 0 even on `Failed N mesh checks`.
+text, because `checkMesh` exits 0 even on `Failed N mesh checks`. `foam.js` resolves a
+named installation and `withFoam()` binds one to a single tool call.
 
 **mesh-stl** — families `fcc-cell`, `channel-spheres`, `double-layer-burner`,
 `packing`, `cad-porous`, plus portable `primitive` (box / sphere / cylinder written in

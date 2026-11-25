@@ -1,0 +1,21 @@
+{
+  "name": "sim-core",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Shared foundation for Sim DSH plugins: config layering, sim-project.json profile, path resolution, process runner, knowledge cards, checkMesh parsing, quality gate and artifact passports.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./lib/*": "./lib/*"
+  },
+  "files": [
+    "lib",
+    "schemas",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
