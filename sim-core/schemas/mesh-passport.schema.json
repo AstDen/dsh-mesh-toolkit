@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mesh-passport.schema.json",
+  "title": "mesh-passport.json",
+  "description": "What this mesh is, how it was produced and whether the gated files are still on disk.",
+  "type": "object",
+  "required": ["schemaVersion", "case", "route", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "case": { "type": "string" },
+    "caseName": { "type": "string" },
+    "route": { "enum": ["snappy", "cfmesh", "gmsh", "check", "script", "external"] },
+    "regions": { "type": "array", "items": { "type": "string" } },
+    "units": { "enum": ["mm", "m"] },
+    "dimension": { "type": "integer" },
+    "cells": { "type": ["integer", "null"], "minimum": 0 },
+    "gate": {
+      "type": ["object", "null"],
+      "properties": {
+        "profile": { "type": ["string", "null"] },
+        "thresholds": { "type": ["object", "null"] },
+        "minVol": { "type": ["number", "null"] },
+        "maxNonOrtho": { "type": ["number", "null"] },
+        "aveNonOrtho": { "type": ["number", "null"] },
+        "maxSkewness": { "type": ["number", "null"] },
+        "minVolume": { "type": ["number", "null"] },
+        "facesOverThreshold": { "type": ["integer", "null"] },
+        "failedChecks": { "type": ["integer", "null"] },
+        "verdict": { "enum": ["PASS", "FAIL", "ERROR", "UNKNOWN"] },
+        "engine": { "enum": ["js", "script"] }
+      }
+    },
+    "regionGate": { "type": "array", "items": { "type": "object" } },
+    "meshHash": {
+      "type": "object",
+      "properties": {
+        "base": { "type": "object" },
+        "regions": { "type": "object" },
+        "boundarySha256": { "type": ["string", "null"] },
+        "pointsSha256": { "type": ["string", "null"] },
+        "cellsSha256": { "type": ["string", "null"] }
+      }
+    },
+    "layers": { "type": ["object", "null"] },
+    "logs": { "type": "array", "items": { "type": "string" } },
+    "generator": { "type": ["object", "null"] },
+    "createdAt": { "type": "string" }
+  }
+}

@@ -1,0 +1,299 @@
+{
+  "version": 1,
+  "comment": "Registry of STL generators. Add a family = add an entry: id, title, script, preset dir, steps (argv templates), outputs. Placeholders: {paramsFile} {presetFile} {outDir} {name} {json} {rawOut} {cleanOut} {solidOut} {fluidOut} {fluidPatchesOut} {ballsCsv} {contactsCsv} {packingJson}. All paths are relative to the project root unless absolute.",
+  "families": [
+    {
+      "id": "fcc-cell",
+      "title": "FCC-ячейка (сфера + шейки)",
+      "description": "Параметрическая FCC-ячейка поровой среды: сферы в узлах + шейки; сырой STL от CAD/CSG чистится и проверяется автоматически.",
+      "script": "geometry/pore_cell/gen_fcc_cell.py",
+      "preset": {
+        "dir": "geometry/pore_cell/params",
+        "default": "fcc_cell_d5_r049.json",
+        "ext": ".json",
+        "include": [
+          "fcc_cell_*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "генерация сырого STL + чистка",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--out",
+            "{rawOut}",
+            "--clean-out",
+            "{cleanOut}",
+            "--json",
+            "{json}"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{cleanOut}",
+          "qa": true
+        },
+        {
+          "role": "raw",
+          "path": "{rawOut}",
+          "qa": false
+        }
+      ],
+      "notes": "Чистый STL пишется в stl_qa --clean-out. Для мешинга используйте {cleanOut}: сырой STL может содержать вырожденные грани.",
+      "hints": [
+        "stl-contract",
+        "gap-rule",
+        "snappy-stl-unit"
+      ]
+    },
+    {
+      "id": "channel-spheres",
+      "title": "Канал с упаковкой сфер (fluid + solid + именованные патчи)",
+      "description": "Двухобластная геометрия: канал с набивкой сфер, отдельные STL для fluid/solid и именованных границ (inlet, outlet, walls, interface).",
+      "script": "geometry/pore_cell/gen_channel_spheres.py",
+      "preset": {
+        "dir": "geometry/pore_cell/params",
+        "default": "channel_spheres_default.json",
+        "ext": ".json",
+        "include": [
+          "channel_spheres_*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "генерация fluid_patches/solid/fluid + патчи",
+          "args": [
+            "--params",
+            "{paramsFile}",
+            "--out-dir",
+            "{outDir}",
+            "--units",
+            "mm",
+            "--fluid-patches"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "patches",
+          "path": "{outDir}/fluid_patches.stl",
+          "qa": true
+        },
+        {
+          "role": "solid",
+          "path": "{outDir}/solid.stl",
+          "qa": true
+        },
+        {
+          "role": "fluid",
+          "path": "{outDir}/fluid.stl",
+          "qa": true
+        }
+      ],
+      "notes": "fluid_patches.stl идёт в snappyHexMesh как поверхность с уже готовыми именами патчей (inlet/outlet/walls/interface); для cfMesh имена переносятся через renameBoundary в meshDict (см. эксперимент exp-017).",
+      "hints": [
+        "channel-named-patches",
+        "snappy-two-region",
+        "snappy-interface-level"
+      ]
+    },
+    {
+      "id": "double-layer-burner",
+      "title": "Двухслойная горелка (solid + fluid)",
+      "description": "Две области: твёрдый каркас и проточная часть; на выходе 4 файла — сырые и чистые STL для каждой области.",
+      "script": "geometry/pore_cell/gen_double_layer_burner.py",
+      "preset": {
+        "dir": "geometry/pore_cell/params",
+        "default": "double_layer_burner_d5_fine167.json",
+        "ext": ".json",
+        "include": [
+          "double_layer_burner_*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "генерация solid/fluid + чистка",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--solid-out",
+            "{solidRawOut}",
+            "--solid-clean-out",
+            "{solidOut}",
+            "--fluid-out",
+            "{fluidRawOut}",
+            "--fluid-clean-out",
+            "{fluidOut}",
+            "--json",
+            "{json}"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{solidOut}",
+          "qa": true
+        },
+        {
+          "role": "fluid",
+          "path": "{fluidOut}",
+          "qa": true
+        },
+        {
+          "role": "solid_raw",
+          "path": "{solidRawOut}",
+          "qa": false
+        },
+        {
+          "role": "fluid_raw",
+          "path": "{fluidRawOut}",
+          "qa": false
+        }
+      ],
+      "notes": "Сырые *_raw.stl не мешить: используйте *_solid.stl и *_fluid.stl.",
+      "hints": [
+        "stl-contract",
+        "snappy-two-region",
+        "snappy-symmetry-domain"
+      ]
+    },
+    {
+      "id": "packing",
+      "title": "Упаковка сфер (таблица → STL)",
+      "description": "Двухшаговый генератор: сначала таблица шаров/контактов, затем STL твёрдого каркаса и проточной части с шейками.",
+      "script": "geometry/packings/gen_packing_stl.py",
+      "preset": {
+        "dir": "geometry/packings/params",
+        "default": "box_mono_d1.json",
+        "ext": ".json",
+        "include": [
+          "*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "таблица шаров и контактов",
+          "script": "geometry/packings/gen_packing_table.py",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--out",
+            "{ballsCsv}",
+            "--contacts-out",
+            "{contactsCsv}",
+            "--json",
+            "{packingJson}"
+          ]
+        },
+        {
+          "description": "STL solid + fluid (шейки)",
+          "script": "geometry/packings/gen_packing_stl.py",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--balls",
+            "{ballsCsv}",
+            "--contacts",
+            "{contactsCsv}",
+            "--solid-out",
+            "{solidOut}",
+            "--fluid-out",
+            "{fluidOut}",
+            "--json",
+            "{json}"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{solidOut}",
+          "qa": true
+        },
+        {
+          "role": "fluid",
+          "path": "{fluidOut}",
+          "qa": true
+        }
+      ],
+      "notes": "Число шаров задаётся в params (или --max-spheres в CLI таблицы); при больших упаковках генерация STL может идти минуты.",
+      "hints": [
+        "packing-pipeline",
+        "gap-rule",
+        "stl-contract"
+      ]
+    },
+    {
+      "id": "cad-porous",
+      "title": "CAD-геометрия (CadQuery): блок/канал/плита со сферами",
+      "description": "CAD-генератор для сложных составных форм; сырой STL OCC почти всегда не watertight — обязательна чистка.",
+      "script": "geometry/cad/gen_cq_porous.py",
+      "preset": {
+        "dir": "geometry/cad/params",
+        "default": "block_spheres_10mm_L3.json",
+        "ext": ".json",
+        "include": [
+          "*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "генерация CAD-геометрии в STL",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--out",
+            "{rawOut}",
+            "--json",
+            "{json}"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "raw",
+          "path": "{rawOut}",
+          "qa": true
+        }
+      ],
+      "notes": "Тесселяцию задаёт angularTolerance в params (0.1 — точный объём, 0.2–0.3 — для мешинга); после генерации чистите: stl_check({ stl, cleanup: true }).",
+      "hints": [
+        "cadquery-tessellation",
+        "stl-cleanup",
+        "gmsh-tetra-unfit"
+      ]
+    },
+    {
+      "id": "primitive",
+      "title": "Портируемые примитивы (куб, сфера, цилиндр)",
+      "description": "STL из встроенного генератора в JS: без Python, без CAD, без данных проекта. Нужен, чтобы проверить маршрут мешинга на чужой машине и в бенчмарке.",
+      "engine": "primitive",
+      "script": "mesh-stl/lib/primitives.js",
+      "preset": {
+        "dir": "@package/data/primitives",
+        "default": "cube_10mm.json",
+        "ext": ".json",
+        "include": [
+          "*.json"
+        ]
+      },
+      "steps": [],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{cleanOut}",
+          "qa": true
+        }
+      ],
+      "notes": "Единицы — мм, одна замкнутая оболочка, нормали наружу. Параметры: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Вне проекта STL пишется, QA недоступен без tools/qa/stl_qa.py.",
+      "hints": [
+        "stl-contract",
+        "units-mm"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "name": "mesh-build",
+  "version": "0.4.0",
+  "private": true,
+  "description": "DSH plugin for pore-scale volume meshing: snappyHexMesh (hex-dominant, layers, multi-region CHT), cfMesh cartesianMesh, gmsh OCC conformal route D, checkMesh plus a strict per-region quality gate with absolute minVol handling.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "data",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "scripts"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-skill": ">=0.2.1-rc.5 <0.3.0"
+  },
+  "scripts": {
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "openfoam",
+    "snappyhexmesh",
+    "cfmesh",
+    "gmsh",
+    "volume-mesh",
+    "chT",
+    "quality-gate",
+    "checkmesh",
+    "pore-scale",
+    "minvol"
+  ]
+}

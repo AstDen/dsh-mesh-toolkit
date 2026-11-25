@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "topic": "quality-delivery",
+  "cards": [
+    {
+      "id": "quality-gate",
+      "title": "Шлюз качества: checkMesh -meshQuality, а не «Mesh OK»",
+      "topics": ["qa", "checkMesh", "gate", "quality"],
+      "status": "verified",
+      "when": "нужно решение «сетка пригодна»",
+      "statement": "Голый checkMesh не проверяет неортогональность по порогу: ошибка только >90°, а >70° печатается как справка. Пороговые проверки включаются флагом -meshQuality и system/meshQualityDict — в проекте через tools/qa/mesh_gate.sh. Вердикт проекта — rc=0 у mesh_gate --profile project.",
+      "recipe": [
+        "mesh_check({ caseDir, profile: \"project\", minVol: 1e-14 })",
+        "пороговые метрики смотреть в mesh_gate output: non-orthogonality > 60 degrees : N, faces with face pyramid volume < ... : N",
+        "negative volume = 0 и uncovered faces = 0 обязательны",
+        "для многорегиона шлюз вызывается по каждому региону отдельно (overlay constant/polyMesh)"
+      ],
+      "evidence": ["AGENTS.md §6 (исходники v2512: primitiveMesh::nonOrthThreshold_=70)", "exp-018: v13_best проходит project rc=0; 61–75° — нет"],
+      "improves": ["объективность вердикта"],
+      "appliesTo": ["mesh_check", "mesh_build"]
+    },
+    {
+      "id": "minvol-absolute",
+      "title": "Порог minVol в шлюзе — тоже абсолютный объём",
+      "topics": ["qa", "minVol", "gate", "units"],
+      "status": "verified",
+      "when": "задаётся --min-vol для mesh_gate",
+      "statement": "В meshQualityDict minVol — абсолютный объём (м³), не доля ячейки. Шаблонные 1e-13 при поровой ячейке 0.05–0.1 мм помечают нормальные ячейки как illegal. Правило: minVol ≈ h_min³/6 и передавать его же в шлюз.",
+      "recipe": [
+        "h_min 0.1 мм → minVol ≈ 1.7e-13; h_min 0.05 мм → ≈ 2e-14",
+        "mesh_check({ minVol: 1e-16 }) для самых мелких поровых сеток",
+        "не смешивать профили: minVol к профилю не относится, это отдельный аргумент"
+      ],
+      "evidence": ["exp-003: 63 792/70 784 ложных illegal faces; exp-005: minVol 1e-13 → 419 044 illegal, 0 слоёв"
+      ],
+      "improves": ["false positives шлюза", "layer growth"],
+      "appliesTo": ["mesh_check"]
+    },
+    {
+      "id": "delivery-bundle",
+      "title": "Поставка сетки — два дистрибутива одной командой",
+      "topics": ["delivery", "openfoam", "fluent", "handoff"],
+      "status": "verified",
+      "when": "сетка прошла шлюз и её надо передать пользователю/расчётчику",
+      "statement": "mesh_deliver (обёртка tools/deliver/make_delivery.sh) собирает openfoam_<name>/ (настоящая constant/ + маркер .foam), .tar.gz, ansys_<name>/<name>.msh + read_mesh.jou, .zip и отчёт delivery_<name>.{json,md}. Многорегион определяется автоматически; round-trip .msh проверяется через fluent3DMeshToFoam, интерфейс CHT — по парам <a>_to_<b>.",
+      "recipe": [
+        "mesh_check({caseDir, minVol}) — PASS и свежий mesh-passport.json (пишется самим mesh_check)",
+        "mesh_deliver({caseDir, name, minVol, gateProfile:\"project\"}) — dryRun покажет команду",
+        "пользователь открывает: paraview openfoam_<name>/<name>.foam",
+        "constant/ не переименовывать и не вкладывать в подпапку — иначе кейс не открывается штатно",
+        "для CHT проверять пары интерфейса <a>_to_<b> ↔ <b>_to_<a>: число граней должно совпадать"
+      ],
+      "evidence": [
+        "exp-004, D-010; exp-005/exp-006 многорегиональная поставка",
+        "0.4.0: v13_best CHT 575757 ячеек — интерфейс ok, оба региона PASS, round-trip ok, 66.6 с; FCC 27424 — 3.5 с"
+      ],
+      "improves": ["передача результата", "повторяемость"],
+      "appliesTo": ["mesh_check", "mesh_deliver"]
+    },
+    {
+      "id": "polyhedral-conversion",
+      "title": "Полиэдры: .msh читать только fluent3DMeshToFoam",
+      "topics": ["conversion", "fluent", "msh", "polyhedra"],
+      "status": "verified",
+      "when": "конвертация OpenFOAM → Fluent и обратно",
+      "statement": "foamMeshToFluent пишет полиэдры (snappy их даёт на snap). fluentMeshToFoam v2512 на них падает: `FOAM FATAL ERROR: unrecognised 3-D cell shape: 7`; meshio 5.3.5 — `KeyError: 5` в _read_faces. Обратная проверка — только legacy fluent3DMeshToFoam (ячейки/патчи/объём совпадают).",
+      "recipe": [
+        "OpenFOAM → Fluent: foamMeshToFluent (файл в fluentInterface/)",
+        "проверка .msh обратно: fluent3DMeshToFoam",
+        "сравнить cells/patches/объём с оригиналом",
+        "сам Fluent полиэдры поддерживает"
+      ],
+      "evidence": ["AGENTS.md §8 (🔴 ловушка полиэдров, проверено)"],
+      "improves": ["надёжность конвертации"],
+      "appliesTo": ["delivery", "mesh_check"]
+    },
+    {
+      "id": "pv-view",
+      "title": "Скриншоты ParaView — только headless-рецептом EGL",
+      "topics": ["paraview", "screenshots", "view", "headless"],
+      "status": "verified",
+      "when": "нужны картинки геометрии/сетки для отчёта",
+      "statement": "Headless-рендер работает через pvpython с EGL: `VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 pvpython --force-offscreen-rendering`. Обёртка tools/pv/pv_view.sh ставит это сама; без --force-offscreen-rendering падает X_GLXCreateContext.",
+      "recipe": [
+        "tools/pv/pv_view.sh --input <stl|case dir> --out view/<name>.png --views all --edges",
+        "цвет по метрике: --color-by volume|aspect|surface|constant (nonortho — медленно, только для малых сеток)",
+        "PNG класть в каталог эксперимента/или view/, не в /tmp",
+        "VTK 9.7: ориентация граней клина/polyhedron инвертирована — pv_metrics это уже нормирует"
+      ],
+      "evidence": ["exp-001, D-009; AGENTS.md §7.2 и §13 (на машине проекта: срез 1 млн ячеек — 4.9 с на GPU)"],
+      "improves": ["отчётность", "визуальная проверка"],
+      "appliesTo": ["view"]
+    },
+    {
+      "id": "rejected-routes",
+      "title": "Отклонённые маршруты: cut-cell и polyDualMesh",
+      "topics": ["cutcell", "polydual", "rejected", "cht"],
+      "status": "verified",
+      "when": "рассматривается NinjaMesher/cut-cell или polyDualMesh",
+      "statement": "Cut-cell (NinjaMesher) непригоден для CHT; polyDualMesh теряет cellZones и увеличивает площадь интерфейса на 81.5 %. Оба маршрута закрыты решениями D-015/D-016 — не тратить на них время без новой причины.",
+      "recipe": [
+        "CHT: один объёмный меш + cellZones → splitMeshRegions (D-011)",
+        "conformal CHT: gmsh OCC route D (D-016)",
+        "полиэдры: только если заказчик требует pMesh-сетку, с отдельным объяснением провала шлюза"
+      ],
+      "evidence": ["exp-012 cut-cell; exp-013 polyDualMesh (cellZones потеряны, интерфейс +81.5 %)"],
+      "improves": ["выбор маршрута"],
+      "appliesTo": ["mesh_build"]
+    },
+    {
+      "id": "fluent-start",
+      "title": "Fluent из проекта ещё не запускался",
+      "topics": ["fluent", "license", "limitations"],
+      "status": "unverified",
+      "when": "планируется запуск Fluent Meshing/Workbench или проверка .msh",
+      "statement": "Fluent v261 установлен; лицензия задаётся через ANSYSLMD_LICENSE_FILE=<port>@<license-host> (значение из ~/.bashrc). Для запуска из агента нужен danger-full-access: демон лицензий пишет в /var/tmp и ~/.ansys. В самом Fluent .msh проекта ещё не открывался — статус 🔴, не выдавать за проверенное.",
+      "recipe": [
+        "запуск только по явному запросу пользователя",
+        "задать ANSYSLMD_LICENSE_FILE=<port>@<license-host> (не хардкодить чужой адрес)",
+        "проверка: Fluent открывает .msh и печатает orthogonal quality/skewness — записать в журнал"
+      ],
+      "evidence": ["AGENTS.md §3 и §13 (🟡/🔴)"],
+      "improves": ["честность статусов"],
+      "appliesTo": ["delivery", "mesh_check"]
+    }
+  ]
+}

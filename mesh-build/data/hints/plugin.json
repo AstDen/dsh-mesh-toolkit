@@ -1,0 +1,22 @@
+[
+  {
+    "id": "plugin-mesh-build",
+    "title": "Плагин mesh-build: что делает и когда звать",
+    "topics": ["plugin", "mesh-build", "description", "routing", "mesh", "snappy", "cfmesh", "gmsh", "quality-gate"],
+    "status": "verified",
+    "when": "STL готов и должен стать пригодной объёмной сеткой OpenFOAM",
+    "statement": "mesh-build — DSH-бандл для объёмных сеток: маршруты snappy (hex-dominant, слои, многорегионный CHT), cfMesh cartesianMesh, gmsh OCC route D, плюс шлюз качества по checkMesh для каждой области. Три инструмента: mesh_hints (эти карточки), mesh_build (scaffold кейса из STL либо сборка существующего кейса по маршруту), mesh_check (после мешинга: метрики + rc шлюза; minVol передаётся отдельно и он абсолютный).",
+    "recipe": [
+      "сначала mesh_hints({query}) — ловушки и рецепты улучшения качества",
+      "новый кейс: mesh_build({route:'snappy', scaffold:true, caseDir, stl, scaffoldOptions:{domainMin,domainMax,cellSize,locationInMesh}})",
+      "существующий кейс: mesh_build({route:'snappy', scaffold:false, caseDir, np:6})",
+      "после сборки: mesh_check({caseDir, profile:'project', minVol:<h_min³/6>}) — PASS ищите в verdict, а не в «построилось без ошибок»"
+    ],
+    "evidence": [
+      "plugins/mesh-build/index.js: mesh_hints, mesh_build, mesh_check; data/engine.json — маршруты, шаги, профили; lib/skill.js — инструкция агенту",
+      "проверено живым запуском: v13_best → PASS при minVol 1e-16 (fluid 331 792 / 18.71°, solid 243 965 / 26.54°); e2e snappy 19.6 с → PASS 27 424 ячейки / 41.34°"
+    ],
+    "improves": ["пригодность сетки", "воспроизводимость мешинга", "выбор маршрута и порогов"],
+    "appliesTo": ["mesh_hints", "mesh_build", "mesh_check"]
+  }
+]
