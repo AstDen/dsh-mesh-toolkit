@@ -1,5 +1,13 @@
 # Changelog — sim-core
 
+## 0.5.1 — 2026-11-26
+
+- `hints.js`: `registerDir` counts each hint file once, so a long-lived DSH process that re-registers the same
+  directories on every plugin reload no longer inflates `mesh_hints().hintFiles` (observed 59 instead of 11).
+- `hints.js`: ranking prefers the card whose **id** names the query term (`minvol-absolute` for `minVol layers`),
+  adds a coverage bonus for cards matching several distinct query terms in title/id/topics, and breaks ties by
+  the first two query tokens. `cone pipe parts` now returns `primitive-parts` first; `org14 cfmesh version`
+  still returns `openfoam-versions`.
 ## 0.5.0 — 2026-11-26
 
 - **`lib/handoff.js` — `mesh-handoff/1`** (plan A1, docs/WORKBENCH-CONTRACT.md §3.2): `buildHandoff`,

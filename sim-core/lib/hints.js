@@ -70,8 +70,11 @@ function scoreCard(card, query, queryTokens) {
     return 20 + (title.includes(query.toLowerCase()) ? 10 : 0)
   }
   let score = 0
+  const covered = new Set()
   for (const token of queryTokens) {
     const stem = token.slice(0, Math.max(4, Math.min(6, token.length)))
+    const inKey = title.includes(token) || id.includes(token) || topics.includes(token) || appliesTo.includes(token)
+    if (inKey) covered.add(token)
     if (title.includes(token)) score += 6
     else if (title.includes(stem)) score += 4
     if (id.includes(token)) score += 5
@@ -84,6 +87,13 @@ function scoreCard(card, query, queryTokens) {
     if (recipe.includes(token) || recipe.includes(stem)) score += 1
     if (evidence.includes(token)) score += 2
   }
+  // A card that covers several distinct query terms in title/id/topics is more likely the answer than
+  // one that repeats a single common word in its body (benchmark F-notes: `cone pipe parts` ranked a CAD card first).
+  score += 3 * Math.max(0, covered.size - 1)
+  // A card whose id names the query term (`minvol-absolute` for `minVol …`) is the intent-specific one:
+  // without this, generic cards tie with it and alphabetical order decides (benchmark F1).
+  if (queryTokens.some((token) => id.startsWith(token))) score += 6
+  else if (queryTokens.some((token) => id.includes(`-${token}`))) score += 3
   return score
 }
 
@@ -92,10 +102,12 @@ export function searchHints(cards, query, limit = 5) {
   const q = String(query ?? '').trim()
   if (!q) return { matches: [], query: q, total: cards.length }
   const queryTokens = tokens(q)
+  const anchorTokens = queryTokens.slice(0, 2)
+  const idRank = (card) => (anchorTokens.some((token) => card.id.includes(token)) ? 0 : 1)
   const scored = cards
     .map((card) => ({ card, score: scoreCard(card, q, queryTokens) }))
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.card.id.localeCompare(b.card.id))
+    .sort((a, b) => b.score - a.score || idRank(a.card) - idRank(b.card) || a.card.id.localeCompare(b.card.id))
   return {
     matches: scored.slice(0, limit).map((item) => ({ ...item.card, score: item.score })),
     total: scored.length,
@@ -139,6 +151,7 @@ export function hintsOverview(cards, files, version) {
 export function createHintsStore(options = {}) {
   const cards = []
   const files = []
+  const filePaths = new Set()
   const errors = []
   const sources = []
   let version = options.version ?? 1
@@ -162,7 +175,14 @@ export function createHintsStore(options = {}) {
     registerDir(dir, source = 'own') {
       const loaded = loadHints(dir, source)
       const added = api.register(loaded.cards, source)
-      files.push(...loaded.files.map((file) => ({ file: join(dir, file), source })))
+      // Count each file once: a long-lived process re-registers the same directories on every reload,
+      // which used to inflate `hintFiles` (59 instead of 11) while the cards themselves deduplicated.
+      for (const file of loaded.files) {
+        const path = join(dir, file)
+        if (filePaths.has(path)) continue
+        filePaths.add(path)
+        files.push({ file: path, source })
+      }
       errors.push(...loaded.errors)
       return { ...added, errors: loaded.errors, files: loaded.files }
     },
