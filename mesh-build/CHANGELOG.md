@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0 — 2026-11-26
+
+First stable release: the geometry-and-mesh half of an agent-driven pore-scale workflow.
+
+What it does, end to end: nine generator families or your own STL (millimetres, watertight) → an STL contract
+check → snappyHexMesh, cfMesh or gmsh → a threshold gate whose verdict is read from the log text, with a
+passport that detects a stale verdict → one-command delivery (OpenFOAM case + `.tar.gz` + Fluent `.msh` with a
+round-trip check) → `handoff.json` for a solver-side agent.
+
+The 1.0 line was accepted where it matters — on a machine with no project, no checkout and no project venv:
+`doctor` READY (7 pass / 2 warn / 0 fail) and `demo` OK in 25.7 s from the single-package tarball, recorded in
+`docs/ACCEPTANCE.md` together with the two defects that run found and fixed.
+
+Numbers behind this release: 12 tools, 40 knowledge cards distilled from 20+ experiments, 34 unit checks on the
+four mathematical modules, 37 contract checks (three tiers plus a workbench seam), a 61-case benchmark
+(45 pass / 15 fail / 18 defects, all triaged) and four OpenFOAM builds probed through `mesh_capabilities`.
+
+See `CHANGELOG.md` for 1.0.0-rc.1 … rc.3 and `docs/RELEASE-1.0.0.md` for the release summary.
+
 ## 1.0.0-rc.3 — 2026-11-26
 
 Clean-user acceptance: install the package where no project, no checkout and no project venv exist, then run

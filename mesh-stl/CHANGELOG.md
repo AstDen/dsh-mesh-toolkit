@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 — 2026-11-26
+
+First stable release of the STL half: nine generator families (FCC cell, channel with spheres, double-layer
+burner, packings, CAD porous, primitives incl. cone/pipe/`parts[]`, stratified channel, blob foam, box array),
+in-process JS QA with a python parity reference (15/15), the STL contract (watertight, winding, units mm) and
+the geometry passport. Versioned together with `mesh-build` and `sim-core` from 1.0.0-rc.1 on.
+
 ## 1.0.0-rc.3 — 2026-11-26
 
 Portable mode fix found by the clean-user acceptance:

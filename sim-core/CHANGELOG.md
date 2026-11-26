@@ -1,5 +1,12 @@
 # Changelog — sim-core
 
+## 1.0.0 — 2026-11-26
+
+First stable release of the shared library: layered config with `sim-project.json` discovery and portable-mode
+defaults, the JS quality gate with a full `meshQualityDict` overlay, the mesh passport and freshness check,
+`handoff.json` (`mesh-handoff/1`), the `meshToolkit` service shim, and intent-first hint ranking. Versioned
+together with `mesh-build` and `mesh-stl` from 1.0.0-rc.1 on.
+
 ## 1.0.0-rc.3 — 2026-11-26
 
 No functional change: the version moves with the toolkit so the three packages stay aligned.

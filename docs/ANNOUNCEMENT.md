@@ -5,7 +5,7 @@ not in those files.
 
 ## Show HN / r/CFD / r/OpenFOAM (~180 words)
 
-**Show HN: poremesh — 3D pore geometries to OpenFOAM meshes, with a gate that means something**
+**Show HN: mesh-toolkit — 3D pore geometries to OpenFOAM meshes, with a gate that means something**
 
 Wrapping snappyHexMesh is easy. Getting a mesh you can defend is not: `checkMesh` prints "Mesh OK" while
 carrying 60° non-orthogonality, `minVol` is an absolute volume that silently eats boundary layers, and STL
@@ -24,7 +24,7 @@ MIT, runs as a DSH plugin or from a shell: `node scripts/doctor.mjs && node scri
 
 ## awesome-cfd / lists (~60 words)
 
-`poremesh` — STL geometry → OpenFOAM mesh for pore-scale problems, driven by an AI agent. Nine pore/packing
+`mesh-toolkit` — STL geometry → OpenFOAM mesh for pore-scale problems, driven by an AI agent. Nine pore/packing
 generators, snappy/cfMesh/gmsh routes, a threshold quality gate with a mesh passport, and one-command delivery
 to OpenFOAM and Fluent. 40 knowledge cards, MIT. https://github.com/AstDen/dsh-mesh-toolkit
 
@@ -38,8 +38,8 @@ portable mode without a project file, and talks to `dsh-openfoam-workbench` thro
 
 ## Notes before posting
 
-- The package name is still `mesh-toolkit`; the rename to `poremesh` is a separate decision — update this file
-  and the repository name first if it happens.
+- The package name is `mesh-toolkit`; a rename (candidate: `poremesh`) is a separate decision and would have to
+  update this file, the repository name and the market index pin at once.
 - Do not promise Fluent end-to-end: the `.msh` is built and round-tripped through OpenFOAM, never opened in
   Fluent (see `docs/TROUBLESHOOTING.md`).
 - The hyphenated-patch defect in the workbench is described in the README comparison table; mention it if
