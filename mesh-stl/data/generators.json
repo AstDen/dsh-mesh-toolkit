@@ -1,14 +1,14 @@
 {
   "version": 1,
-  "comment": "Registry of STL generators. Add a family = add an entry: id, title, script, preset dir, steps (argv templates), outputs. Placeholders: {paramsFile} {presetFile} {outDir} {name} {json} {rawOut} {cleanOut} {solidOut} {fluidOut} {fluidPatchesOut} {ballsCsv} {contactsCsv} {packingJson}. All paths are relative to the project root unless absolute.",
+  "comment": "Семейства генераторов. По умолчанию (generators.root = \"package\") script и preset.dir берутся из этого пакета; generators.root = \"project\" переключает python-семейства на projectScript/projectPreset (исследовательское дерево geometry/). built-in engine \"primitive\"/\"js\" — без Python.",
   "families": [
     {
       "id": "fcc-cell",
       "title": "FCC-ячейка (сфера + шейки)",
       "description": "Параметрическая FCC-ячейка поровой среды: сферы в узлах + шейки; сырой STL от CAD/CSG чистится и проверяется автоматически.",
-      "script": "geometry/pore_cell/gen_fcc_cell.py",
+      "script": "@package/generators/pore_cell/gen_fcc_cell.py",
       "preset": {
-        "dir": "geometry/pore_cell/params",
+        "dir": "@package/generators/presets/pore_cell",
         "default": "fcc_cell_d5_r049.json",
         "ext": ".json",
         "include": [
@@ -47,15 +47,24 @@
         "stl-contract",
         "gap-rule",
         "snappy-stl-unit"
-      ]
+      ],
+      "projectScript": "geometry/pore_cell/gen_fcc_cell.py",
+      "requires": [
+        "trimesh",
+        "numpy",
+        "cadquery"
+      ],
+      "projectPreset": {
+        "dir": "geometry/pore_cell/params"
+      }
     },
     {
       "id": "channel-spheres",
       "title": "Канал с упаковкой сфер (fluid + solid + именованные патчи)",
       "description": "Двухобластная геометрия: канал с набивкой сфер, отдельные STL для fluid/solid и именованных границ (inlet, outlet, walls, interface).",
-      "script": "geometry/pore_cell/gen_channel_spheres.py",
+      "script": "@package/generators/pore_cell/gen_channel_spheres.py",
       "preset": {
-        "dir": "geometry/pore_cell/params",
+        "dir": "@package/generators/presets/pore_cell",
         "default": "channel_spheres_default.json",
         "ext": ".json",
         "include": [
@@ -98,15 +107,23 @@
         "channel-named-patches",
         "snappy-two-region",
         "snappy-interface-level"
-      ]
+      ],
+      "projectScript": "geometry/pore_cell/gen_channel_spheres.py",
+      "requires": [
+        "trimesh",
+        "numpy"
+      ],
+      "projectPreset": {
+        "dir": "geometry/pore_cell/params"
+      }
     },
     {
       "id": "double-layer-burner",
       "title": "Двухслойная горелка (solid + fluid)",
       "description": "Две области: твёрдый каркас и проточная часть; на выходе 4 файла — сырые и чистые STL для каждой области.",
-      "script": "geometry/pore_cell/gen_double_layer_burner.py",
+      "script": "@package/generators/pore_cell/gen_double_layer_burner.py",
       "preset": {
-        "dir": "geometry/pore_cell/params",
+        "dir": "@package/generators/presets/pore_cell",
         "default": "double_layer_burner_d5_fine167.json",
         "ext": ".json",
         "include": [
@@ -159,15 +176,24 @@
         "stl-contract",
         "snappy-two-region",
         "snappy-symmetry-domain"
-      ]
+      ],
+      "projectScript": "geometry/pore_cell/gen_double_layer_burner.py",
+      "requires": [
+        "trimesh",
+        "numpy",
+        "cadquery"
+      ],
+      "projectPreset": {
+        "dir": "geometry/pore_cell/params"
+      }
     },
     {
       "id": "packing",
       "title": "Упаковка сфер (таблица → STL)",
       "description": "Двухшаговый генератор: сначала таблица шаров/контактов, затем STL твёрдого каркаса и проточной части с шейками.",
-      "script": "geometry/packings/gen_packing_stl.py",
+      "script": "@package/generators/packings/gen_packing_stl.py",
       "preset": {
-        "dir": "geometry/packings/params",
+        "dir": "@package/generators/presets/packings",
         "default": "box_mono_d1.json",
         "ext": ".json",
         "include": [
@@ -225,15 +251,23 @@
         "packing-pipeline",
         "gap-rule",
         "stl-contract"
-      ]
+      ],
+      "projectScript": "geometry/packings/gen_packing_stl.py",
+      "requires": [
+        "trimesh",
+        "numpy"
+      ],
+      "projectPreset": {
+        "dir": "geometry/packings/params"
+      }
     },
     {
       "id": "cad-porous",
       "title": "CAD-геометрия (CadQuery): блок/канал/плита со сферами",
       "description": "CAD-генератор для сложных составных форм; сырой STL OCC почти всегда не watertight — обязательна чистка.",
-      "script": "geometry/cad/gen_cq_porous.py",
+      "script": "@package/generators/cad/gen_cq_porous.py",
       "preset": {
-        "dir": "geometry/cad/params",
+        "dir": "@package/generators/presets/cad",
         "default": "block_spheres_10mm_L3.json",
         "ext": ".json",
         "include": [
@@ -265,7 +299,16 @@
         "cadquery-tessellation",
         "stl-cleanup",
         "gmsh-tetra-unfit"
-      ]
+      ],
+      "projectScript": "geometry/cad/gen_cq_porous.py",
+      "requires": [
+        "trimesh",
+        "numpy",
+        "cadquery"
+      ],
+      "projectPreset": {
+        "dir": "geometry/cad/params"
+      }
     },
     {
       "id": "primitive",
@@ -298,29 +341,17 @@
     {
       "id": "stratified-channel",
       "title": "Стратифицированный канал (две жидкости, горизонтальный интерфейс)",
-      "description": "Прямоугольный канал, разрезанный плоскостью z = interface_z: lower.stl (низ) и upper.stl (верх), по 12 треугольников, единицы мм. Закрывает GAP benchmark D3 — стратифицированной/двухжидкостной геометрии в наборе не было.",
-      "script": "geometry/stratified/gen_stratified_channel.py",
+      "description": "Прямоугольный канал, разрезанный плоскостью z = interface_z: lower.stl (низ) и upper.stl (верх), по 12 треугольников, единицы мм. Встроенный генератор на JS: без Python, без CAD, без данных проекта.",
+      "script": "lib/generators/stratified.js",
       "preset": {
-        "dir": "geometry/stratified/params",
+        "dir": "@package/generators/presets/stratified",
         "default": "channel_10x10x20_h8.json",
         "ext": ".json",
         "include": [
           "*.json"
         ]
       },
-      "steps": [
-        {
-          "description": "запись lower.stl/upper.stl",
-          "args": [
-            "--params-file",
-            "{paramsFile}",
-            "--out-dir",
-            "{outDir}",
-            "--json",
-            "{json}"
-          ]
-        }
-      ],
+      "steps": [],
       "outputs": [
         {
           "role": "fluid",
@@ -338,15 +369,17 @@
         "stl-contract",
         "units-mm",
         "gap-rule"
-      ]
+      ],
+      "engine": "js",
+      "runner": "lib/generators/stratified.js"
     },
     {
       "id": "blob-foam",
       "title": "Блочная пена (метаболы → изоповерхность)",
       "description": "Пористая пена из перекрывающихся «блобов»: поле метаболов на сетке, изопорог (или подбор под целевую пористость бисекцией), обрезка аналитическим доменом через SDF, marching cubes. Повторяет Blender-подход «метаболы + voxel remesh + Boolean Intersect» без Blender и без CAD; в отчёте — пористость, связность твёрдого/порового пространства и распределения толщин.",
-      "script": "geometry/pore_cell/gen_blob_foam.py",
+      "script": "@package/generators/pore_cell/gen_blob_foam.py",
       "preset": {
-        "dir": "geometry/pore_cell/params",
+        "dir": "@package/generators/presets/pore_cell",
         "default": "blob_foam_d10x10_phi80.json",
         "ext": ".json",
         "include": [
@@ -386,6 +419,50 @@
         "stl-contract",
         "gap-rule",
         "snappy-stl-unit"
+      ],
+      "projectScript": "geometry/pore_cell/gen_blob_foam.py",
+      "requires": [
+        "trimesh",
+        "numpy",
+        "scipy",
+        "skimage"
+      ],
+      "projectPreset": {
+        "dir": "geometry/pore_cell/params"
+      }
+    },
+    {
+      "id": "box-array",
+      "title": "Решётка сфер/цилиндров (box-array)",
+      "description": "Регулярная решётка nx×ny×nz сфер или цилиндров в коробке: solid.stl (N замкнутых оболочек) и container.stl (сама коробка). Встроенный генератор на JS, единицы мм — годится для проверки мешинга вне проекта.",
+      "engine": "js",
+      "runner": "lib/generators/box-array.js",
+      "script": "lib/generators/box-array.js",
+      "preset": {
+        "dir": "@package/generators/presets/box-array",
+        "default": "array_spheres.json",
+        "ext": ".json",
+        "include": [
+          "*.json"
+        ]
+      },
+      "steps": [],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{outDir}/{name}.solid.stl",
+          "qa": true
+        },
+        {
+          "role": "container",
+          "path": "{outDir}/{name}.container.stl",
+          "qa": false
+        }
+      ],
+      "notes": "Параметры: container_mm, lattice [nx,ny,nz], shape (sphere|cylinder), radius_mm, height_mm (цилиндр), margin_mm, segments/rings/sections. Если шаг решётки меньше размера тела, в JSON пишется предупреждение: snappy прочитает пересекающиеся оболочки как одно тело.",
+      "hints": [
+        "stl-contract",
+        "units-mm"
       ]
     }
   ]

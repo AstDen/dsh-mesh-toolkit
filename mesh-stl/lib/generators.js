@@ -9,6 +9,8 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import {
   displayPath, jsonSafe, q, readJson, resolveProjectPath, runPython, slugify, stem, tail,
 } from './common.js'
@@ -21,9 +23,12 @@ export function loadRegistry(dataDir) {
   const raw = readJson(file, 'generators.json')
   const families = Array.isArray(raw.families) ? raw.families : []
   for (const family of families) {
-    const internal = family.engine === 'primitive'
+    const internal = family.engine === 'primitive' || family.engine === 'js'
     if (!family.id || !family.script || !Array.isArray(family.steps) || (!internal && family.steps.length === 0)) {
-      throw new Error(`generators.json: family ${family.id ?? '<without id>'} needs id, script, steps[] (empty steps are allowed only for engine "primitive")`)
+      throw new Error(`generators.json: family ${family.id ?? '<without id>'} needs id, script, steps[] (empty steps are allowed only for the built-in engines "primitive" and "js")`)
+    }
+    if (family.engine === 'js' && !family.runner) {
+      throw new Error(`generators.json: family ${family.id} uses engine "js" and needs runner (module path, e.g. lib/generators/stratified.js)`)
     }
   }
   return { version: raw.version ?? 1, families, file }
@@ -119,7 +124,7 @@ export function buildContext(family, config, args) {
     throw new Error(`preset not found: ${args.preset ?? presetFile}\navailable presets: ${available}`)
   }
   const paramsFile = join(outDir, `${name}.params.json`)
-  const script = resolveScript(config, family.script)
+  const script = familyScript(config, family)
   const ctx = {
     script: script.file,
     scriptResolvedFrom: script.resolvedFrom,
@@ -145,7 +150,8 @@ export function buildContext(family, config, args) {
 
 /** Preset directory: `@package/...` comes from this bundle, everything else from the project. */
 function presetDirectory(config, family) {
-  const dir = family.preset?.dir
+  const projectMode = String(config.generators?.root ?? 'package') === 'project'
+  const dir = (projectMode && family.projectPreset?.dir) ? family.projectPreset.dir : family.preset?.dir
   if (!dir) return ''
   if (String(dir).startsWith('@package/')) return join(config.packageRoot, String(dir).slice('@package/'.length))
   return resolveProjectPath(config, dir)
@@ -159,6 +165,10 @@ export function resolveScript(config, script) {
   const raw = String(script ?? '')
   if (!raw) return { file: '', resolvedFrom: null }
   if (isAbsolute(raw)) return { file: raw, resolvedFrom: 'absolute' }
+  if (raw.startsWith('@package/')) {
+    const file = join(config.packageRoot, raw.slice('@package/'.length))
+    return existsSync(file) ? { file, resolvedFrom: 'package' } : { file, resolvedFrom: 'package', missing: true }
+  }
   const roots = [config.projectRoot, ...(config.geometry?.scriptRoots ?? [])].filter(Boolean)
   for (const root of roots) {
     const file = resolve(root, raw)
@@ -171,6 +181,50 @@ export function resolveScript(config, script) {
     resolvedFrom: 'project',
     missing: true,
   }
+}
+
+/**
+ * Script for a family, honouring `generators.root`: `package` (default) resolves the
+ * registry `script` inside this bundle, `project` prefers `projectScript` (the research
+ * tree, e.g. `geometry/pore_cell/gen_fcc_cell.py`).
+ */
+export function familyScript(config, family) {
+  const projectMode = String(config.generators?.root ?? 'package') === 'project'
+  const spec = (projectMode && family.projectScript) ? family.projectScript : family.script
+  return resolveScript(config, spec)
+}
+
+/**
+ * Check that the python bridge can import everything a family needs. Returns
+ * `{ok:true}` or `{ok:false, error:'python-bridge-missing', ...}` instead of letting
+ * the generator die with a ModuleNotFoundError stack trace.
+ */
+export function pythonBridge(config, family) {
+  const requires = Array.isArray(family.requires) && family.requires.length ? family.requires.map(String) : ['trimesh', 'numpy']
+  const python = config.python || 'python3'
+  const code = requires.map((module) => `import ${module}`).join('; ')
+  const probe = spawnSync(python, ['-c', code], { encoding: 'utf8', timeout: 120000 })
+  if (probe.error) {
+    return {
+      ok: false,
+      error: 'python-bridge-missing',
+      python,
+      requires,
+      reason: probe.error.code === 'ENOENT' ? `interpreter not found: ${python}` : probe.error.message,
+      hint: `install python3 and the modules (${requires.join(', ')}), pass python:"/path/to/python3", or use a JS family (primitive, stratified-channel, box-array)`,
+    }
+  }
+  if (probe.status !== 0) {
+    return {
+      ok: false,
+      error: 'python-bridge-missing',
+      python,
+      requires,
+      reason: tail(probe.stderr, 1200),
+      hint: `${python} -m pip install ${requires.join(' ')}  (or use a JS family: primitive, stratified-channel, box-array)`,
+    }
+  }
+  return { ok: true, python, requires }
 }
 
 /** Write the params file: preset copy, or preset + user overrides. */
@@ -210,15 +264,55 @@ export async function runFamily(config, family, args) {
   let steps = planSteps(family, ctx)
   if (family.engine === 'primitive') {
     steps = [{ index: 1, script: 'builtin:primitive', args: [], description: 'builtin STL primitive (no Python)' }]
+  } else if (family.engine === 'js') {
+    steps = [{ index: 1, script: `builtin:js:${family.runner}`, args: [], description: `builtin JS generator (${family.runner})` }]
   }
   const logDir = join(outDir, 'logs')
   if (!args.dryRun) mkdirSync(logDir, { recursive: true })
+
+  if (!args.dryRun && family.engine !== 'primitive' && family.engine !== 'js') {
+    const bridge = pythonBridge(config, family)
+    if (!bridge.ok) {
+      return {
+        configured: true,
+        family: family.id,
+        title: family.title,
+        name,
+        outDir: displayPath(config, outDir),
+        error: bridge.error,
+        python: bridge.python,
+        requires: bridge.requires,
+        reason: bridge.reason,
+        hint: bridge.hint,
+        next: ['use a JS family (primitive, stratified-channel, box-array) or install the python modules and retry'],
+      }
+    }
+  }
 
   const executed = []
   let failure = null
   for (const step of steps) {
     if (args.dryRun) {
       executed.push({ ...step, executed: false })
+      continue
+    }
+    if (step.script.startsWith('builtin:js:')) {
+      const runnerPath = step.script.slice('builtin:js:'.length)
+      // built-in JS runners always live inside this bundle, never in the project
+      const runnerSpec = runnerPath.startsWith('@package/') ? runnerPath.slice('@package/'.length) : runnerPath
+      const runnerFile = isAbsolute(runnerSpec) ? runnerSpec : join(config.packageRoot, runnerSpec)
+      const module = await import(pathToFileURL(runnerFile).href)
+      if (typeof module.run !== 'function') {
+        throw new Error(`JS generator ${runnerPath} must export run(params, ctx)`)
+      }
+      const params = readJson(ctx.paramsFile, ctx.paramsFile)
+      const start = Date.now()
+      const info = module.run(params, ctx)
+      writeFileSync(join(logDir, `step-${step.index}.log`), `$ builtin js ${runnerPath}\n${JSON.stringify(info, null, 2)}\n`)
+      executed.push({
+        ...step, executed: true, code: 0, durationMs: Date.now() - start,
+        output: displayPath(config, ctx.json), triangles: info?.solid?.triangles ?? info?.parts?.reduce((sum, part) => sum + (part.triangles ?? 0), 0),
+      })
       continue
     }
     if (step.script === 'builtin:primitive') {
@@ -300,9 +394,11 @@ export async function runFamily(config, family, args) {
     outDir,
     outDirDisplay: displayPath(config, outDir),
     params,
-    commands: steps.map((s) => (s.script === 'builtin:primitive'
-      ? 'builtin: primitive STL (mesh-stl/lib/primitives.js)'
-      : `${config.python} ${s.script} ${s.args.join(' ')}`)),
+    commands: steps.map((s) => {
+      if (s.script === 'builtin:primitive') return 'builtin: primitive STL (mesh-stl/lib/primitives.js)'
+      if (s.script.startsWith('builtin:js:')) return `builtin: JS generator (${s.script.slice('builtin:js:'.length)})`
+      return `${config.python} ${s.script} ${s.args.join(' ')}`
+    }),
     steps: executed,
     files,
     missingOutputs: missing,
@@ -322,7 +418,7 @@ export function declaredBodies(report, role) {
   if (!report || typeof report !== 'object') return undefined
   const pick = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : undefined)
   if (role === 'fluid') return pick(report.fluid_out?.n_bodies ?? report.fluid_n_bodies)
-  return pick(report.n_bodies ?? report.expected_bodies)
+  return pick(report.n_bodies ?? report.bodies ?? report.expected_bodies)
 }
 
 /** Run stl_qa.py on a single file and return its JSON. */

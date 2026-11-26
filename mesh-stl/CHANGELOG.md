@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.3 — 2026-11-26
+
+- **Генераторы переехали внутрь пакета.** Python-скрипты семейств и их пресеты лежат в
+  `generators/{pore_cell,packings,cad}/` и `generators/presets/<family>/`; `data/generators.json`
+  ссылается на них через `@package/…`, так что `stl_generate` работает на чужой машине без
+  исследовательского дерева `geometry/`. `cad-porous` больше не импортирует `tools.qa.stl_qa`:
+  рядом лежит `generators/cad/py_qa.py` (копия эталона для чистки/QA внутри генератора).
+- **Режим деревьев скриптов.** `generators.root` (`sim-project.json` / `MESH_STL_GENERATORS_ROOT`):
+  `package` (по умолчанию) или `project` — тогда python-семейства берут `projectScript`/`projectPreset`
+  (`geometry/pore_cell/...`), то есть исследовательский режим сохранён.
+- **Два новых встроенных JS-генератора, без python вообще.** `stratified-channel` переписан на JS
+  (`lib/generators/stratified.js`: две коробки по 12 треугольников, общий эмиттер `lib/shapes.js`),
+  добавлен `box-array` (`lib/generators/box-array.js`: решётка `nx×ny×nz` сфер/цилиндров →
+  `<name>.solid.stl` + `<name>.container.stl`, предупреждение при пересечении соседей).
+- **Понятная ошибка вместо traceback.** Перед python-семейством плагин проверяет
+  `import trimesh, numpy` (и `cadquery`/`scipy`/`skimage` там, где нужно) и возвращает
+  `error: "python-bridge-missing"` с точной командой `pip install`, подсказкой про JS-семейства
+  и путём к интерпретатору.
+- **Приёмка.** В пустом каталоге с минимальным `sim-project.json` работают `primitive`,
+  `stratified-channel`, `box-array` (генерация + JS QA) и дальше `mesh_build(snappy)`:
+  box-array 10×10×20 мм, 16 сфер r=1.5 → 63 228 ячеек, gate PASS (maxNonOrtho 21.48, skew 0.304).
+  Python-семейства проверены на упакованных скриптах: `channel_spheres_L3` даёт fluid 8352 tri /
+  162.7341 мм³ и `fluid_patches` 8352 tri (без утроения после DEF-01), `cad-porous` raw PASS 4950 tri.
+
 ## 0.3.2 — 2026-11-26
 
 - **QA STL переехал внутрь плагина (JS, без python и без проекта).** `lib/qa/` — собственный движок:

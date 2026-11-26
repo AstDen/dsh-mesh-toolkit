@@ -1,0 +1,31 @@
+{
+  "diameter_coarse_mm": 5.0,
+  "fine_per_coarse": 3,
+  "layers_fine": 4,
+  "layers_coarse": 3,
+  "buffer_fine_mm": 1.0,
+  "gap_mm": 0.0001,
+  "sphere_r_frac": 0.5,
+  "neck_radius_frac": 0.1,
+  "neck_depth_frac": 1.5,
+  "neck_angles_deg": [
+    [45, 0, 0],
+    [-45, 0, 0],
+    [45, 90, 0],
+    [-45, 90, 0],
+    [45, 0, 90],
+    [-45, 0, 90]
+  ],
+  "face_neck_angles_deg": {
+    "xy": [[45, 0, 0], [-45, 0, 0]],
+    "xz": [[90, 0, 45], [90, 0, -45]],
+    "yz": [[0, 45, 0], [0, -45, 0]]
+  },
+  "sphere_ang_tol_rad": 0.1,
+  "sphere_lin_tol_mm": 0.05,
+  "clip_to_domain": true,
+  "layer_clip": false,
+  "clip_eps_mm": 0.001,
+  "make_fluid": true,
+  "skip_outside_margin_mm": 0.0
+}

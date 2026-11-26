@@ -1,0 +1,36 @@
+{
+  "seed": 11,
+  "max_spheres": 20000,
+  "stop_after_fail": 150,
+  "step0_frac": 0.5,
+  "min_step_frac": 0.001,
+  "slope_min": 0.02,
+  "max_settle_iters": 5000,
+  "gap_policy": "uniform",
+  "gap_mm": 0.05,
+  "gap_rel": 0.0,
+  "fill_cycles": 1,
+  "compaction_cycles": 0,
+  "compaction_shake_frac": 0.02,
+  "compaction_sweeps": 200,
+  "compaction_tol_mm": 1e-09,
+  "preview_subdivisions": 1,
+  "container": {
+    "type": "box",
+    "lo_mm": [
+      0,
+      0,
+      0
+    ],
+    "hi_mm": [
+      10,
+      10,
+      30
+    ]
+  },
+  "radii": {
+    "policy": "uniform",
+    "r_min_mm": 0.6,
+    "r_max_mm": 1.4
+  }
+}

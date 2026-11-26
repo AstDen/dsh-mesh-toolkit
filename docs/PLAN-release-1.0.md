@@ -8,7 +8,7 @@
 
 ---
 
-## Блокер 1. Привязка к исследовательскому проекту (🟡 2–3 дня: 1.1 готова)
+## Блокер 1. Привязка к исследовательскому проекту (🟡 1–2 дня: 1.1 и 1.2 готовы)
 
 Сейчас вне `Mesh_3D_pore_scale` работает только семейство `primitive`: остальное упирается
 в `tools/qa/stl_qa.py`, `geometry/*.py`, `stl/registry.csv`, `caseRoots: experiments/...`.
@@ -39,7 +39,7 @@
 20880/22956/22980 у нас), при том что вердикт, watertight и объём совпадают.
 Скорость/память: 862 898 треугольников — 6.6 с / 846 МБ; 1 471 974 — 11.9 с / 1.3 ГБ.
 
-### 1.2 Генераторы без проекта (⬜ 1 день)
+### 1.2 Генераторы без проекта (✅ готово, 2026-11-26)
 - Python-скрипты семейств переносятся **внутрь пакета**: `mesh-stl/generators/{pore_cell,cad,stratified}/…`
   (сейчас они лежат в исследовательском `geometry/`). `generators.json` получает `script` относительно
   `PACKAGE_ROOT`, режим `generators.root: "package" | "project"`.
@@ -49,6 +49,25 @@
   ошибка `python-bridge-missing` с командой установки, а не stack trace.
 - **Приёмка:** в пустом каталоге с минимальным `sim-project.json` работают `stl_generate` для
   `primitive`, `stratified-channel`, `box-array` + `stl_check` + `mesh_build(snappy)`.
+
+**Сделано (факты, 2026-11-26):**
+- Python-скрипты и хелперы (`packing_lib.py`, `cq_common.py`, копия эталона `py_qa.py`) — в
+  `mesh-stl/generators/{pore_cell,packings,cad}/`; пресеты — `mesh-stl/generators/presets/<family>/`
+  (30 файлов). `data/generators.json` ссылается на них через `@package/…`; у python-семейств есть
+  `projectScript`/`projectPreset` для режима `generators.root: "project"`.
+- `generators.root` разобран в `sim-core/schemas/sim-project.schema.json`; конфиг читается из
+  `sim-project.json`, `MESH_STL_GENERATORS_ROOT`, по умолчанию `package`.
+- `stratified-channel` переписан на JS (`lib/generators/stratified.js`, две коробки по 12 треугольников),
+  добавлен `box-array` (`lib/generators/box-array.js`: решётка сфер/цилиндров + контейнер,
+  предупреждение о пересечении соседей); общие эмиттеры — `lib/shapes.js`.
+- `python-bridge-missing`: до запуска проверяется `import trimesh, numpy` (+ `cadquery`/`scipy`/`skimage`
+  по полю `requires`), ошибка содержит интерпретатор, модули, команду `pip install` и подсказку про JS-семейства.
+- **Проверено:** пустой каталог `experiments/_scratch/accept-1.2` (только `sim-project.json`) —
+  `primitive` 12 tri/1 тело, `stratified-channel` 12+12 tri (800/1200 мм³), `box-array` 8448 tri / 16 тел
+  (QA PASS), затем `mesh_build(snappy)`: 63 228 ячеек, gate PASS 21.48°/0.304; упакованный
+  `channel_spheres_L3` — fluid 8352 tri / 162.7341 мм³, `fluid_patches` 8352 tri (утроение DEF-01 не вернулось);
+  `cad-porous` raw PASS 4950 tri (импорт `py_qa` работает); `python-bridge-missing` возвращается без traceback.
+- Регрессии: `smoke.mjs` SMOKE OK, `qa-parity.mjs --project` 15/15.
 
 ### 1.3 Реестр STL и caseRoots (⬜ 0.5 дня)
 - `registry.path` (по умолчанию `./stl/registry.csv`, относительно `projectRoot`): файл создаётся

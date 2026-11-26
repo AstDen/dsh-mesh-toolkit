@@ -99,9 +99,10 @@ export function apply(ctx, rawConfig) {
 
   register({
     name: 'stl_generate',
-    description: 'Generate STL geometry from a project generator family (declared in data/generators.json). '
-      + 'No family: list families and presets. Runs the real scripts with the project .venv python, '
-      + 'writes params/logs/outputs, then QA-verifies every produced STL.',
+    description: 'Generate STL geometry from a generator family (data/generators.json). '
+      + 'Built-in JS families (primitive, stratified-channel, box-array) need no Python and no project data; '
+      + 'python families run the packaged scripts in generators/ (generators.root can switch to the project tree). '
+      + 'No family: list families and presets. Writes params/logs/outputs, then QA-verifies every produced STL.',
     parameters: {
       family: { type: 'string', description: 'Family id, e.g. fcc-cell, channel-spheres, packing, cad-porous.' },
       preset: { type: 'string', description: 'Preset name from the family list (default: family default preset).' },

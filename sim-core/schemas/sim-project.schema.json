@@ -4,47 +4,106 @@
   "title": "sim-project.json",
   "description": "Project profile read by every Sim plugin. Only project-level data belongs here; machine paths (python, OpenFOAM bashrc) stay in machine config.",
   "type": "object",
-  "required": ["schemaVersion"],
+  "required": [
+    "schemaVersion"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "project": { "type": "string" },
-    "units": { "enum": ["mm", "m"] },
-    "caseRoots": { "type": "array", "items": { "type": "string" } },
-    "scratch": { "type": "string" },
-    "foam": {
+    "caseRoots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cores": {
       "type": "object",
       "properties": {
-        "distribution": { "enum": ["com", "org"] },
-        "version": { "type": "string" },
-        "bashrc": { "type": "string" },
-        "root": { "type": "string" }
+        "np": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "fluent": {
       "type": "object",
-      "properties": { "version": { "type": "string" }, "root": { "type": "string" } },
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "foam": {
+      "type": "object",
+      "properties": {
+        "distribution": {
+          "enum": [
+            "com",
+            "org"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "bashrc": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        }
+      },
       "additionalProperties": false
     },
     "gate": {
       "type": "object",
       "properties": {
-        "engine": { "enum": ["js", "script"] },
-        "profile": { "type": "string" },
-        "minVol": { "type": ["number", "null"] },
-        "script": { "type": "string" },
+        "engine": {
+          "enum": [
+            "js",
+            "script"
+          ]
+        },
+        "profile": {
+          "type": "string"
+        },
+        "minVol": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "script": {
+          "type": "string"
+        },
         "profiles": {
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "maxNonOrtho": { "type": "number" },
-              "maxInternalSkewness": { "type": "number" },
-              "maxBoundarySkewness": { "type": "number" },
-              "minFaceWeight": { "type": "number" },
-              "minVolRatio": { "type": "number" },
-              "minDeterminant": { "type": "number" },
-              "minLayerCoverage": { "type": "number" }
+              "maxNonOrtho": {
+                "type": "number"
+              },
+              "maxInternalSkewness": {
+                "type": "number"
+              },
+              "maxBoundarySkewness": {
+                "type": "number"
+              },
+              "minFaceWeight": {
+                "type": "number"
+              },
+              "minVolRatio": {
+                "type": "number"
+              },
+              "minDeterminant": {
+                "type": "number"
+              },
+              "minLayerCoverage": {
+                "type": "number"
+              }
             },
             "additionalProperties": true
           }
@@ -52,21 +111,58 @@
       },
       "additionalProperties": false
     },
-    "geometry": {
+    "generators": {
       "type": "object",
+      "description": "Where generator scripts and presets come from: 'package' (inside the plugin, default) or 'project' (the research tree, e.g. geometry/pore_cell).",
       "properties": {
-        "registry": { "type": "string" },
-        "workRoot": { "type": "string" },
-        "scriptRoots": { "type": "array", "items": { "type": "string" } }
+        "root": {
+          "enum": [
+            "package",
+            "project"
+          ]
+        }
       },
       "additionalProperties": true
     },
-    "cores": {
+    "geometry": {
       "type": "object",
-      "properties": { "np": { "type": "integer", "minimum": 1 } },
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "workRoot": {
+          "type": "string"
+        },
+        "scriptRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
       "additionalProperties": true
     },
-    "physics": { "type": "array", "items": { "type": "string" } }
+    "physics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "project": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "scratch": {
+      "type": "string"
+    },
+    "units": {
+      "enum": [
+        "mm",
+        "m"
+      ]
+    }
   },
   "additionalProperties": true
 }

@@ -1,0 +1,19 @@
+{
+  "name": "array-cylinders",
+  "container_mm": [
+    12.0,
+    12.0,
+    16.0
+  ],
+  "lattice": [
+    3,
+    3,
+    2
+  ],
+  "shape": "cylinder",
+  "radius_mm": 1.2,
+  "height_mm": 6.0,
+  "margin_mm": 0.5,
+  "sections": 32,
+  "note": "3x3x2 lattice of z-cylinders r=1.2 h=6 mm in a 12x12x16 mm box"
+}

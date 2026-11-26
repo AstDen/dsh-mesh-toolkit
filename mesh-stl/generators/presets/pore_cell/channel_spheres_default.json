@@ -1,0 +1,17 @@
+{
+  "name": "channel_spheres_default",
+  "comment": "Умолчание проекта: входной участок 2 d (норма m00191), r=2.5 мм, 14 уровней",
+  "r_mm": 2.5,
+  "W_mm": "auto",
+  "levels": 14,
+  "inlet_plenum_d": 2.0,
+  "outlet_mode": "equator",
+  "contact": "necks",
+  "neck_radius_fraction": 0.1,
+  "neck_length_d": 1.5,
+  "icosphere_subdivisions": 4,
+  "planar_arc_segments": 24,
+  "interface_source": "union",
+  "neck_surface": "waist",
+  "drop_domain_plane_faces": true
+}

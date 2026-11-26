@@ -1,0 +1,34 @@
+{
+  "_comment": "Тестовый кейс: цилиндр D=150 мм, H=500 мм, шары d=20 мм (моно). Зазор шар-шар 0.5 мм (под шейку-цилиндр), зазор шар-стенка 1.0 мм (правило «зазор >= 2*MeshSizeMin», D-007).",
+  "container": {
+    "type": "cylinder",
+    "center_xy_mm": [
+      75.0,
+      75.0
+    ],
+    "radius_mm": 75.0,
+    "z_range_mm": [
+      0.0,
+      500.0
+    ]
+  },
+  "radii": {
+    "policy": "constant",
+    "r_mm": 10.0
+  },
+  "gap_policy": "uniform",
+  "gap_mm": 0.5,
+  "gap_rel": 0.0,
+  "wall_gap_mm": 1.0,
+  "seed": 22,
+  "max_spheres": 20000,
+  "stop_after_fail": 300,
+  "step0_frac": 0.5,
+  "min_step_frac": 0.001,
+  "slope_min": 0.02,
+  "max_settle_iters": 5000,
+  "stall_limit": 60,
+  "fill_cycles": 1,
+  "compaction_cycles": 0,
+  "preview_subdivisions": 1
+}

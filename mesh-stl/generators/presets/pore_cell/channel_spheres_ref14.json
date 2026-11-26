@@ -1,0 +1,17 @@
+{
+  "name": "channel_spheres_ref14",
+  "comment": "Сверка с эталоном 17_3D-channel/task-04/meshing/good_mesing: r=2.5 мм, 14 уровней, вход 0.2 d",
+  "r_mm": 2.5,
+  "W_mm": "auto",
+  "levels": 14,
+  "inlet_plenum_d": 0.2,
+  "outlet_mode": "equator",
+  "contact": "necks",
+  "neck_radius_fraction": 0.1,
+  "neck_length_d": 1.5,
+  "icosphere_subdivisions": 4,
+  "planar_arc_segments": 24,
+  "interface_source": "union",
+  "neck_surface": "waist",
+  "drop_domain_plane_faces": true
+}

@@ -52,8 +52,12 @@ node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генера
 `stl_hints`, `stl_generate`, `stl_check`. Если плагин активируется с ошибкой схемы, DSH укажет
 точный путь параметра — правьте `index.js`, затем повторите `set_plugin` с `"target": "include:mesh-stl"`.
 
-Требования: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`. Для двух семейств (`fcc-cell`, `double-layer-burner`)
-нужен python проекта `.venv/bin/python`; QA STL работает без python и без проекта.
+Требования: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`. Встроенные семейства (`primitive`,
+`stratified-channel`, `box-array`) и QA STL работают без python и без данных проекта. Python-семейства
+(`fcc-cell`, `channel-spheres`, `double-layer-burner`, `blob-foam`, `packing`, `cad-porous`) запускают
+скрипты из `generators/` этого пакета и требуют модули `trimesh` и `numpy` (для части — `cadquery`,
+`scipy`, `skimage`). Перед запуском плагин проверяет импорт и возвращает `python-bridge-missing`
+с командой установки вместо traceback.
 
 ## Конфигурация
 
@@ -81,32 +85,41 @@ node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генера
 
 Если проект не найден, инструменты не падают, а возвращают `configured: false` и что именно указать.
 
-## Общее ядро и портируемые примитивы
+## Общее ядро и встроенные генераторы
 
 Механика (конфиг, профиль `sim-project.json`, резолвер путей, процесс-раннер, карточки, QA) живёт в
 `../sim-core` (пакет `sim-core`, 0.4.x); `lib/common.js` — тонкий фасад. Плагин регистрирует сервис
 `simGeometry` (`hints`/`generate`/`qa`) и складывает свои карточки в общий `simHints`.
 
-Семейство `primitive` пишет STL на чистом JS (`lib/primitives.js`): `shape` = `box` | `sphere` | `cylinder`,
-параметры `size_mm` / `radius_mm`+`height_mm` / `center_mm` / `segments`/`rings`/`sections`.
-Это единственный генератор, который работает **без проекта** и без python: геометрия и QA STL — на JS.
-Пресеты — в `data/primitives/`.
+Три семейства пишут STL на чистом JS и работают **без проекта** и без python: `primitive`
+(`lib/primitives.js`; `shape` = `box` | `sphere` | `cylinder`, параметры `size_mm` /
+`radius_mm`+`height_mm` / `center_mm` / `segments`/`rings`/`sections`), `stratified-channel`
+(`lib/generators/stratified.js`; две коробки по 12 треугольников) и `box-array`
+(`lib/generators/box-array.js`; решётка сфер/цилиндров + контейнер). Общие эмиттеры треугольников —
+`lib/shapes.js`. QA каждого выхода — встроенный JS (`lib/qa/`).
 
-Генераторы вне проекта задаются в `sim-project.json.geometry.scriptRoots` (абсолютные пути):
+`generators.root` (`sim-project.json` → `generators.root`, либо `MESH_STL_GENERATORS_ROOT`) выбирает
+дерево скриптов: `package` (по умолчанию — `generators/` внутри этого пакета) или `project`
+(исследовательское `geometry/` через `projectScript`/`projectPreset`). Пресеты — `generators/presets/<family>/`.
+Дополнительные деревья скриптов задаются в `sim-project.json.geometry.scriptRoots` (абсолютные пути):
 резолвер вернёт `resolvedFrom`; project-relative путь ищется в проекте первым.
 
 ## Семейства генераторов (`data/generators.json`)
 
-| id | скрипт | пресеты |
+| id | скрипт (`generators.root = package`) | пресеты |
 |---|---|---|
-| `fcc-cell` | `geometry/pore_cell/gen_fcc_cell.py` | `fcc_cell_d5*.json` |
-| `channel-spheres` | `geometry/pore_cell/gen_channel_spheres.py` | `channel_spheres_*.json` |
-| `double-layer-burner` | `geometry/pore_cell/gen_double_layer_burner.py` | `double_layer_burner_*.json` |
-| `packing` | `geometry/packings/gen_packing_table.py` → `gen_packing_stl.py` | `geometry/packings/params/*.json` |
-| `cad-porous` | `geometry/cad/gen_cq_porous.py` | `geometry/cad/params/*.json` |
-| `primitive` | встроенный JS (`lib/primitives.js`) | `data/primitives/*.json` |
-| `stratified-channel` | `geometry/stratified/gen_stratified_channel.py` | `geometry/stratified/params/*.json` |
-| `blob-foam` | `geometry/pore_cell/gen_blob_foam.py` | `geometry/pore_cell/params/blob_foam_*.json` |
+| `fcc-cell` | `generators/pore_cell/gen_fcc_cell.py` | `generators/presets/pore_cell/fcc_cell_d5*.json` |
+| `channel-spheres` | `generators/pore_cell/gen_channel_spheres.py` | `generators/presets/pore_cell/channel_spheres_*.json` |
+| `double-layer-burner` | `generators/pore_cell/gen_double_layer_burner.py` | `generators/presets/pore_cell/double_layer_burner_*.json` |
+| `blob-foam` | `generators/pore_cell/gen_blob_foam.py` | `generators/presets/pore_cell/blob_foam_*.json` |
+| `packing` | `generators/packings/gen_packing_table.py` → `gen_packing_stl.py` | `generators/presets/packings/*.json` |
+| `cad-porous` | `generators/cad/gen_cq_porous.py` (+ `py_qa.py`) | `generators/presets/cad/*.json` |
+| `primitive` | JS `lib/primitives.js` | `data/primitives/*.json` |
+| `stratified-channel` | JS `lib/generators/stratified.js` | `generators/presets/stratified/*.json` |
+| `box-array` | JS `lib/generators/box-array.js` | `generators/presets/box-array/*.json` |
+
+При `generators.root = "project"` python-семейства берут `projectScript`/`projectPreset` из
+исследовательского дерева (`geometry/pore_cell/...`), то есть старый режим сохраняется.
 
 Каждый запуск: копия/мердж `params.json` → шаги генератора → лог на шаг в `<outDir>/logs/` →
 QA каждого объявленного выхода (JS по умолчанию) → возврат `{ok, files[{path, qa}], commands, next}`.

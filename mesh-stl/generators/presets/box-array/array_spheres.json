@@ -1,0 +1,19 @@
+{
+  "name": "array-spheres",
+  "container_mm": [
+    10.0,
+    10.0,
+    20.0
+  ],
+  "lattice": [
+    2,
+    2,
+    4
+  ],
+  "shape": "sphere",
+  "radius_mm": 1.5,
+  "margin_mm": 0.5,
+  "segments": 24,
+  "rings": 12,
+  "note": "2x2x4 lattice of spheres r=1.5 mm in a 10x10x20 mm box: solid.stl (16 bodies) + container.stl"
+}

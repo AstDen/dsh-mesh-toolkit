@@ -30,6 +30,7 @@ export const DEFAULTS = {
   timeoutMs: 1800000,
   maxOutputChars: 20000,
   qaEngine: 'js',
+  generatorsRoot: 'package',
 }
 
 /** Env names keep the pre-0.3 spelling (`MESH_STL_PROJECT_ROOT`, ...). */
@@ -43,6 +44,7 @@ const ENV_ALIASES = {
   timeoutMs: 'TIMEOUT_MS',
   maxOutputChars: 'MAX_OUTPUT_CHARS',
   qaEngine: 'QA_ENGINE',
+  generatorsRoot: 'GENERATORS_ROOT',
 }
 
 /** Resolve config for one call; `starts` are cwd candidates from the agent session. */
@@ -70,6 +72,7 @@ export function normalizeConfig(raw = {}, starts = []) {
     version: PKG_VERSION,
     geometry: { ...(config.geometry ?? {}), scriptRoots, base },
     qa: { engine: String(config.qaEngine ?? config.qa?.engine ?? 'js').toLowerCase() },
+    generators: { root: String(config.generatorsRoot ?? config.generators?.root ?? 'package').toLowerCase() },
   }
 }
 
