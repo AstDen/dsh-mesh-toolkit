@@ -42,6 +42,7 @@ export const SKILL = {
 6. Delivery: \`mesh_deliver({ caseDir, name, minVol })\` — after a PASS gate and a fresh passport;
    the tool itself checks the round-trip, the interface and the gate inside the packaged case.
 7. Solver boundary conditions: \`mesh_patch_types({ caseDir, roles:{ inlet:[...], outlet:[...], walls:[...] } })\`
+8. Near-wall layers: \`mesh_first_layer({ uRef, lRef, nu, yPlusTarget, caseDir })\` → feed its \`scaffoldOptions\` into \`mesh_build\`, or send a \`mesh-feedback/1\` yplus document to \`mesh_revise\`
    then \`mesh_check\` again — the boundary file changed, so the passport is stale until it is refreshed.
 8. A solver run sent back feedback (y+ too high, non-ortho, skewness): \`mesh_revise({ caseDir, feedback, apply:true })\`,
    read \`changes[]\`, repeat at most to the ceiling — the advice table decides the next rung, not the operator.

@@ -253,14 +253,29 @@ y+ фидбек (y+=1 при U=10 м/с, L=0.01 м) пересобрал сло�
 - The `primitive` family: `shape: cone|pipe`, `parts: [{shape, params, translate, rotate_deg, scale}]`.
 - Tests: cone volume `πr²h/3` ±2 %, pipe `π(r_o²−r_i²)h` ±2 %, watertight for `parts[]`.
 
-### A5. y+ → layers (R)
+### A5. y+ → layers (R) — ✅ done, 2026-11-26 (mesh-build 0.7.1)
 
-- A new `mesh_layers` tool (`U_ref`, `L_ref`, `nu`, `yPlusTarget`, `expansionRatio`, `coverage`)
-  → `{Re, Cf, uTau, delta, first_layer_m, n_layers, total_m}`.
-- `mesh_build` accepts `scaffoldOptions.layers: {mode: "yplus", yPlusTarget, U_ref, L_ref, nu}` and
-  substitutes `nSurfaceLayers`/`firstLayerThickness`/`expansionRatio` (at present the layers are set manually).
-- Acceptance: the reference from their test (U=10, L=0.1, ν=1.5e-5, y+=1) — the numbers match to within 1e-6
-  relative to their formula.
+- Planned as `mesh_layers` + `scaffoldOptions.layers{mode:"yplus"}`; **shipped as** a pure calculator
+  `mesh_first_layer({ uRef, lRef, nu, yPlusTarget, expansionRatio, coverage, cellSize|caseDir, layerSurfaces })`
+  returning `{Re, Cf, uTau, delta_m, firstLayer_m, nLayers, totalThickness_m, lastLayer_m, yPlusLast,
+  relativeFirstLayer, relativeLastLayer, scaffoldOptions}` and an inverse mode `firstLayer` → y+.
+- The scaffold input is not a mode but an object: `scaffoldOptions` carries `layerSurfaces`, `nLayers`,
+  `layerThickness`, `expansionRatio`, `minVol` — the tool emits it ready to pass through.
+- **Finding that shaped the design**: the scaffold writes `relativeSizes true`, so `finalLayerThickness` is
+  relative to the near-wall cell; an absolute thickness from the correlation made snappy drop every layer
+  (`Extruding 0 out of 9600 faces`). The tool therefore needs the near-wall cell size: `cellSize` argument, or
+  read from the case (`handoff.json` first, then `blockMeshDict` + `polyMesh/points` + snappy levels, helper
+  `caseCellSize`). It warns when the relative final layer would fall below `minThickness 0.075`.
+- One correlation for everything: `lib/firstlayer.js` is now the single `skinFriction`/`firstLayerFromYPlus`, and
+  `lib/revise.js` (A3) imports it — a manual calculation and the `yplus` revision cannot diverge.
+- Acceptance `experiments/_scratch/verify-a5.mjs`: **28/28** — hand calculation on U=10 m/s, L=10 mm, ν=1.5e-5
+  (Re 6666.7, Cf 0.007391, u_τ 0.6079, first layer 24.67 µm, 9 layers, total 0.513 mm), the 1·10⁻⁶-relative check
+  against the formula, inverse round-trip (2.4675e-5 m → y+ 1.0000), warnings (Re < 5e5, first layer > δ/10, y+
+  beyond wall-function range), refusals, `caseDir` mode reading `a1-cube` + 250 µm near-wall cell (final relative
+  0.424), and a real rebuild of the c2 case with the computed block: **122 977 cells, 56 736 layers added, gate
+  PASS at 59.97°**.
+- Known follow-up (A7/A9): the gate ignores `minLayerCoverage` (0.8 is only a profile field), so a layered mesh is
+  judged on non-ortho/skew/minVol alone; layer coverage is currently reported by the scaffold but not scored.
 
 ### A6. Domain and scale (R)
 

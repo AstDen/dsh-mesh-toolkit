@@ -25,6 +25,7 @@ import {
 import { readCasePatches } from './lib/patches.js'
 import { applyRoleAssignments, applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
 import { loadAdvice, planRevision } from './lib/revise.js'
+import { caseCellSize, computeFirstLayer, yPlusFromThickness } from './lib/firstlayer.js'
 import { buildHandoff, qualityFromGate, readHandoff, writeHandoff } from '../sim-core/lib/handoff.js'
 import { ensureToolkit } from '../sim-core/lib/toolkit.js'
 import {
@@ -499,6 +500,83 @@ export function apply(ctx, rawConfig) {
         ? ['mesh_deliver({ caseDir, name, outDir, minVol, gateProfile }) — project tools/deliver/make_delivery.sh, or the packaged copy in the bundle (hint delivery-bundle)']
         : ['read gate.results[].metrics and mesh_hints, adjust geometry/interface level/layers, rerun']
       return payload
+    },
+  })
+
+  register({
+    name: 'mesh_first_layer',
+    description: 'Size the near-wall layers from a y+ target (flat plate: Cf = 0.026·Re^(-1/7), uTau = U·sqrt(Cf/2), '
+      + 'first layer = y+·nu/uTau, delta = 0.37·L·Re^(-0.2)) and return a scaffoldOptions block for mesh_build — or invert it: '
+      + 'given a first-layer thickness, report the y+ it gives. Pure calculator: no case and no OpenFOAM needed, unless you pass '
+      + 'caseDir to read the STL surface names for layerSurfaces.',
+    parameters: {
+      uRef: { type: 'number', description: 'Free-stream speed, m/s (required).' },
+      lRef: { type: 'number', description: 'Length along the wall (plate/chord), m (required).' },
+      nu: { type: 'number', description: 'Kinematic viscosity, m^2/s (default 1.5e-5, air at ~20 °C).' },
+      yPlusTarget: { type: 'number', description: 'Target y+ at the wall (default 1).' },
+      expansionRatio: { type: 'number', description: 'Geometric growth of the layers (default 1.2).' },
+      coverage: { type: 'number', description: 'Fraction of the boundary-layer thickness to cover (default 0.7).' },
+      layerSurfaces: { type: 'array', items: { type: 'string' }, description: 'STL surface names to get a scaffoldOptions block.' },
+      firstLayer: { type: 'number', description: 'Inverse mode: existing first-layer thickness (m) → report its y+.' },
+      cellSize: { type: 'number', description: 'Near-wall cell size after refinement, m (relative layerThickness = lastLayer/cellSize). Omitted: derived from caseDir handoff (background cell / 2^max level).' },
+      caseDir: { type: 'string', description: 'Optional case; its constant/triSurface names fill layerSurfaces and its handoff gives cellSize.' },
+    },
+    async execute(args, config) {
+      try {
+        let layerSurfaces = Array.isArray(args.layerSurfaces) ? args.layerSurfaces.map(String) : null
+        let caseDir = null
+        if (args.caseDir) {
+          caseDir = resolveCase(config, args, { mustExist: true, hint: 'mesh_first_layer only reads the surface names' })
+          const triSurface = join(caseDir, 'constant', 'triSurface')
+          if (existsSync(triSurface) && !layerSurfaces) {
+            layerSurfaces = readdirSync(triSurface)
+              .filter((name) => name.endsWith('.stl'))
+              .map((name) => name.replace(/\.stl$/, ''))
+          }
+        }
+        let cellSize = args.cellSize == null ? null : Number(args.cellSize)
+        let cellSizeSource = cellSize == null ? null : 'argument'
+        if (cellSize == null && caseDir) {
+          // near-wall cell = background cell / 2^max(level); the handoff records both, the case files are the fallback
+          const doc = readHandoff(caseDir)
+          const bbox = doc?.geometry?.bbox_m
+          const cells = doc?.mesh?.selection?.cells
+          const levels = doc?.mesh?.selection?.levels ?? {}
+          if (bbox?.min && bbox?.max && Array.isArray(cells) && cells.length === 3) {
+            const coarse = Math.min(
+              (bbox.max[0] - bbox.min[0]) / cells[0],
+              (bbox.max[1] - bbox.min[1]) / cells[1],
+              (bbox.max[2] - bbox.min[2]) / cells[2],
+            )
+            const level = Math.max(0, ...Object.values(levels).map((value) => (Array.isArray(value) ? Math.max(...value) : Number(value) || 0)))
+            if (Number.isFinite(coarse) && coarse > 0) {
+              cellSize = coarse / Math.pow(2, level)
+              cellSizeSource = 'handoff'
+            }
+          }
+          if (cellSize == null) {
+            const computed = caseCellSize(caseDir)
+            if (computed.ok) {
+              cellSize = computed.cellSize_m
+              cellSizeSource = `case (${(computed.background_m * 1e6).toFixed(1)} µm background, level ${computed.level})`
+            }
+          }
+        }
+        const common = { uRef: args.uRef, lRef: args.lRef, nu: args.nu ?? 1.5e-5, cellSize }
+        const payload = args.firstLayer
+          ? { ...yPlusFromThickness({ ...common, firstLayer: args.firstLayer }), mode: 'yplus-from-thickness' }
+          : { ...computeFirstLayer({ ...common, yPlusTarget: args.yPlusTarget, expansionRatio: args.expansionRatio, coverage: args.coverage, layerSurfaces }), mode: 'layers-from-yplus' }
+        return {
+          ...payload,
+          caseDir: caseDir ? displayPath(config, caseDir) : null,
+          cellSizeSource,
+          next: payload.scaffoldOptions
+            ? ['mesh_build({ route: "snappy", scaffold: true, stl: [...], scaffoldOptions: { ...domain..., ...scaffoldOptions } }) then mesh_check, or mesh_revise with a mesh-feedback/1 yplus document']
+            : ['pass layerSurfaces (or caseDir) to get a scaffoldOptions block; mesh_revise uses the same correlation for the yplus category'],
+        }
+      } catch (error) {
+        return { ok: false, error: error.message, tool: 'mesh_first_layer' }
+      }
     },
   })
 

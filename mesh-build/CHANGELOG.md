@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.1 — 2026-11-26
+
+Plan A5 — first-layer sizing as a tool instead of a skill step.
+
+- `mesh_first_layer`: y+ → layers (flat plate `Cf = 0.026·Re^(-1/7)`, `u_τ = U·√(Cf/2)`, `y⁺·ν/u_τ`,
+  `δ = 0.37·L·Re^(-0.2)`, geometric growth over `coverage·δ`) returning dimensions, layer count and a ready
+  `scaffoldOptions` block; inverse mode (`firstLayer`) reports the y+ a given thickness produces.
+- The near-wall cell size is read from `handoff.json`, or from `blockMeshDict` + `polyMesh/points` +
+  `snappyHexMeshDict` levels (`lib/firstlayer.js: caseCellSize`), because the scaffold writes `relativeSizes true`:
+  an absolute `layerThickness` makes snappy drop every layer (`Extruding 0 out of N faces`). The tool warns when
+  the relative final layer would fall below `minThickness 0.075`.
+- `lib/revise.js` now shares the same correlation with `mesh_first_layer`, so the `yplus` revision and a manual
+  calculation cannot diverge (the duplicate `skinFriction`/`firstLayerFromYPlus` copy is gone).
+- Acceptance `experiments/_scratch/verify-a5.mjs`: 28/28 — hand-calculation parity (Re 6666.7, Cf 0.007391,
+  u_τ 0.6079, 24.67 µm), inverse round-trip, refusals, and a real rebuild of the c2 case with the computed block
+  (122 977 cells, 56 736 layers added, gate PASS at 59.97°).
+- Known follow-up: the gate still ignores layer coverage (`minLayerCoverage 0.8` is only a profile field), so a
+  layered mesh is judged on non-ortho/skew/minVol alone — plan A7/A9 territory.
+
 ## 0.7.0 — 2026-11-26
 
 - **plan A3 (workbench contract)**: new tool `mesh_revise` turns a `mesh-feedback/1` document into the next

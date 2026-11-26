@@ -10,22 +10,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stem } from './common.js'
+import { firstLayerFromYPlus, skinFriction } from './firstlayer.js'
 
 export const FEEDBACK_SCHEMA = 'mesh-feedback/1'
 
-/** Cf correlation of the blob/boundary-layer handbook (same one the workbench uses in compute_first_layer). */
-export function skinFriction(Re) {
-  return 0.026 * Math.pow(Re, -1 / 7)
-}
-
-/** firstLayer = y+ * nu / uTau, with uTau from Cf = 0.026 Re^(-1/7) — contract §3.3, `yplus`. */
-export function firstLayerFromYPlus({ yPlus, uRef, lRef, nu }) {
-  const Re = (uRef * lRef) / nu
-  const Cf = skinFriction(Re)
-  const uTau = uRef * Math.sqrt(Cf / 2)
-  const delta = 0.37 * lRef * Math.pow(Re, -0.2)
-  return { Re, Cf, uTau, delta_m: delta, firstLayer_m: (yPlus * nu) / uTau }
-}
+export { firstLayerFromYPlus, skinFriction }
 
 export function loadAdvice(dataDir) {
   const file = join(dataDir, 'advice.json')

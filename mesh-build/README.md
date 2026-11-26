@@ -13,6 +13,7 @@ OpenFOAM/cfMesh command on this machine, the logs stay on disk, and a short summ
 | `mesh_build` | route + case scaffold + gate | `route`, `caseDir`, `scaffold`, `stl`, `scaffoldOptions`, `np`, `splitRegions`, `gate`, `profile`, `minVol`, `overwrite`, `skipBlockMesh`, `dryRun`, `gmshScript`, `gmshArgs`, `msh` |
 | `mesh_check` | JS gate per region; writes `mesh-passport.json`, leaves the mesh untouched | `caseDir`, `regions`, `profile`, `minVol` |
 | `mesh_deliver` | delivery of a gate-passing mesh: OF case + `.tar.gz`, Fluent `.msh` + `.zip`, a report with the checks | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
+| `mesh_first_layer` | y+ → layer sizing (flat plate: Cf, u_τ, first layer, δ, layer count) with a ready `scaffoldOptions` block; or the inverse: a known first layer → its y+ | `uRef`, `lRef`, `nu`, `yPlusTarget`, `expansionRatio`, `coverage`, `cellSize`, `layerSurfaces`, `firstLayer`, `caseDir` |
 | `mesh_patch_types` | solver roles for existing patches (retype `boundary`, `.bak` + diff, updates `handoff.json`) | `caseDir`, `roles`, `region`, `dryRun`, `recheck`, `profile`, `minVol` |
 | `mesh_revise` | plan A3: a `mesh-feedback/1` document becomes the next revision (advice table as data, rebuild + re-gate + history) | `caseDir`, `feedback`, `feedbackFile`, `attempt`, `apply`, `profile`, `minVol`, `np` |
 
@@ -127,6 +128,33 @@ and any mismatch between the recorded verdict and the current one.
 dictionary (check disabled) and the response carries `disabled-minVol-not-configured`; on failure — the advice
 `minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` is kept as an escape hatch to
 `tools/qa/mesh_gate.sh`.
+
+## First layer from y+ (`mesh_first_layer`)
+
+Size the near wall before meshing, instead of guessing `nLayers`/`firstLayerThickness`:
+
+```
+mesh_first_layer({ uRef: 30, lRef: 5, nu: 1.5e-5, yPlusTarget: 1, caseDir: "cases/sphere" })
+```
+
+The calculator uses the flat-plate correlation `Cf = 0.026·Re^(-1/7)`, `u_τ = U·√(Cf/2)`, first layer
+`y⁺·ν/u_τ`, boundary layer `δ = 0.37·L·Re^(-0.2)`, and covers `coverage·δ` with geometric growth. It returns the
+dimensionless numbers, the absolute dimensions, the layer count and a `scaffoldOptions` block for `mesh_build`.
+
+**Relative vs absolute:** the snappy scaffold writes `relativeSizes true`, so `layerThickness` is relative to the
+near-wall cell. Pass `cellSize` (metres, after refinement) — or `caseDir`, and the tool reads it from
+`handoff.json` or from `blockMeshDict` + `polyMesh/points` + the refinement levels. With an absolute thickness
+snappy quietly removes every layer (`Extruding 0 out of N faces`), which is exactly what this tool prevents; it
+warns when the relative final layer would fall below `minThickness 0.075`.
+
+Inverse mode answers the other question — "this mesh has a 5 µm first layer, what y+ does that give?":
+
+```
+mesh_first_layer({ uRef: 30, lRef: 5, firstLayer: 5e-6 })
+```
+
+`mesh_revise`'s `yplus` category uses the same correlation (`lib/firstlayer.js`), so a hand calculation and the
+automatic revision cannot disagree.
 
 ## Patch roles (`mesh_patch_types`)
 
