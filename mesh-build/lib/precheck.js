@@ -100,13 +100,25 @@ function patchList(patches) {
 /**
  * Problem: the background/domain patch is missing after meshing, i.e. snappy kept the
  * inside of a closed solid instead of the outside — locationInMesh landed in the solid (DEF-17).
+ *
+ * An `internal` domain is the exception: the domain is the solid's own bounding box, and when the
+ * surface is closed snappy legitimately consumes the whole `world` patch. There the sanity check is
+ * "did the run keep any surface patch at all", not "is `world` still there" (DEF-19).
  */
-export function domainPatchProblem(patchReport, domainPatch = 'world') {
+export function domainPatchProblem(patchReport, domainPatch = 'world', options = {}) {
   const entries = Array.isArray(patchReport?.entries) ? patchReport.entries : []
   if (entries.length === 0) return null
+  const internal = String(options.domainType ?? '').toLowerCase() === 'internal'
   for (const entry of entries) {
     const patches = entry.patches ?? []
     if (patches.length === 0) continue
+    if (internal) {
+      const kept = patches.filter((p) => p.name !== domainPatch && (p.nFaces ?? 0) > 0)
+      if (kept.length > 0) continue
+      return `no surface patch survived meshing (patches: ${patchList(patches)}) — an internal domain keeps `
+        + `only the surface patches, so locationInMesh most likely landed in the solid body; `
+        + 'pick a fluid point (mesh-build/scripts/fluid-point.py picks one) and rebuild'
+    }
     const found = patches.find((p) => p.name === domainPatch)
     if (found && found.nFaces > 0) continue
     return `patch "${domainPatch}" is missing from the built mesh (patches: ${patchList(patches)}) — `

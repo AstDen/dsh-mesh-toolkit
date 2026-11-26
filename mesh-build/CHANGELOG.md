@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0-rc.2 — 2026-11-26
+
+Day-3 hardening of the quality loop, all covered by the new unit tests (`mesh-build/test/`, 34 checks).
+
+Fixes found while writing them:
+
+- `surfacecheck.js` wrote the debug STL through an unimported `writeFileSync` — `mesh_surface_check`
+  with `keepStl: true` threw `ReferenceError` instead of exporting the surface. The import is there now.
+- An **internal** domain of a closed body no longer trips the `world`-patch sanity check: the rule now
+  requires at least one surviving non-`world` patch, because for `domain.type: "internal"` snappy
+  legitimately consumes the whole `world` patch. Measured: a closed 10 mm box with a 3.5 mm sphere
+  cavity meshes to 50256 cells, `mesh_check` PASS, one patch `cav`.
+- The `locationInMesh` refusal says when the point looks like millimetres:
+  `the point looks like millimetres: the case is in METRES, so divide by 1000 ((0.004 0.004 0.004))`.
+
+Also: `scripts/bump.mjs` accepts an explicit prerelease version (`1.0.0-rc.2`), which the rc line needs.
+
 ## 1.0.0-rc.1 — 2026-11-26
 
 First release candidate of the 1.0 line; the three packages are versioned together from here on.

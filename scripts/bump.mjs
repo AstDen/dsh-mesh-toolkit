@@ -72,7 +72,8 @@ function bump(version, kind) {
   if (kind === 'patch') return `${major}.${minor}.${patch + 1}`
   if (kind === 'minor') return `${major}.${minor + 1}.0`
   if (kind === 'major') return `${major + 1}.0.0`
-  if (/^\d+\.\d+\.\d+$/.test(kind)) return kind
+  // prereleases are explicit versions too: `node scripts/bump.mjs 1.0.0-rc.2`
+  if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(kind)) return kind
   console.error(`bad version or kind: ${kind}`)
   process.exit(2)
 }

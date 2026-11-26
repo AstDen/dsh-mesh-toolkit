@@ -478,7 +478,7 @@ export function apply(ctx, rawConfig) {
       if (route.id === 'snappy') {
         let patchReport = null
         try { patchReport = readCasePatches(caseDir) } catch { /* boundary unreadable — the gate will report it */ }
-        const missingDomain = domainPatchProblem(patchReport, 'world')
+        const missingDomain = domainPatchProblem(patchReport, 'world', { domainType: options.domain?.type })
         if (missingDomain) {
           return {
             ...payload,

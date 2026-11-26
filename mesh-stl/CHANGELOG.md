@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-rc.2 — 2026-11-26
+
+No functional change: the version moves with the toolkit so the three packages stay aligned.
+
 ## 1.0.0-rc.1 — 2026-11-26
 
 Version aligned with the toolkit 1.0 release candidate (the three packages are versioned together from here on).

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting table
+    url: https://github.com/AstDen/dsh-mesh-toolkit/blob/master/docs/TROUBLESHOOTING.md
+    about: Literal error strings, their causes and fixes — check here first.

@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
 
-> **1.0.0-rc.1** · packages: mesh-build 1.0.0-rc.1 · mesh-stl 1.0.0-rc.1 · sim-core 1.0.0-rc.1
+> **1.0.0-rc.2** · packages: mesh-build 1.0.0-rc.2 · mesh-stl 1.0.0-rc.2 · sim-core 1.0.0-rc.2
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Twelve tools, 40 searchable knowledge
@@ -114,9 +114,19 @@ Disable with `set_plugin` `enabled: false`; remove with `remove_bundle` (bundle 
 First run: [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — five calls from nothing to a gated, delivered mesh.
 Error strings: [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
-Smoke tests without a DSH host (need the project, or `MESH_*_PROJECT_ROOT`):
+First run without a case — `doctor` checks the environment, `demo` meshes a cube with a spherical
+pore and delivers it (~26 s, needs OpenFOAM):
 
 ```bash
+node scripts/doctor.mjs
+node scripts/demo.mjs
+```
+
+Tests (no DSH host, no OpenFOAM for the unit tier):
+
+```bash
+npm test                              # 34 unit checks: domain, caps, advice/revise, surfacecheck
+node scripts/contract-test.mjs        # 37 contract checks; --no-mesh skips the OpenFOAM tier
 node mesh-stl/scripts/smoke.mjs
 node mesh-build/scripts/smoke.mjs
 ```
@@ -252,6 +262,8 @@ benchmark/TESTS.md         universal regression suite (A–V, L)
 benchmark/PROMPT.md       shorter two-task evaluation protocol
 docs/QUICKSTART.md        five calls from nothing to a gated, delivered mesh
 docs/TROUBLESHOOTING.md   literal error strings → cause → fix
+docs/VERSION-POLICY.md    what a version means, DSH compatibility rules
+CONTRIBUTING.md           the checks to run, what an issue needs
 docs/extending.md         data schemas, routes, thresholds, reload rule
 docs/PORTABLE.md          working without sim-project.json
 docs/WORKBENCH-CONTRACT.md  mesh-toolkit ↔ openfoam-workbench contract (schemas, roles, loop)

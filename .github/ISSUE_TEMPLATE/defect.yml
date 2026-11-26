@@ -1,0 +1,61 @@
+name: Defect
+description: A tool returned a wrong result, refused a valid case, or crashed
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The fastest fix comes from the exact call, the exact answer
+        and the doctor output — the tools answer with structured `error` / `next` fields and
+        those strings are greppable.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what the tool actually returned.
+    validations:
+      required: true
+  - type: textarea
+    id: call
+    attributes:
+      label: Exact tool call
+      description: Tool name and JSON arguments (redact absolute paths if needed).
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: answer
+    attributes:
+      label: Exact answer / log tail
+      description: Paste the returned text. For a meshing failure include the last 20 lines of the run log.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Environment
+      description: Output of `node scripts/doctor.mjs --json` (or the PASS/WARN/FAIL table).
+      render: json
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: mesh-toolkit version
+      description: From `mesh_hints()` → `versionInfo.reported`, or the release tag.
+      placeholder: "1.0.0-rc.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: openfoam
+    attributes:
+      label: OpenFOAM build
+      options:
+        - OpenFOAM.com (v2512 or newer)
+        - OpenFOAM.com (older)
+        - OpenFOAM.org (14 or newer)
+        - OpenFOAM.org (older)
+        - not installed / not used
+    validations:
+      required: false

@@ -7,7 +7,7 @@
  * difference — the failure mode the benchmark recorded as DEF-11.
  */
 
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const EPS = 1e-18

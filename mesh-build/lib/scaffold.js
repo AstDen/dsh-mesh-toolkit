@@ -425,7 +425,13 @@ export function writeSnappyCase(config, caseDir, options) {
   const warnings = [...domainNotes]
   for (const location of locations) {
     if (!inside(location.point, domainMin, domainMax)) {
-      throw new Error(`locationInMesh for "${location.name}" is outside the domain: ${vec(location.point)}`)
+      const hint = looksLikeMillimetres(location.point, domainMin, domainMax)
+      throw new Error(
+        `locationInMesh for "${location.name}" is outside the domain: ${vec(location.point)}`
+        + ` (domain ${vec(domainMin)}…${vec(domainMax)} m)`
+        + (hint ? ` — the point looks like millimetres: the case is in METRES, so divide by 1000 (${vec(hint)})` : ' — the point is in METRES')
+        + '; mesh-build/scripts/fluid-point.py picks a fluid point from the STL',
+      )
     }
   }
 
@@ -542,4 +548,18 @@ export function installStl(config, caseDir, stlInputs) {
     copied.push({ source: displayPath(config, file), target: displayPath(config, target) })
   }
   return copied
+}
+
+/**
+ * A point well outside a small domain is usually a millimetre coordinate handed to a metre case:
+ * the domain is < 0.5 m across and at least one component is >= 40x the domain extent (the classic
+ * 10 mm cube with locationInMesh (4 4 4)).
+ */
+function looksLikeMillimetres(point, domainMin, domainMax) {
+  const extent = domainMax.map((v, i) => v - domainMin[i])
+  const maxExtent = Math.max(...extent)
+  if (!(maxExtent > 0) || maxExtent > 0.5) return null
+  const looksMm = point.some((v, i) => Math.abs(v) >= Math.max(20 * extent[i], 0.01))
+  if (!looksMm) return null
+  return point.map((v) => Number((v / 1000).toFixed(12)))
 }

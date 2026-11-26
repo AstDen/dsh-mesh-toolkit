@@ -1,0 +1,37 @@
+name: Feature or generator request
+description: A geometry family, a meshing route, or a piece of the handoff contract
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before asking, check the knowledge cards (`mesh_hints()` / `stl_hints()`) and
+        `docs/WORKBENCH-CONTRACT.md` — several requests are already covered by a card.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you meshing, at what scale, and where does the toolkit fall short today?
+    validations:
+      required: true
+  - type: textarea
+    id: geometry
+    attributes:
+      label: Geometry
+      description: Parameters or an STL. Pore-scale defaults: features in millimetres, watertight STL, one closed shell per body.
+    validations:
+      required: false
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: A new family, a route option, a dictionary key, a field on the handoff — be concrete.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How we would know it works
+      description: A measurable acceptance criterion (cell count, gate verdict, time, a specific case).
+    validations:
+      required: false
