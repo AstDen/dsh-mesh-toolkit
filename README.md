@@ -23,6 +23,9 @@ a compact JSON summary. Plugins talk to each other through Cordis services
 
 ## Status
 
+**1.0.0** — accepted on a clean machine with no project, no checkout and no project venv
+(`docs/ACCEPTANCE.md`: `doctor` READY, `demo` OK in 25.5 s from the release tarball).
+
 Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
 **gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 

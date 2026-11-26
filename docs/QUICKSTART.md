@@ -54,7 +54,7 @@ pipeline produces before running it on your own geometry (README § 60 seconds h
 Confirm from the agent side — `mesh_hints()` with no arguments prints the card catalogue and the version block:
 
 ```
-mesh_hints() -> versionInfo { reported: "1.0.0-rc.1", onDisk: "1.0.0-rc.1", stale: false }, 40 cards
+mesh_hints() -> versionInfo { reported: "1.0.0", onDisk: "1.0.0", stale: false }, 40 cards
 ```
 
 `stale: true` means the live process runs older code than the files on disk: toggle the bundle, and restart DSH
