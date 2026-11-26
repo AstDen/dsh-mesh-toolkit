@@ -76,7 +76,10 @@ node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генера
 
 `projectRoot` и `python` можно не задавать: корень ищется вверх от рабочего каталога агента по
 `sim-project.json`, интерпретатор — `<projectRoot>/.venv/bin/python`.
-`workRoot`/`registry` — пути **относительно** корня проекта.
+`workRoot`/`registry` — пути **относительно** корня проекта, а без профиля — **относительно текущего
+каталога**; `registry` может быть абсолютным. Таблица паспорта создаётся по требованию (заголовок пишется
+сама). Если файл нельзя записать (read-only каталог, чужой заголовок), QA всё равно считается: результат
+несёт `registered: {ok: false, error, row}` и строку-предупреждение в `next`, вердикт не ломается.
 
 Переменные: `MESH_STL_PROJECT_ROOT`, `MESH_STL_PYTHON`, `MESH_STL_WORK_ROOT`, `MESH_STL_REGISTRY`,
 `MESH_STL_TIMEOUT_MS`, `MESH_STL_CONFIG`, а также `MESH_STL_OPENFOAM_BASHRC` (явный `etc/bashrc`) и

@@ -56,7 +56,7 @@ node plugins/mesh-build/scripts/smoke.mjs   # конфиг, маршруты, к
 // ~/.config/mesh-build/config.json   (или $MESH_BUILD_CONFIG=/path/config.json)
 {
   "projectRoot": "/path/to/Mesh_3D_pore_scale",
-  "caseRoot": "experiments",
+  "caseRoot": "cases",
   "workRoot": ".cache/mesh-build",
   "np": 6,
   "timeoutMs": 1800000
@@ -64,7 +64,8 @@ node plugins/mesh-build/scripts/smoke.mjs   # конфиг, маршруты, к
 ```
 
 `projectRoot` можно не задавать — ищется вверх от рабочего каталога агента; `caseRoot`/`workRoot` —
-пути **относительно** корня проекта.
+пути **относительно** корня проекта (без профиля — относительно текущего каталога, `caseRoot` по
+умолчанию `cases`).
 
 Переменные: `MESH_BUILD_PROJECT_ROOT`, `MESH_BUILD_PYTHON`, `MESH_BUILD_WORK_ROOT`,
 `MESH_BUILD_CASE_ROOT`, `MESH_BUILD_NP`, `MESH_BUILD_TIMEOUT_MS`, `MESH_BUILD_CONFIG`,
@@ -93,7 +94,10 @@ serial | splitRegions`. Плейсхолдеры: `{caseDir} {np} {msh} {python}
 - внешняя граница домена — `symmetry` (иначе snap сдвигает точки с плоскости, exp-006/D-013);
 - `locationsInMesh` из `locationInMesh`: `[x,y,z]` или `[{point:[x,y,z], name:"fluid"}]`, multi-region → `cellZones` → `splitMeshRegions`;
 - `minVol` абсолютный (по умолчанию `1e-14`, правило `h_min³/6`), `maxNonOrtho` 65 в `meshQualityDict`;
-- слои — только для перечисленных `layerSurfaces`.
+- слои — только для перечисленных `layerSurfaces`;
+- если `locationInMesh` попала внутрь замкнутого твёрдого тела, сборка останавливается (`phase: "sanity"`,
+  «нет патча `world`») — точку берут скриптом `scripts/fluid-point.py`
+  (`<python> scripts/fluid-point.py model.stl --clearance 0.1`).
 
 `scaffoldOptions`: `domainMin`, `domainMax` (метры), `cells` или `cellSize` (метры), `locationInMesh`,
 `refinementLevels {surface:level}`, `defaultLevel`, `layerSurfaces`, `nLayers`, `layerThickness`,

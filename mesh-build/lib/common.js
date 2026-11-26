@@ -33,7 +33,7 @@ export const DEFAULTS = {
   openfoamBashrc: '',
   openfoamRoots: [],
   workRoot: '.cache/mesh-build',
-  caseRoot: 'experiments',
+  caseRoot: 'cases',
   np: 1,
   timeoutMs: 1800000,
   maxOutputChars: 20000,

@@ -864,11 +864,13 @@ is a smoke case, not a version regression (use V1–V3 for that).
 ```bash
 .venv/bin/python benchmark/scripts/fluid_point.py \
   benchmark/runs/<RUN>/stl/b1/fluid.stl --clearance 0.2 --seed 1
+# канонический скрипт теперь в пакете: plugins/mesh-build/scripts/fluid-point.py (здесь — тонкий шим)
 # -> {"ok": true, "point_mm": [0.044194, 0.044194, -2.114369], "clearance_mm": 0.38, ...}
 ```
 
-Then convert mm → m and pass the point as `scaffoldOptions.locationInMesh`. The script ray-casts
-along +x (no rtree needed) and checks the distance to the surface with `closest_point_naive`.
+Then convert mm → m and pass the point as `scaffoldOptions.locationInMesh`. The script probes the same
+nearest triangle for distance and side (`(p - closest).n`, negative = inside) over a (y,z) bucket index,
+with `--max-seconds`/`--tries` budget and `best_clearance_mm` in the failure payload.
 A "not found" result usually means the STL is open or the clearance is larger than the thinnest
 passage — lower `--clearance` before assuming a geometry bug.
 

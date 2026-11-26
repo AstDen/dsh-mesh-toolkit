@@ -1,6 +1,6 @@
 {
   "name": "mesh-build",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "DSH plugin for pore-scale volume meshing: snappyHexMesh (hex-dominant, layers, multi-region CHT), cfMesh cartesianMesh, gmsh OCC conformal route D, checkMesh plus a strict per-region quality gate with absolute minVol handling.",
   "type": "module",

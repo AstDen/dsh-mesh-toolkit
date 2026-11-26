@@ -69,13 +69,20 @@
   `cad-porous` raw PASS 4950 tri (импорт `py_qa` работает); `python-bridge-missing` возвращается без traceback.
 - Регрессии: `smoke.mjs` SMOKE OK, `qa-parity.mjs --project` 15/15.
 
-### 1.3 Реестр STL и caseRoots (⬜ 0.5 дня)
-- `registry.path` (по умолчанию `./stl/registry.csv`, относительно `projectRoot`): файл создаётся
-  с заголовком по требованию; при read-only ФС — `registered: false` + предупреждение, вердикт не меняется.
-- `caseRoots` по умолчанию `["./cases"]` (сейчас `["experiments","cases/openfoam","cases/fluent"]`);
-  `next:`-сообщения строятся из фактического корня, а не хардкодом `experiments/exp-NNN`.
-- `benchmark/scripts/fluid_point.py` → переносится в `mesh-build/scripts/fluid-point.py`; сообщения
-  `next:` ссылаются на утилиту внутри пакета.
+### 1.3 Реестр STL и caseRoots (✅ готово, 2026-11-26)
+- `lib/registry.js: registryFilePath(config)` — относительный `registry` разрешается от `projectRoot`, а без
+  профиля от текущего каталога; абсолютный путь принимается. Таблица создаётся по требованию с заголовком.
+- Read-only реестр больше не ломает вердикт: `stl_check` отдаёт `registered: {ok:false, error, row}` и
+  строку-предупреждение в `next`. Проверено живым вызовом на `chmod a-w stl/registry.csv` →
+  `verdict PASS`, `registered.error = EACCES …`, файл не изменился.
+- `sim-core/lib/project.js`: case-local по умолчанию `caseRoots: ["./cases"]` (профиль переопределяет);
+  `mesh-build` DEFAULTS `caseRoot: "cases"`. Проверено в пустом каталоге-профиле: `registry → ./stl/registry.csv`,
+  `caseRoots ["./cases"] → <root>/cases`, `resolveProjectPath("exp-001/case") → <root>/cases/exp-001/case`.
+- `fluid-point.py` переехал в `plugins/mesh-build/scripts/fluid-point.py` (канонический), в
+  `benchmark/scripts/fluid_point.py` остался тонкий шим; сообщения `precheck.js`/`index.js` указывают на
+  упакованный скрипт. Оба входа прогнаны на реальных STL (A1, box-array) — одинаковый JSON.
+- Версии: mesh-stl 0.3.4, mesh-build 0.5.2, sim-core 0.4.2. Регрессии: оба `smoke.mjs` SMOKE OK,
+  `qa-parity.mjs --project` 15/15.
 
 ### 1.4 Первый запуск без проекта (⬜ 0.5 дня)
 - `sim-core/lib/config.js`: если `sim-project.json` нет — работать на дефолтах и вернуть

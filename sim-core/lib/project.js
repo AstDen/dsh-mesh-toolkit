@@ -30,7 +30,9 @@ export const BUILTIN_GATE_PROFILES = {
 
 const DEFAULTS = {
   units: 'mm',
-  caseRoots: ['experiments', 'cases'],
+  // Case-local default: a bare directory keeps its meshes under ./cases. A profile
+  // overrides this with its own roots (the research project uses experiments/ and cases/).
+  caseRoots: ['./cases'],
   scratch: '',
   foam: {},
   gate: {},

@@ -1,5 +1,11 @@
 # Changelog — sim-core
 
+## 0.4.2 — 2026-11-26
+
+- **`project.js`: case-local по умолчанию `caseRoots: ["./cases"]`** (было `['experiments','cases']`).
+  Профиль по-прежнему переопределяет корни; смысл — в голом каталоге без `sim-project.json` кейсы
+  лежат в `./cases`, а не в исследовательских `experiments/` (план 1.3).
+
 ## 0.4.1 — 2026-11-26
 
 - **`lib/gate.js`: `ensureGateDicts(overlay)`** — если в кейсе нет `system/fvSchemes` или

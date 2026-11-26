@@ -111,7 +111,7 @@ export function domainPatchProblem(patchReport, domainPatch = 'world') {
     if (found && found.nFaces > 0) continue
     return `patch "${domainPatch}" is missing from the built mesh (patches: ${patchList(patches)}) — `
       + 'locationInMesh most likely landed inside the solid body, so snappy kept the solid interior; '
-      + 'pick a fluid point (benchmark/scripts/fluid_point.py) and rebuild'
+      + 'pick a fluid point (mesh-build/scripts/fluid-point.py picks one) and rebuild'
   }
   return null
 }

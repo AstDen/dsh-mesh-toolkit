@@ -434,7 +434,7 @@ export function apply(ctx, rawConfig) {
             ok: false,
             phase: 'sanity',
             error: missingDomain,
-            next: 'move locationInMesh into the fluid region and rerun (benchmark/scripts/fluid_point.py picks one)',
+            next: 'move locationInMesh into the fluid region and rerun (mesh-build/scripts/fluid-point.py picks one)',
           }
         }
       }

@@ -3,7 +3,7 @@
  * @module mesh-stl/lib/registry
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 
 /** Canonical column order of stl/registry.csv (see project AGENTS.md / geometry/AGENTS.md). */
 export const REGISTRY_COLUMNS = [
@@ -22,9 +22,20 @@ export function formatBbox(bbox) {
   return bbox.slice(0, 3).map((v) => Number(v).toFixed(4).replace(/\.?0+$/, '')).join('x')
 }
 
+/**
+ * Absolute path of the passport table. `registry` may be absolute; a relative value is
+ * resolved against the project root, or against the cwd when there is no profile — so the
+ * default `./stl/registry.csv` works in a bare directory (plan 1.3).
+ */
+export function registryFilePath(config) {
+  const entry = String(config.registry || 'stl/registry.csv')
+  const base = config.projectRoot || config.rootDir || process.cwd()
+  return isAbsolute(entry) ? entry : join(base, entry)
+}
+
 /** Append one passport row; creates the file with a header when missing. */
 export function appendRegistryRow(config, values) {
-  const file = join(config.projectRoot, config.registry)
+  const file = registryFilePath(config)
   mkdirSync(dirname(file), { recursive: true })
   let existed = existsSync(file)
   if (!existed) {

@@ -17,7 +17,7 @@ import {
   catalogFamilies, loadRegistry, qaFile, runFamily,
 } from './lib/generators.js'
 import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
-import { appendRegistryRow, formatBbox } from './lib/registry.js'
+import { appendRegistryRow, formatBbox, registryFilePath } from './lib/registry.js'
 import { SKILL } from './lib/skill.js'
 
 export const name = 'mesh-stl'
@@ -212,7 +212,13 @@ export function apply(ctx, rawConfig) {
           path: displayPath(config, cleanOut || stlPath),
           notes: args.notes ?? '',
         }
-        registered = { ...appendRegistryRow(config, values), row: values }
+        try {
+          registered = { ok: true, ...appendRegistryRow(config, values), row: values }
+        } catch (error) {
+          // A read-only or foreign registry must not turn a QA verdict into a tool error: the
+          // surface is still checked, the row just was not written (plan 1.3).
+          registered = { ok: false, file: registryFilePath(config), error: String(error.message ?? error), row: values }
+        }
       }
 
       return {
@@ -225,12 +231,17 @@ export function apply(ctx, rawConfig) {
         cleaned: cleanOut ? { file: displayPath(config, cleanOut), cleanup: qa.clean ?? null } : undefined,
         registered,
         verdict: qa.verdict,
-        next: qa.verdict === 'PASS'
-          ? ['mesh_build({ route: "snappy", scaffold: true, caseDir: "...", stl: ["' + displayPath(config, cleanOut || stlPath) + '"], scaffoldOptions: { domainMin, domainMax, cellSize, locationInMesh } }) — or scaffold:false for an existing case']
-          : [
-              'cleanup:true — write cleaned STL and re-check it',
-              'stl_hints({ id: "stl-cleanup" }) for what cleaning fixes',
-            ],
+        next: [
+          ...(registered && registered.ok === false
+            ? [`registry not written (${registered.error}); the row is in registered.row — fix the registry path (config registry / MESH_STL_REGISTRY) or pass register:false`]
+            : []),
+          ...(qa.verdict === 'PASS'
+            ? ['mesh_build({ route: "snappy", scaffold: true, caseDir: "...", stl: ["' + displayPath(config, cleanOut || stlPath) + '"], scaffoldOptions: { domainMin, domainMax, cellSize, locationInMesh } }) — or scaffold:false for an existing case']
+            : [
+                'cleanup:true — write cleaned STL and re-check it',
+                'stl_hints({ id: "stl-cleanup" }) for what cleaning fixes',
+              ]),
+        ],
       }
     },
   })

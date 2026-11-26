@@ -7,7 +7,7 @@ private library imported by relative path (`../sim-core/lib/<module>.js`) from
 | Module | Responsibility |
 |---|---|
 | `config.js` | config layering: DEFAULTS → bundle config → external JSON → env; locates `sim-project.json` |
-| `project.js` | profile schema defaults, built-in quality profiles, upward discovery |
+| `project.js` | profile schema defaults (case-local `caseRoots: ["./cases"]`), built-in quality profiles, upward discovery |
 | `paths.js` | resolves a relative case/STL path against cwd → `caseRoots` → project root, with `resolvedFrom` |
 | `process.js` | `runBash` (sources OpenFOAM bashrc **before** `set -u`), `runPython`, Python detection |
 | `env.js` | OpenFOAM bashrc/version detection, package version |
