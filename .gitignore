@@ -5,3 +5,6 @@ __pycache__/
 
 # dev-only: symlink to a DSH checkout for the tool tier of the contract suite
 node_modules
+
+# README media: frames are intermediate, the GIF is committed
+docs/img/frames/

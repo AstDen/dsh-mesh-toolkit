@@ -28,6 +28,40 @@ Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaV
 
 **12 tools · 40 cards in the merged `mesh_hints` catalogue · 22 in `stl_hints` · 2 skills · 3 services · smoke and live tested
 
+## 60 seconds
+
+```bash
+git clone https://github.com/AstDen/dsh-mesh-toolkit && cd dsh-mesh-toolkit
+node scripts/doctor.mjs   # can this machine run it? one PASS/WARN/FAIL row per area
+node scripts/demo.mjs     # geometry -> STL QA -> snappy mesh -> gate -> delivery, about 30 s
+```
+
+`doctor` reports what the toolkit will and will not be able to do here (Node, the two bundles,
+knowledge cards, OpenFOAM flavour and tools, python, ParaView); `demo` runs the whole pipeline on a
+10 mm cube with a 3.5 mm-radius sphere cavity and leaves a runnable case behind:
+
+```
+1/5 geometry  box 10 mm with a 3.5 mm-radius sphere removed -> .cache/demo/geo/pore-demo.stl
+2/5 stl QA    PASS · watertight true · 2220 triangles · 2 closed shells
+3/5 mesh      background cells 59,46,46 · gate PASS (project) · 13.8 s
+4/5 gate      cells 148 288 · maxNonOrtho 26.4 deg · maxSkewness 0.367 · PASS
+5/5 delivery  openfoam_demo/demo.foam · openfoam_demo.tar.gz · ansys_demo/ · delivery_demo.{json,md}
+DEMO OK in 26.1s
+```
+
+| | |
+|---|---|
+| ![geometry: box with a sphere cavity, clipped](docs/img/geometry-cut.png) | ![the same case, semi-transparent, the cavity visible inside](docs/img/mesh-cut.png) |
+| the STL: a 10 mm box with a 3.5 mm sphere cavity, clipped so the interior shows | the built case, semi-transparent: hex cells refined on the cavity, coloured by cell volume |
+
+The same cavity, rotating — the clipped STL again
+([`scripts/make-media.py`](scripts/make-media.py) regenerates it with `pvpython`,
+[`scripts/make-media.sh`](scripts/make-media.sh) assembles the GIF):
+
+![clipped geometry rotating](docs/img/demo.gif)
+
+All images are ParaView renders of the demo artefacts produced on this machine, not mock-ups.
+
 ## Install
 
 Requirements: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, an OpenFOAM installation (com or org).
