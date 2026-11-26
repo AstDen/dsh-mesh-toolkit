@@ -18,6 +18,14 @@ import {
 export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const PKG_VERSION = readPackageVersion(PACKAGE_ROOT)
 
+/**
+ * Version on disk, read at CALL time: a long-running DSH keeps the version it loaded at
+ * start, so `PKG_VERSION` can lag behind package.json after an upgrade (DEF-08).
+ */
+export function diskVersion() {
+  return readPackageVersion(PACKAGE_ROOT)
+}
+
 /** Package defaults; overridable by bundle config, external config and env. */
 export const DEFAULTS = {
   projectRoot: '',

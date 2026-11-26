@@ -66,7 +66,7 @@ export function hashMeshDir(dir, caseDir = dir) {
 export function buildMeshPassport(options) {
   const {
     caseDir, route, regions = [], gate = null, gateTargets = [], units = 'm',
-    layers = null, logs = [], generator = null,
+    layers = null, logs = [], generator = null, environment = null,
   } = options
   const regionHashes = {}
   for (const region of regions) regionHashes[region] = hashMeshDir(join(caseDir, 'constant', region, 'polyMesh'), caseDir)
@@ -99,6 +99,7 @@ export function buildMeshPassport(options) {
     layers,
     logs,
     generator,
+    ...(environment ? { environment } : {}),
     createdAt: nowIso(),
   }
   return passport

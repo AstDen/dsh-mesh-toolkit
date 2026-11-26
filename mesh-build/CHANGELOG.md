@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.5.1 — 2026-11-26
+
+Исправления по сквозному бенчмарку `benchmark/runs/20261125-1805` (61 кейс, 18 дефектов;
+перепроверка — `experiments/_scratch/verify-fixes.mjs`, 15/15 PASS).
+
+- **Guard'ы вместо молчаливого неверного меша** (`lib/precheck.js`, новый модуль):
+  STL-оболочка за пределами домена (бинарный и ASCII STL), бюджет фоновой сетки
+  (`maxCells`, по умолчанию 5e6), отказ cfMesh при несовпадении единиц
+  (`surfaceTransformPoints -scale`), sanity «в меше нет патча `world`» ⇒ `locationInMesh`
+  попал внутрь твёрдого тела.
+- **`refinementLevels`**: пара уровней `[min, max]` теперь проходит в `snappyHexMeshDict`
+  как `level (min max)` (DEF-12: скалярный API не мог воспроизвести проектный эталон),
+  неизвестный ключ бросает ошибку со списком поверхностей (DEF-13).
+- **`system/meshQualityDict` пишется по порогам профиля гейта** (`maxNonOrtho`, `minVolRatio`,
+  `minTwist`): snappy оптимизирует ровно по тем числам, по которым его судит гейт
+  (exp-022: `minTwist -1` оставлял twisted-грани, которые гейт затем браковал).
+- **Гейт**: минимальные `fvSchemes`/`fvSolution` синтезируются в overlay, если в кейсе их нет
+  (DEF-04: `mesh_build` на cfMesh-кейсе отдавал `gate.verdict ERROR` с пустыми метриками),
+  с advisory «напишите настоящие перед запуском решателя».
+- **`mesh_check`**: свежесть паспорта считается ДО его перезаписи (DEF-09: `passport-stale`
+  после правки `polyMesh/points` больше не маскируется), паспорт штампуется версией с диска.
+- **Версия в ответах инструментов**: блок `version {reported, onDisk, stale}` + предупреждение
+  «restart DSH», если процесс загрузил старую версию (DEF-08).
+- **Карточки знаний**: `mesh_hints` регистрирует и каталог `mesh-stl` — один каталог из 33 карточек
+  (DEF-15/DEF-16: `openfoam-versions` не находился по запросам про org14/cfMesh).
+
+
+## 0.5.0 — 2026-11-25
+
+Кросс-версионная совместимость OpenFOAM (com v2412…v2606, org v14):
+
+- `sim-project.json → foam.installations` + `foam.default`; инструменты принимают `openfoam: "<id>|<bashrc>"`,
+  по умолчанию — из профиля. Паспорт пишет `environment {id, distribution, version, bashrc}`.
+- `routes.js`: `probeInstallation` (кэш по bashrc) — наличие всех инструментов маршрута, `mergeTol`,
+  `surfaceFeatures`; `preflight` отказывает до запуска с подсказкой, где инструмент есть.
+- Маршрут snappy: `surfaceFeatureExtract` на com, `surfaceFeatures` на org; `-mergeTol` только там, где он есть.
+- scaffold: явный `file "<name>.stl"` в geometry (требование org14), `system/surfaceFeaturesDict`,
+  `locationInMesh` для одной зоны вместо `locationsInMesh`.
+- Проверено (exp-019): куб 10 мм на com2512 / com2606 / org14 — 2584 ячеек, PASS; org14 даёт 25.21° против 9.71°.
+  `gmshToFoam` на com2512 и org14 — OK.
+
 ## 0.4.0 — 2026-11-25
 Новый инструмент `mesh_deliver` — поставка сетки двумя дистрибутивами.
 

@@ -11,11 +11,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
-  PACKAGE_ROOT, PKG_VERSION, displayPath, executionCwd, expandStlInputs, jsonSafe, normalizeConfig,
-  resolveProjectPath, tail, unconfiguredPayload, versionInfo,
+  PACKAGE_ROOT, PKG_VERSION, displayPath, diskVersion, executionCwd, expandStlInputs, jsonSafe,
+  normalizeConfig, resolveProjectPath, tail, unconfiguredPayload, versionInfo,
 } from './lib/common.js'
 import { gateCase } from './lib/gate.js'
 import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
+// Imported from the module itself: the shared index.js may already be cached by another
+// plugin in the live DSH process, and a cached module cannot gain new named exports.
+import { installationsPayload, withFoam } from '../sim-core/lib/foam.js'
 import {
   catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
@@ -25,11 +28,30 @@ import {
   writeCaseManifest, writeMeshPassport,
 } from '../sim-core/lib/passport.js'
 import { isEmptyDir, installStl, writeSnappyCase } from './lib/scaffold.js'
+import { cfmeshUnitsProblem, domainPatchProblem } from './lib/precheck.js'
 import { runDelivery } from './lib/deliver.js'
 import { SKILL } from './lib/skill.js'
 
 export const name = 'mesh-build'
 export const version = PKG_VERSION
+
+/**
+ * Version block for tool payloads. A long-running DSH keeps the code it loaded at start,
+ * so a stale process must say so out loud instead of silently running old code (DEF-08).
+ */
+function versionBlock() {
+  const onDisk = diskVersion()
+  const stale = onDisk !== PKG_VERSION
+  return {
+    reported: PKG_VERSION,
+    onDisk,
+    stale,
+    ...(stale ? {
+      warning: `this DSH process runs mesh-build ${PKG_VERSION} while package.json says ${onDisk}: `
+        + 'restart DSH to load the current guards, hints and gate dictionaries',
+    } : {}),
+  }
+}
 export const inject = ['tools', 'skills']
 
 const text = (value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }]
@@ -84,7 +106,13 @@ export function apply(ctx, rawConfig) {
   const configFor = (exec) => normalizeConfig(rawConfig, executionCwd(exec))
   const engine = loadEngine(join(config.packageRoot, 'data'))
   // own cards first, then the mesh-stl cards (STL contract, cleanup, units) — one knowledge base for the agent
-  const hints = ensureHints(ctx, { owner: name, dirs: [join(PACKAGE_ROOT, 'data', 'hints')] }).store
+  // One catalogue instead of two: mesh-stl cards (STL contract, cleanup, gap rule, gmsh tetra,
+  // packing, watertight/units) are what half the documented mesh_hints queries expect, and
+  // duplicate ids are dropped by the store, so registering both directories is safe (DEF-15/DEF-16).
+  const hints = ensureHints(ctx, {
+    owner: name,
+    dirs: [join(PACKAGE_ROOT, 'data', 'hints'), join(PACKAGE_ROOT, '..', 'mesh-stl', 'data', 'hints')],
+  }).store
   /** Tool handlers, reused by the simMesh capability service below. */
   const handlers = {}
 
@@ -108,6 +136,11 @@ export function apply(ctx, rawConfig) {
     const options = { stl: stlInputs, np }
     for (const key of SCAFFOLD_KEYS) if (source[key] !== undefined) options[key] = source[key]
     if (source.locationsInMesh !== undefined) options.locationInMesh = source.locationsInMesh
+    // snappy optimises against system/meshQualityDict while the gate judges by the profile:
+    // writing the same thresholds into the dict keeps both on one set of numbers (exp-022:
+    // minTwist -1 in the dict made snappy emit twisted faces that the gate then flagged).
+    const profile = config.gate?.profiles?.[args.profile ?? config.gate?.profile]
+    if (profile) options.gateThresholds = profile
     return options
   }
   const troubleshooting = (route, logText) => {
@@ -118,14 +151,30 @@ export function apply(ctx, rawConfig) {
     return (hits.length ? hits : route.failures ?? []).slice(0, 6)
   }
 
+  // Every call may pick an OpenFOAM installation from sim-project.json (`openfoam: "org14"`).
+  // Binding happens in one place so build/check/deliver all see the same bashrc.
+  function bindFoam(cfg, args, toolName) {
+    try {
+      return { config: withFoam(cfg, args?.openfoam), error: null }
+    } catch (error) {
+      return { config: cfg, error: { error: error.message, tool: toolName, openfoam: installationsPayload(cfg) } }
+    }
+  }
+
   function register(def) {
-    handlers[def.name] = (args, exec) => def.execute(args, exec ? configFor(exec) : config)
+    handlers[def.name] = (args, exec) => {
+      const bound = bindFoam(exec ? configFor(exec) : config, args, def.name)
+      if (bound.error) return bound.error
+      return def.execute(args, bound.config)
+    }
     const tool = defineTool({
       ...def,
       output: jsonOutput,
       async execute(args, exec) {
         try {
-          return jsonSafe(await def.execute(args, configFor(exec)))
+          const bound = bindFoam(configFor(exec), args, def.name)
+          if (bound.error) return jsonSafe(bound.error)
+          return jsonSafe(await def.execute(args, bound.config))
         } catch (error) {
           return jsonSafe({ error: error.message, tool: def.name })
         }
@@ -196,6 +245,7 @@ export function apply(ctx, rawConfig) {
       gmshScript: { type: 'string', description: 'gmsh route: python script that writes the .msh.' },
       gmshArgs: { type: 'array', items: { type: 'string' }, description: 'gmsh route: arguments for the script.' },
       msh: { type: 'string', description: 'gmsh route: output .msh path for gmshToFoam.' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
       const blocked = requireProject(config)
@@ -328,7 +378,7 @@ export function apply(ctx, rawConfig) {
             units: 'm',
             dimension: 3,
             patches,
-            createdBy: `${name}@${version}`,
+            createdBy: `${name}@${diskVersion()}`,
           })))
         } catch (error) {
           written.manifestError = error.message
@@ -342,9 +392,18 @@ export function apply(ctx, rawConfig) {
       if (problems.length) {
         return { ok: false, phase: 'preflight', route: route.id, caseDir: displayPath(config, caseDir), problems, written }
       }
+      // cfMesh has no scale option: a mm surface with metre cell sizes asks for octree level ~17
+      // and only stops at the step timeout — refuse with the unit fix instead (DEF-03).
+      if (route.id === 'cfmesh') {
+        const units = cfmeshUnitsProblem(caseDir, stlInputs)
+        if (units) {
+          return { ok: false, phase: 'preflight', route: route.id, caseDir: displayPath(config, caseDir), problems: [units], written }
+        }
+      }
       const started = Date.now()
       const routeResult = await runRoute(config, route, runArgs, caseDir)
       const payload = {
+        version: versionBlock(),
         ok: routeResult.ok,
         route: route.id,
         caseDir: displayPath(config, caseDir),
@@ -360,6 +419,23 @@ export function apply(ctx, rawConfig) {
           failedStep: routeResult.failedStep.name,
           troubleshooting: troubleshooting(route, logText),
           next: 'fix the failing step (see troubleshooting), then rerun; logs are under <caseDir>/logs',
+        }
+      }
+
+      // A closed solid meshes fine when locationInMesh lands inside it: the result is the solid
+      // interior, the background patch is gone, and nothing used to warn (DEF-17, benchmark H2).
+      if (route.id === 'snappy') {
+        let patchReport = null
+        try { patchReport = readCasePatches(caseDir) } catch { /* boundary unreadable — the gate will report it */ }
+        const missingDomain = domainPatchProblem(patchReport, 'world')
+        if (missingDomain) {
+          return {
+            ...payload,
+            ok: false,
+            phase: 'sanity',
+            error: missingDomain,
+            next: 'move locationInMesh into the fluid region and rerun (benchmark/scripts/fluid_point.py picks one)',
+          }
         }
       }
 
@@ -427,6 +503,7 @@ export function apply(ctx, rawConfig) {
       regions: { type: 'array', items: { type: 'string' }, description: 'Region names to check; default: auto-detect constant/<region>/polyMesh, else the base case.' },
       profile: { type: 'string', description: 'Gate profile: from sim-project.json gate.profile (project), gate or relaxed.' },
       minVol: { type: 'number', description: 'Absolute minVol threshold (m^3), e.g. 1e-14. Omit to use the profile value; when neither is set the check is disabled and reported.' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
       const blocked = requireProject(config)
@@ -449,6 +526,8 @@ export function apply(ctx, rawConfig) {
       // Record the verdict: mesh_deliver requires a fresh PASS passport, so the gate that
       // produced the verdict is also the gate that writes it.
       let passport = readMeshPassport(caseDir)
+      // Freshness describes the passport as it was BEFORE this check: rebuilding it first made
+      // every answer say "fresh" and hid a changed mesh (DEF-09, benchmark G8).
       let freshness = passport ? passportFreshness(caseDir, passport) : null
       try {
         const written = buildMeshPassport({
@@ -465,11 +544,17 @@ export function apply(ctx, rawConfig) {
           gateTargets: gate.results,
           units: config.units,
           logs: gate.results?.map((r) => r.log).filter(Boolean) ?? [],
-          generator: `${name}@${PKG_VERSION}`,
+          generator: `${name}@${diskVersion()}`,
+          environment: {
+            id: config.foamSelected?.id ?? null,
+            distribution: config.foam?.distribution ?? null,
+            version: config.foam?.version ?? null,
+            bashrc: config.openfoamBashrc || null,
+          },
         })
         writeMeshPassport(caseDir, written)
         passport = written
-        freshness = passportFreshness(caseDir, written)
+        freshness ??= passportFreshness(caseDir, written)
       } catch { /* a read-only case still gets the verdict, just no passport */ }
       let patches = null
       try {
@@ -477,6 +562,7 @@ export function apply(ctx, rawConfig) {
       } catch { /* ignore */ }
       return {
         configured: true,
+        version: versionBlock(),
         caseDir: displayPath(config, caseDir),
         profile: args.profile ?? config.gate?.profile,
         verdict: gate.verdict,
@@ -533,6 +619,7 @@ export function apply(ctx, rawConfig) {
       keepScratch: { type: 'boolean', description: 'Keep the scratch directory used for splitting/round-trip.' },
       force: { type: 'boolean', description: 'Proceed when the mesh passport is missing or stale (the delivery gate still runs).' },
       dryRun: { type: 'boolean', description: 'Validate inputs and print the resolved command without running.' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
       const blocked = requireProject(config)

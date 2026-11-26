@@ -1,9 +1,9 @@
 # dsh-mesh-toolkit
 
-> **0.5.0** · Three packages for **DeepSeek Harness**: a shared core plus two
+> **0.5.1** · Three packages for **DeepSeek Harness**: a shared core plus two
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
-> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 19–23 searchable knowledge
+> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 20–33 searchable knowledge
 > cards per catalog, no build step. Meshing routes adapt to OpenFOAM.com **or** OpenFOAM.org.
 
 | Package | Jobs | Tools |
@@ -22,7 +22,7 @@ a compact JSON summary. Plugins talk to each other through Cordis services
 Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
 **gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 
-**7 tools · 33 cards (mesh-build) / 32 (mesh-stl) · 2 skills · 3 services · smoke and live tested
+**7 tools · 33 cards in the merged `mesh_hints` catalogue · 20 in `stl_hints` · 2 skills · 3 services · smoke and live tested
 
 ## Install
 

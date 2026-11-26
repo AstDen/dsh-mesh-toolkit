@@ -1,9 +1,0 @@
-{
-  "shape": "sphere",
-  "radius_mm": 5,
-  "segments": 32,
-  "rings": 16,
-  "center_mm": [0, 0, 0],
-  "units": "mm",
-  "note": "Сфера R=5 мм; тесселяция segments × rings задаёт, насколько гладкой будет поверхность."
-}

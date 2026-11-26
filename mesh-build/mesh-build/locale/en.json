@@ -1,7 +1,0 @@
-{
-  "meta": {
-    "title": "Mesh Build",
-    "description": "Volume meshing and quality gate: snappyHexMesh (hex + layers + CHT), cfMesh, gmsh route D, project threshold checks.",
-    "detail": "Three tools: mesh_hints (knowledge cards), mesh_build (routes from data/engine.json plus snappy case scaffolding), mesh_check (checkMesh + mesh_gate per region). Routes and hints are extended with JSON data, no code changes."
-  }
-}

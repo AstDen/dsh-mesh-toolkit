@@ -294,6 +294,99 @@
         "stl-contract",
         "units-mm"
       ]
+    },
+    {
+      "id": "stratified-channel",
+      "title": "Стратифицированный канал (две жидкости, горизонтальный интерфейс)",
+      "description": "Прямоугольный канал, разрезанный плоскостью z = interface_z: lower.stl (низ) и upper.stl (верх), по 12 треугольников, единицы мм. Закрывает GAP benchmark D3 — стратифицированной/двухжидкостной геометрии в наборе не было.",
+      "script": "geometry/stratified/gen_stratified_channel.py",
+      "preset": {
+        "dir": "geometry/stratified/params",
+        "default": "channel_10x10x20_h8.json",
+        "ext": ".json",
+        "include": [
+          "*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "запись lower.stl/upper.stl",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--out-dir",
+            "{outDir}",
+            "--json",
+            "{json}"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "fluid",
+          "path": "{outDir}/{name}.lower.stl",
+          "qa": true
+        },
+        {
+          "role": "fluid",
+          "path": "{outDir}/{name}.upper.stl",
+          "qa": true
+        }
+      ],
+      "notes": "Плоскость горизонтальная, без наклона; пористой начинки нет — это чистый стратифицированный слой. Для двухфазной/CHT-задачи интерфейс лучше сшивать conform-мешером (gmsh route D).",
+      "hints": [
+        "stl-contract",
+        "units-mm",
+        "gap-rule"
+      ]
+    },
+    {
+      "id": "blob-foam",
+      "title": "Блочная пена (метаболы → изоповерхность)",
+      "description": "Пористая пена из перекрывающихся «блобов»: поле метаболов на сетке, изопорог (или подбор под целевую пористость бисекцией), обрезка аналитическим доменом через SDF, marching cubes. Повторяет Blender-подход «метаболы + voxel remesh + Boolean Intersect» без Blender и без CAD; в отчёте — пористость, связность твёрдого/порового пространства и распределения толщин.",
+      "script": "geometry/pore_cell/gen_blob_foam.py",
+      "preset": {
+        "dir": "geometry/pore_cell/params",
+        "default": "blob_foam_d10x10_phi80.json",
+        "ext": ".json",
+        "include": [
+          "blob_foam_*.json"
+        ]
+      },
+      "steps": [
+        {
+          "description": "поле → изоповерхность → STL + чистка + QA",
+          "args": [
+            "--params-file",
+            "{paramsFile}",
+            "--out",
+            "{rawOut}",
+            "--clean-out",
+            "{cleanOut}",
+            "--json",
+            "{json}",
+            "--check"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "role": "solid",
+          "path": "{cleanOut}",
+          "qa": true
+        },
+        {
+          "role": "raw",
+          "path": "{rawOut}",
+          "qa": false
+        }
+      ],
+      "notes": "Мешить {cleanOut}. Пористость задаётся target_porosity (бисекция по изопорогу) либо фиксированным threshold. voxel_mm — разрешение поля: шаг ≤ 0.1·r_min, иначе теряются шейки. Домен — цилиндр вдоль z или куб.",
+      "hints": [
+        "stl-contract",
+        "gap-rule",
+        "snappy-stl-unit"
+      ]
     }
   ]
 }

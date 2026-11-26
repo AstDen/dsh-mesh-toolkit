@@ -1,5 +1,13 @@
 # Changelog — sim-core
 
+## 0.4.1 — 2026-11-26
+
+- **`lib/gate.js`: `ensureGateDicts(overlay)`** — если в кейсе нет `system/fvSchemes` или
+  `system/fvSolution`, в overlay пишутся минимальные копии (mesh-метрики от них не зависят);
+  результат гейта получает поле `synthesized` и advisory. Раньше `checkMesh -meshQuality`
+  падал с `cannot find file …/system/fvSchemes`, и гейт отдавал `ERROR` с пустыми метриками
+  (бенчмарк: cfMesh-кейс без решательских словарей, DEF-04).
+
 ## 0.4.0 — 2026-11-25
 
 - `lib/foam.js`: реестр установок OpenFOAM (`normalizeInstallations`, `resolveFoam`, `withFoam`):

@@ -121,6 +121,25 @@ route, cells, regions, gate, sha256/size/mtime полимеша. `mesh_check` п
 `minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` оставлен как escape hatch на
 `tools/qa/mesh_gate.sh`.
 
+## Версии OpenFOAM
+
+Установки объявляются в `sim-project.json` (`foam.installations`, `foam.default`), инструменты принимают
+`openfoam: "<id>"` или абсолютный путь к `etc/bashrc`. Без параметра берётся установка по умолчанию.
+
+| | OpenFOAM.com (v2412…v2606) | OpenFOAM.org (v14) |
+|---|---|---|
+| cfMesh (`cartesianMesh`, `pMesh`, …) | ✅ | ❌ |
+| `surfaceFeatureExtract` | ✅ | заглушка |
+| `surfaceFeatures` + `surfaceFeaturesDict` | ❌ | ✅ |
+| `reconstructParMesh -mergeTol` | ✅ | ❌ |
+| `locationsInMesh` (CHT-мультирегион) | ✅ | ❌ |
+| `foamRun` / `foamMultiRun` | ❌ | ✅ |
+
+Маршрут `snappy` подстраивается автоматически (выбор словаря фич, флаг `-mergeTol`), `preflight` маршрута
+`cfmesh` на org честно отказывает. Проверено на кубе 10 мм: com2512/com2606 — `maxNonOrtho 9.7073°`,
+org14 — `25.2146°` при тех же 2584 ячейках (`experiments/exp-019_openfoam-version-matrix`).
+Подробности и установка — `meshing/OPENFOAM_VERSIONS.md`.
+
 ## Поставка (`mesh_deliver`)
 
 `mesh_deliver` вызывает `tools/deliver/make_delivery.sh` и возвращает короткий JSON вместо лога:

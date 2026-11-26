@@ -91,6 +91,51 @@ export function detectRegions(caseDir) {
     .sort()
 }
 
+// checkMesh -meshQuality refuses to start without fvSchemes/fvSolution, while a freshly
+// meshed cfMesh case has neither — the gate used to answer ERROR with null metrics on a
+// perfectly readable mesh (DEF-04, benchmark B2). These minimal dictionaries live only in the
+// overlay and cannot change a single mesh metric; `synthesized` reports them.
+const MINIMAL_FVSCHEMES = `FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+ddtSchemes { default Euler; }
+gradSchemes { default Gauss linear; }
+divSchemes { default none; }
+laplacianSchemes { default Gauss linear corrected; }
+interpolationSchemes { default linear; }
+snGradSchemes { default corrected; }
+`
+
+const MINIMAL_FVSOLUTION = `FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+solvers { }
+SIMPLE { }
+relaxationFactors { }
+`
+
+/** Add the dictionaries checkMesh needs when the case has none; returns the added files. */
+export function ensureGateDicts(overlay) {
+  const systemDir = join(overlay, 'system')
+  const added = []
+  for (const [file, content] of [['fvSchemes', MINIMAL_FVSCHEMES], ['fvSolution', MINIMAL_FVSOLUTION]]) {
+    const target = join(systemDir, file)
+    if (!existsSync(target)) {
+      writeFileSync(target, content)
+      added.push(`system/${file}`)
+    }
+  }
+  return added
+}
+
 function safeName(name) {
   return String(name ?? 'base').replace(/[^A-Za-z0-9_.-]+/g, '_')
 }
@@ -130,7 +175,8 @@ export function buildOverlay(caseDir, region = null) {
       linkOrCopy(resolve(zeroSrc), join(overlay, '0'), true)
     }
   }
-  return { overlay, target, meshSrc }
+  const synthesized = ensureGateDicts(overlay)
+  return { overlay, target, meshSrc, synthesized }
 }
 
 /** Run `checkMesh -meshQuality` inside the overlay and return raw text + exit code. */
@@ -219,6 +265,7 @@ export function gateTarget(options) {
   }
 
   const built = buildOverlay(caseDir, region)
+  const synthesized = built.synthesized ?? []
   writeFileSync(join(built.overlay, 'system', 'meshQualityDict'), meshQualityDict(thresholds, effectiveMinVol, minTetQuality))
   const logPath = join(caseDir, 'logs', logName ?? `checkMesh-${built.target}.log`)
   const run = runCheckMesh({
@@ -241,6 +288,10 @@ export function gateTarget(options) {
       + 'Set sim-project.json gate.minVol or pass minVol; the rule of thumb is h_min³/6.')
   }
   if (suggestion) advisory.push(`minVol ${effectiveMinVol} looks too strict: try ${suggestion.minVol}.`)
+  if (synthesized.length) {
+    advisory.push(`${synthesized.join(', ')} missing from the case: a minimal copy was synthesized in the overlay `
+      + '(it cannot change mesh metrics) — write real ones before a solver run.')
+  }
   if (verdict === 'UNKNOWN' && !metrics.meshOk && !metrics.failedChecks) {
     advisory.push('checkMesh printed neither "Mesh OK" nor a failure count — the log may be truncated; read the log file.')
   }
@@ -257,6 +308,7 @@ export function gateTarget(options) {
     metrics,
     failKind,
     suggestion,
+    synthesized,
     advisory,
     overlay: built.overlay,
     log: logPath,

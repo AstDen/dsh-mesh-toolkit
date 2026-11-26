@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Mesh STL">
-  <rect width="64" height="64" rx="14" fill="#12212e"/>
-  <path d="M32 8 54 20v20L32 52 10 40V20z" fill="none" stroke="#3fd0c9" stroke-width="2.4" stroke-linejoin="round"/>
-  <path d="M10 20l22 12 22-12M32 32v20" fill="none" stroke="#3fd0c9" stroke-width="2.4" stroke-linejoin="round"/>
-  <path d="M18 24.5l28-6M22 40l24-14M20 34l10 14" fill="none" stroke="#f2a33c" stroke-width="1.4" opacity=".85"/>
-  <circle cx="32" cy="32" r="3.2" fill="#f2a33c"/>
-</svg>

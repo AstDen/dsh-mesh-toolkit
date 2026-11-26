@@ -83,7 +83,7 @@ cadquery — по семействам), `tools/qa/stl_qa.py`.
 ## Общее ядро и портируемые примитивы
 
 Механика (конфиг, профиль `sim-project.json`, резолвер путей, процесс-раннер, карточки, QA) живёт в
-`../sim-core` (пакет `sim-core`, 0.3.0); `lib/common.js` — тонкий фасад. Плагин регистрирует сервис
+`../sim-core` (пакет `sim-core`, 0.4.x); `lib/common.js` — тонкий фасад. Плагин регистрирует сервис
 `simGeometry` (`hints`/`generate`/`qa`) и складывает свои карточки в общий `simHints`.
 
 Семейство `primitive` пишет STL на чистом JS (`lib/primitives.js`): `shape` = `box` | `sphere` | `cylinder`,
@@ -103,6 +103,9 @@ cadquery — по семействам), `tools/qa/stl_qa.py`.
 | `double-layer-burner` | `geometry/pore_cell/gen_double_layer_burner.py` | `double_layer_burner_*.json` |
 | `packing` | `geometry/packings/gen_packing_table.py` → `gen_packing_stl.py` | `geometry/packings/params/*.json` |
 | `cad-porous` | `geometry/cad/gen_cq_porous.py` | `geometry/cad/params/*.json` |
+| `primitive` | встроенный JS (`lib/primitives.js`) | `data/primitives/*.json` |
+| `stratified-channel` | `geometry/stratified/gen_stratified_channel.py` | `geometry/stratified/params/*.json` |
+| `blob-foam` | `geometry/pore_cell/gen_blob_foam.py` | `geometry/pore_cell/params/blob_foam_*.json` |
 
 Каждый запуск: копия/мердж `params.json` → шаги генератора → лог на шаг в `<outDir>/logs/` →
 QA каждого объявленного выхода через `stl_qa.py` → возврат `{ok, files[{path, qa}], commands, next}`.

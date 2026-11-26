@@ -36,8 +36,48 @@ export function catalogRoutes(engine) {
   }))
 }
 
+// Which executables/flags this installation actually has. The probe is cached per
+// bashrc, because the answer changes only when the installation changes — and it is
+// the only honest way to know that cfMesh is missing on OpenFOAM.org.
+const PROBE_CACHE = new Map()
+
+/** Probe one installation: executables and flags that differ between distributions. */
+export function probeInstallation(config) {
+  const key = config.openfoamBashrc || '(none)'
+  if (PROBE_CACHE.has(key)) return PROBE_CACHE.get(key)
+  const names = ['blockMesh', 'snappyHexMesh', 'surfaceFeatureExtract', 'surfaceFeatures', 'cartesianMesh', 'pMesh', 'tetMesh', 'reconstructParMesh', 'splitMeshRegions', 'gmshToFoam']
+  const command = [
+    `for t in ${names.join(' ')}; do printf '%s=%s\\n' "$t" "$(command -v "$t" || true)"; done`,
+    'if reconstructParMesh -help 2>&1 | grep -q -- -mergeTol; then echo mergeTol=1; else echo mergeTol=0; fi',
+  ].join('; ')
+  const result = runBash(command, {
+    cwd: config.projectRoot || process.cwd(),
+    timeoutMs: 120000,
+    openfoamBashrc: config.openfoamBashrc,
+    maxBuffer: 1024 * 1024,
+  })
+  const tools = {}
+  let mergeTol = null
+  for (const line of result.stdout.split('\n')) {
+    const [k, v] = line.split('=')
+    if (!k) continue
+    if (k === 'mergeTol') mergeTol = v === '1'
+    else if (names.includes(k) && v) tools[k] = v
+  }
+  const probe = {
+    tools,
+    mergeTol,
+    surfaceFeatures: Boolean(tools.surfaceFeatures),
+    ok: result.code === 0,
+    error: result.code === 0 ? null : tail(result.stderr, 600),
+  }
+  PROBE_CACHE.set(key, probe)
+  return probe
+}
+
 /** Placeholder context plus runtime flags. */
 export function makeContext(config, args, caseDir) {
+  const features = probeInstallation(config)
   return {
     caseDir,
     config,
@@ -46,6 +86,8 @@ export function makeContext(config, args, caseDir) {
     msh: args.msh ? String(args.msh) : '',
     gmshScript: args.gmshScript ? String(args.gmshScript) : '',
     gmshArgs: Array.isArray(args.gmshArgs) ? args.gmshArgs.map(String) : [],
+    features,
+    mergeTol: features.mergeTol === true,
   }
 }
 
@@ -59,7 +101,21 @@ function enabled(when, ctx) {
       // scaffold promises one, therefore the step will exist at run time.
       return args.features !== false
         && (args.scaffold === true || existsSync(join(ctx.caseDir, 'system', 'surfaceFeatureExtractDict')))
+    case 'featuresLegacy': {
+      // OpenFOAM.com: surfaceFeatureExtract. OpenFOAM.org 14 has only a deprecation stub.
+      const wanted = args.features !== false
+        && (args.scaffold === true || existsSync(join(ctx.caseDir, 'system', 'surfaceFeatureExtractDict')))
+      return wanted && ctx.features?.surfaceFeatures !== true
+    }
+    case 'featuresNew': {
+      // OpenFOAM.org 14: surfaceFeatures + surfaceFeaturesDict (surfaceFeatureExtract is a stub).
+      const wanted = args.features !== false
+        && (args.scaffold === true || existsSync(join(ctx.caseDir, 'system', 'surfaceFeaturesDict')))
+      return wanted && ctx.features?.surfaceFeatures === true
+    }
     case 'parallel': return np > 1
+    case 'parallelMergeTol': return np > 1 && ctx.mergeTol === true
+    case 'parallelNoMergeTol': return np > 1 && ctx.mergeTol === false
     case 'serial': return np <= 1
     case 'splitRegions': return args.splitRegions === true
     default: throw new Error(`engine.json: unknown step condition "${when}"`)
@@ -76,6 +132,7 @@ export function renderCommand(template, ctx) {
       case 'python': return q(ctx.config.python)
       case 'gmshScript': return ctx.gmshScript ? q(ctx.gmshScript) : ''
       case 'gmshArgs': return ctx.gmshArgs.map((a) => q(a)).join(' ')
+      case 'mergeTol': return ctx.mergeTol ? '-mergeTol 1e-6' : ''
       default: throw new Error(`unknown route placeholder {${key}}`)
     }
   })
@@ -106,6 +163,21 @@ export function preflight(config, route, args, caseDir) {
   }
   if (route.id === 'gmsh') {
     if (!ctxGmsh(args)) problems.push('route gmsh needs gmshScript and msh')
+  }
+  // Distribution check: cfMesh ships only with OpenFOAM.com. Report it as a missing
+  // executable with a hint, not as a cryptic "command not found" in step 3 of the log.
+  const requires = Array.isArray(route.requires) ? route.requires : []
+  if (requires.length) {
+    const probe = probeInstallation(config)
+    if (probe.ok) {
+      for (const tool of requires) {
+        if (!probe.tools[tool]) {
+          problems.push(`route ${route.id} needs "${tool}", which is not in this OpenFOAM installation `
+            + `(${displayPath(config, config.openfoamBashrc) || 'no bashrc'}); `
+            + 'cfMesh tools exist only in OpenFOAM.com builds — pass openfoam:"com2606" or use route snappy/gmsh')
+        }
+      }
+    }
   }
   return problems
 }

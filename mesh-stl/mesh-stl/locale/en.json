@@ -1,7 +1,0 @@
-{
-  "meta": {
-    "title": "Mesh STL",
-    "description": "STL generation and QA: generator families, cleanup, geometry passport, project hints.",
-    "detail": "Three tools: stl_hints (knowledge cards), stl_generate (generator registry in data/generators.json), stl_check (watertight/volume/bbox + cleanup + stl/registry.csv). Extend by editing JSON data, no code change."
-  }
-}

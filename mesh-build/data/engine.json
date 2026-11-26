@@ -29,16 +29,62 @@
       "title": "snappyHexMesh (hex-dominant, layers, multi-region CHT)",
       "when": "основной путь для поровых STL и двухобластных CHT-кейсов; сетка с пристенными слоями",
       "software": "OpenFOAM v2512",
-      "evidence": ["exp-003", "exp-005", "exp-018"],
-      "requires": ["system/blockMeshDict", "system/snappyHexMeshDict", "constant/triSurface/*.stl"],
+      "evidence": [
+        "exp-003",
+        "exp-005",
+        "exp-018"
+      ],
+      "requires": [
+        "blockMesh",
+        "snappyHexMesh"
+      ],
       "steps": [
-        { "name": "blockMesh", "run": "blockMesh -case {caseDir}", "when": "blockMesh", "timeoutMs": 900000 },
-        { "name": "surfaceFeatureExtract", "run": "surfaceFeatureExtract -case {caseDir}", "when": "features", "timeoutMs": 900000 },
-        { "name": "decomposePar", "run": "decomposePar -force -case {caseDir}", "when": "parallel", "timeoutMs": 900000 },
-        { "name": "snappyHexMesh-parallel", "run": "mpirun --allow-run-as-root -np {np} snappyHexMesh -parallel -overwrite -case {caseDir}", "when": "parallel", "timeoutMs": 14400000 },
-        { "name": "snappyHexMesh", "run": "snappyHexMesh -overwrite -case {caseDir}", "when": "serial", "timeoutMs": 14400000 },
-        { "name": "reconstructParMesh", "run": "reconstructParMesh -constant -mergeTol 1e-6 -case {caseDir}", "when": "parallel", "timeoutMs": 1800000 },
-        { "name": "splitMeshRegions", "run": "splitMeshRegions -cellZones -overwrite -case {caseDir}", "when": "splitRegions", "timeoutMs": 1800000 }
+        {
+          "name": "blockMesh",
+          "run": "blockMesh -case {caseDir}",
+          "when": "blockMesh",
+          "timeoutMs": 900000
+        },
+        {
+          "name": "surfaceFeatureExtract",
+          "when": "featuresLegacy",
+          "run": "surfaceFeatureExtract -case {caseDir}"
+        },
+        {
+          "name": "surfaceFeatures",
+          "when": "featuresNew",
+          "run": "surfaceFeatures -case {caseDir}"
+        },
+        {
+          "name": "decomposePar",
+          "run": "decomposePar -force -case {caseDir}",
+          "when": "parallel",
+          "timeoutMs": 900000
+        },
+        {
+          "name": "snappyHexMesh-parallel",
+          "run": "mpirun --allow-run-as-root -np {np} snappyHexMesh -parallel -overwrite -case {caseDir}",
+          "when": "parallel",
+          "timeoutMs": 14400000
+        },
+        {
+          "name": "snappyHexMesh",
+          "run": "snappyHexMesh -overwrite -case {caseDir}",
+          "when": "serial",
+          "timeoutMs": 14400000
+        },
+        {
+          "name": "reconstructParMesh",
+          "run": "reconstructParMesh -constant {mergeTol} -case {caseDir}",
+          "when": "parallel",
+          "timeoutMs": 1800000
+        },
+        {
+          "name": "splitMeshRegions",
+          "run": "splitMeshRegions -cellZones -overwrite -case {caseDir}",
+          "when": "splitRegions",
+          "timeoutMs": 1800000
+        }
       ],
       "failures": [
         "`Point (...) is not inside the mesh or on a face or edge` — locationInMesh не в метрах или STL без scale 0.001",
@@ -52,15 +98,51 @@
       "title": "cfMesh cartesianMesh (робастная hex-сетка)",
       "when": "сложная геометрия, где snap нестабилен; нужна hex-сетка без слоёв",
       "software": "cfMesh 1.2.0, OpenFOAM v2512",
-      "evidence": ["exp-007", "exp-008", "exp-017"],
-      "requires": ["system/meshDict", "constant/triSurface/*.stl"],
+      "evidence": [
+        "exp-007",
+        "exp-008",
+        "exp-017"
+      ],
+      "requires": [
+        "cartesianMesh"
+      ],
       "steps": [
-        { "name": "clean", "run": "rm -rf {caseDir}/constant/polyMesh {caseDir}/processor*", "when": "always", "timeoutMs": 60000 },
-        { "name": "decomposePar", "run": "decomposePar -force -case {caseDir}", "when": "parallel", "timeoutMs": 900000 },
-        { "name": "cartesianMesh-parallel", "run": "mpirun --allow-run-as-root -np {np} cartesianMesh -parallel -case {caseDir}", "when": "parallel", "timeoutMs": 14400000 },
-        { "name": "cartesianMesh", "run": "cartesianMesh -case {caseDir}", "when": "serial", "timeoutMs": 14400000 },
-        { "name": "reconstructParMesh", "run": "reconstructParMesh -constant -mergeTol 1e-6 -case {caseDir}", "when": "parallel", "timeoutMs": 1800000 },
-        { "name": "clean-processors", "run": "rm -rf {caseDir}/processor*", "when": "parallel", "timeoutMs": 60000 }
+        {
+          "name": "clean",
+          "run": "rm -rf {caseDir}/constant/polyMesh {caseDir}/processor*",
+          "when": "always",
+          "timeoutMs": 60000
+        },
+        {
+          "name": "decomposePar",
+          "run": "decomposePar -force -case {caseDir}",
+          "when": "parallel",
+          "timeoutMs": 900000
+        },
+        {
+          "name": "cartesianMesh-parallel",
+          "run": "mpirun --allow-run-as-root -np {np} cartesianMesh -parallel -case {caseDir}",
+          "when": "parallel",
+          "timeoutMs": 14400000
+        },
+        {
+          "name": "cartesianMesh",
+          "run": "cartesianMesh -case {caseDir}",
+          "when": "serial",
+          "timeoutMs": 14400000
+        },
+        {
+          "name": "reconstructParMesh",
+          "run": "reconstructParMesh -constant -mergeTol 1e-6 -case {caseDir}",
+          "when": "parallel",
+          "timeoutMs": 1800000
+        },
+        {
+          "name": "clean-processors",
+          "run": "rm -rf {caseDir}/processor*",
+          "when": "parallel",
+          "timeoutMs": 60000
+        }
       ],
       "failures": [
         "cfMesh берётся из установки OpenFOAM (каталог platforms/*/bin после source etc/bashrc), не из отдельной сборки env/cfmesh-*",
@@ -73,12 +155,32 @@
       "title": "gmsh OCC → conformal CHT (route D)",
       "when": "нужен согласованный conformal-интерфейс двух областей из STEP/OCC, а не snappy",
       "software": "gmsh 4.15.2 (Python API) + gmshToFoam",
-      "evidence": ["exp-014", "exp-016"],
-      "requires": ["STEP-геометрия", "python-скрипт сборки .msh", "system/meshQualityDict"],
+      "evidence": [
+        "exp-014",
+        "exp-016"
+      ],
+      "requires": [
+        "gmshToFoam"
+      ],
       "steps": [
-        { "name": "build-msh", "run": "{python} {gmshScript} {gmshArgs}", "when": "always", "timeoutMs": 3600000 },
-        { "name": "gmshToFoam", "run": "gmshToFoam {msh} -case {caseDir}", "when": "always", "timeoutMs": 1800000 },
-        { "name": "splitMeshRegions", "run": "splitMeshRegions -cellZones -overwrite -case {caseDir}", "when": "splitRegions", "timeoutMs": 1800000 }
+        {
+          "name": "build-msh",
+          "run": "{python} {gmshScript} {gmshArgs}",
+          "when": "always",
+          "timeoutMs": 3600000
+        },
+        {
+          "name": "gmshToFoam",
+          "run": "gmshToFoam {msh} -case {caseDir}",
+          "when": "always",
+          "timeoutMs": 1800000
+        },
+        {
+          "name": "splitMeshRegions",
+          "run": "splitMeshRegions -cellZones -overwrite -case {caseDir}",
+          "when": "splitRegions",
+          "timeoutMs": 1800000
+        }
       ],
       "failures": [
         "полиэдры после foamMeshToFluent не читаются fluentMeshToFoam (unrecognised 3-D cell shape: 7) — только fluent3DMeshToFoam",
@@ -91,8 +193,12 @@
       "title": "Только проверка готового кейса",
       "when": "сетка уже есть, нужно checkMesh + шлюз качества по регионам",
       "software": "OpenFOAM v2512",
-      "evidence": ["AGENTS.md §6"],
-      "requires": ["constant/polyMesh или constant/<region>/polyMesh"],
+      "evidence": [
+        "AGENTS.md §6"
+      ],
+      "requires": [
+        "constant/polyMesh или constant/<region>/polyMesh"
+      ],
       "steps": []
     }
   ]

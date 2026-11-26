@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { detectOpenFoamBashrc, normalizeRoots, readPackageVersion } from './env.js'
+import { normalizeInstallations } from './foam.js'
 import { detectProfile, normalizeProfile, profileForRoot } from './project.js'
 import { pickPython } from './process.js'
 
@@ -115,9 +116,15 @@ export function resolveConfig(options) {
       ? configuredRoots
       : (found.foam?.roots ?? []),
   )
+  // Declared installations: the profile names them once, tools pick one per call.
+  const foamInstallations = normalizeInstallations(found.foam, rootDir)
+  const foamDefault = String(
+    merged.foamInstallation || found.foam?.default || Object.keys(foamInstallations)[0] || '',
+  )
+  const profileBashrc = (foamDefault && foamInstallations[foamDefault]?.bashrc) || found.foam?.bashrc || ''
   const openfoamBashrc = String(
     merged.openfoamBashrc
-      || found.foam?.bashrc
+      || profileBashrc
       || detectOpenFoamBashrc([...openfoamRoots, ...(found.foam?.root ? [found.foam.root] : [])]),
   )
   const caseRoots = (() => {
@@ -167,7 +174,13 @@ export function resolveConfig(options) {
     // machine
     python,
     openfoamBashrc,
+    openfoamBashrcExists: Boolean(openfoamBashrc && existsSync(openfoamBashrc)),
     openfoamRoots,
+    foamInstallations,
+    foamDefault,
+    foamSelected: foamDefault && foamInstallations[foamDefault]
+      ? { ...foamInstallations[foamDefault], selectedBy: 'profile-default' }
+      : null,
     workRoot,
     registry: String(profileExtra.registry || merged.registry || found.geometry?.registry || 'stl/registry.csv'),
     np: Math.max(1, Math.floor(Number(merged.np) || 1)),
