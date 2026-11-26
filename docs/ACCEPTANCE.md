@@ -92,6 +92,18 @@ The three-tree tarballs also unpack side by side and import (`mesh-build/lib/cap
 through the sibling layout), but they do not carry `scripts/doctor.mjs` — the single-package tarball is the
 one to hand to a user without git.
 
+## Third run: the tagged 1.0.0 asset
+
+The same procedure with the published `v1.0.0` release asset (`mesh-toolkit-1.0.0.tgz`, 811 940 B):
+
+| Step | Outcome |
+|---|---|
+| `node …/scripts/doctor.mjs` | **READY — 7 pass, 2 warn, 0 fail** |
+| `node …/scripts/demo.mjs` | **DEMO OK in 25.5 s** |
+| `mesh-build/package.json` inside the tarball | `1.0.0` |
+
+So the released artefact, not just the development tree, passes the clean-user acceptance.
+
 ## What this run does not cover
 
 - A real DSH host enabling the bundle through `install_bundle` (the peers were symlinked instead) — the
