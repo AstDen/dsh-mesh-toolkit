@@ -67,7 +67,9 @@ export function normalizeProfile(raw = {}, root = '', file = '') {
     foam: { ...DEFAULTS.foam, ...(raw.foam ?? {}) },
     gate: {
       engine: String(gate.engine ?? 'js'),
-      profile: String(gate.profile ?? 'gate'),
+      // Case-local default: the project profile (60 deg / skew 2 / boundary skew 4).
+      // The research profile may name any built-in or its own profile explicitly.
+      profile: String(gate.profile ?? 'project'),
       profiles,
       minVol: gate.minVol === undefined || gate.minVol === null ? null : Number(gate.minVol),
       script: gate.script ? String(gate.script) : '',

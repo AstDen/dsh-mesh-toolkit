@@ -21,9 +21,15 @@ const fail = (message) => { console.error(`FAIL ${message}`); process.exitCode =
 const config = normalizeConfig({})
 console.log(`project root : ${config.projectRoot || '(not detected)'}`)
 console.log(`configured   : ${config.configured}`)
-if (!config.configured) {
-  fail('project not detected — run from inside Mesh_3D_pore_scale or set MESH_BUILD_PROJECT_ROOT')
-  process.exit(1)
+console.log(`mode         : ${config.configured ? `project "${config.project}"` : 'portable (no sim-project.json)'}`)
+if (config.configured) {
+  assert.ok(config.projectRoot, 'a configured package must know its project root')
+} else {
+  // Plan 1.4: no profile means documented defaults; CI runs exactly this way.
+  assert.equal(config.project, 'defaults', `portable mode must report project "defaults", got ${config.project}`)
+  assert.equal(config.caseRoot, 'cases', `portable caseRoot default, got ${config.caseRoot}`)
+  assert.equal(config.gate?.profile, 'project', `portable gate profile default, got ${config.gate?.profile}`)
+  console.log('defaults     : cases ./cases, gate profile project, minVol unset')
 }
 
 const dataDir = join(config.packageRoot, 'data')

@@ -6,8 +6,10 @@
   `fcc-cell`, `channel-spheres`, `packing`, `cad-porous`, `blob-foam` падали на `@package/generators/...`
   в установленном пакете.
 - `scripts/qa-parity.mjs` сам находит python-эталон: `tools/qa/stl_qa.py`, затем пакетная копия
-  `generators/cad/py_qa.py` (или `MESH_STL_QA_SCRIPT`), поэтому паритет проверяется и в отдельно
-  взятом пакете / в CI.
+  `generators/cad/py_qa.py` (или `MESH_STL_QA_SCRIPT`), поэтому паритет проверяется и в отдельно взятом
+  пакете, и в CI.
+- `scripts/smoke.mjs` проходит без `sim-project.json`: в портативном режиме проверяются дефолты
+  (`project: "defaults"`, `registry: stl/registry.csv`, QA-движок `js`), а dry-run якорится на cwd.
 - `engines.dsh` и peer-диапазоны выровнены на `>=0.2.2-rc.1 <0.3.0`; заполнено `repository`.
 
 ## 0.3.5 — 2026-11-26

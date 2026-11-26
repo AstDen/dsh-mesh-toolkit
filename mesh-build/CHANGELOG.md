@@ -4,11 +4,13 @@
 
 - `files` теперь включает `docs/`: `docs/PORTABLE.md`, на который ссылается README, попадает в `npm pack`
   (раньше tarball ехал без него).
+- `scripts/smoke.mjs` проходит и без `sim-project.json`: в портативном режиме проверяются дефолты
+  (`project: "defaults"`, `caseRoot: "cases"`, профиль шлюза `project`), а не падение «project not detected».
 - `engines.dsh` и peer-диапазоны `@deepseek-ai/dsh-*` выровнены на `>=0.2.2-rc.1 <0.3.0`
   (установленный DSH 0.2.2-rc.5, workbench объявляет тот же минимум).
 - Заполнено поле `repository` (`git+https://github.com/AstDen/dsh-mesh-toolkit`, `directory: mesh-build`).
-- В репозитории появились CI (node 20/24, синтаксис, каталог карточек, версии, smoke, паритет QA,
-  проверка полноты tarball'ов) и Release-workflow на тег — см. `docs/PACKAGING.md`.
+- CI: `.github/workflows/ci.yml` (node 20/24, синтаксис, каталог карточек, версии, smoke, паритет QA,
+  полнота tarball'ов) и `.github/workflows/release.yml` на тег — см. `docs/PACKAGING.md`.
 
 ## 0.5.3 — 2026-11-26
 

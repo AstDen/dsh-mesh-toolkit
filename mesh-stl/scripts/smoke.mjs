@@ -20,9 +20,16 @@ const config = normalizeConfig({})
 console.log(`project root : ${config.projectRoot || '(not detected)'}`)
 console.log(`python       : ${config.python || '(not detected)'}`)
 console.log(`configured   : ${config.configured}`)
-if (!config.configured) {
-  fail('project not detected — run from inside Mesh_3D_pore_scale or set MESH_STL_PROJECT_ROOT')
-  process.exit(1)
+console.log(`mode         : ${config.configured ? `project "${config.project}"` : 'portable (no sim-project.json)'}`)
+if (config.configured) {
+  assert.ok(config.projectRoot, 'a configured package must know its project root')
+} else {
+  // Plan 1.4: without a profile the tools fall back to documented defaults, and this
+  // smoke run must prove that too — CI has no sim-project.json.
+  assert.equal(config.project, 'defaults', `portable mode must report project "defaults", got ${config.project}`)
+  assert.equal(config.registry, 'stl/registry.csv', `portable registry default, got ${config.registry}`)
+  assert.equal(config.qa?.engine, 'js', `portable QA engine, got ${config.qa?.engine}`)
+  console.log('defaults     : registry stl/registry.csv, workRoot stl/generated, QA js')
 }
 
 const dataDir = join(config.packageRoot, 'data')
@@ -62,7 +69,9 @@ assert.ok(fcc, 'fcc-cell family missing')
 const fccPresets = families.find((f) => f.id === 'fcc-cell').presets
 assert.ok(fccPresets.every((p) => /^fcc_cell_/.test(p)), `fcc presets not filtered: ${fccPresets}`)
 
-const outDir = full ? join(config.projectRoot, '.cache', 'mesh-smoke', 'fcc') : join(config.projectRoot, '.cache', 'mesh-smoke', 'dry')
+// case-local mode has an empty projectRoot: anchor the smoke workspace at the cwd
+const smokeRoot = config.projectRoot || process.cwd()
+const outDir = full ? join(smokeRoot, '.cache', 'mesh-smoke', 'fcc') : join(smokeRoot, '.cache', 'mesh-smoke', 'dry')
 const plan = await runFamily(config, fcc, { preset: fcc.defaultPreset, outDir, dryRun: true, name: 'smoke-fcc' })
 assert.ok(plan.dryRun === true, 'dry run not flagged')
 assert.ok(plan.commands.length > 0, 'no commands planned')

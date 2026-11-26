@@ -2,9 +2,12 @@
 
 ## 0.4.4 — 2026-11-26
 
+- Профиль качества по умолчанию в режиме без `sim-project.json` — `project` (60° / skew 2 / boundary 4),
+  как обещают `docs/PORTABLE.md` и карточка `portable-mesh-build`; раньше молча брался `gate` (65°).
+  Явный `gate.profile` в профиле по-прежнему главнее.
 - Добавлено `engines.dsh: ">=0.2.2-rc.1 <0.3.0"` (ядро тоже проверяет совместимость с рантаймом).
-- Заполнено поле `repository` (`directory: sim-core`); версия участвует в проверке
-  `scripts/check-versions.mjs` (package.json == CHANGELOG == баннер README).
+- Заполнено поле `repository` (`directory: sim-core`); версия участвует в `scripts/check-versions.mjs`
+  (package.json == CHANGELOG == баннер README).
 
 ## 0.4.3 — 2026-11-26
 
