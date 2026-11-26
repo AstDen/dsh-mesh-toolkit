@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.5 — 2026-11-26
+
+Plan A9 of the workbench contract: the two-way acceptance suite runs in the repository.
+
+- `scripts/contract-test.mjs` — three tiers, each printing `SKIP` with the reason instead of failing, so the
+  script is useful on a laptop, in CI and on a machine with OpenFOAM:
+  - library (always): `meshToolkit` apiVersion/refusals/singleton, `mesh-handoff/1` validation (gate FAIL, mm case,
+    unknown role), plural role aliases, conflict/patch-not-found refusals on a synthetic case, the advice table
+    (10 categories, y+ ladder, escalation options, route downgrade), unit suspicion;
+  - tools (when the packages are importable): the metre/ambiguous-unit question through `mesh_build`;
+  - OpenFOAM (when a bashrc resolves): T1 mesh→gate→handoff, T5 roles + unchanged recheck metrics, T6 a broken
+    partial mesh is rebuilt, T2 y+ feedback → revise → rebuild with history.
+- T3 independence: the packages import nothing from the workbench, checked by grepping the entry points and the
+  handoff/service modules.
+- `ROLE_ALIASES` and `normalizeRoles` are exported: the contract's `next[]` hands plural keys (`walls`) to a
+  consumer, so the mapping is public API.
+
+Acceptance: `node scripts/contract-test.mjs` 33/33 with all tiers; `--no-mesh` in CI (library tier only).
+
 ## 0.7.4 — 2026-11-26
 
 Plan A8 of the workbench contract: the capability matrix is probed once and every dictionary key follows it.

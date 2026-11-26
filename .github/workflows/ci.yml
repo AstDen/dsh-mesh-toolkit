@@ -48,6 +48,9 @@ jobs:
           node mesh-stl/scripts/smoke.mjs
           node mesh-build/scripts/smoke.mjs
 
+      - name: contract tests (workbench handoff; tools/OpenFOAM tiers skip on a bare runner)
+        run: node scripts/contract-test.mjs --no-mesh
+
       - name: JS QA parity vs python reference
         run: |
           # trimesh needs networkx for split()/bodies; without it the reference engine dies

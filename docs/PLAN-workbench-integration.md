@@ -343,7 +343,19 @@ What shipped (facts):
   the solver dictionary names, the presence of `cartesianMesh`) — at present this is smeared across the code.
 - Use it in `scaffold.js` and in the route descriptions; expose it in `mesh_build` as `caps`.
 
-### A9. Service and tests (C)
+### A9. Service and tests (C) — ✅ done, 2026-11-26 (mesh-build 0.7.5)
+
+What shipped (facts):
+
+- The `meshToolkit` service already ships inside the packages (`sim-core/lib/toolkit.js`, registered by both
+  plugins), so A9 is the acceptance side: `scripts/contract-test.mjs` covers T1–T6 in three tiers
+  (library / tools / OpenFOAM) and prints `SKIP <reason>` per tier instead of failing.
+- Measured on this machine: **33/33** with all tiers — T1 mesh→gate→handoff valid (2 patches, scale 0.001),
+  T5 roles applied and `sameAsRecorded: true`, T6 a broken partial mesh is rebuilt to PASS, T2 y+ plan → rebuild
+  (`changes 1`, PASS, 14 815 cells), T4 ambiguous units asked then bypassed with `assumeUnits:"mm"`,
+  T3 independence (no workbench import).
+- CI runs `--no-mesh` (library tier + independence) on node 20 and 24; a bare runner has no OpenFOAM/DSH.
+- `ROLE_ALIASES` / `normalizeRoles` exported: the contract hands plural role keys to consumers.
 
 - `plugins/mesh-build/lib/service.js`: `ctx.provide('meshToolkit', {apiVersion: 1, capabilities, generate,
   mesh, revise, patchTypes, gate, deliver})`, registration in `apply(ctx)`; errors are structured.

@@ -2,3 +2,6 @@
 # python bytecode
 __pycache__/
 *.pyc
+
+# dev-only: symlink to a DSH checkout for the tool tier of the contract suite
+node_modules

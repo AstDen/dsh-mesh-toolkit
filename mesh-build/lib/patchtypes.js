@@ -33,7 +33,7 @@ export const APPLICABLE_ROLES = ['inlet', 'outlet', 'wall', 'symmetry', 'empty',
 const STICKY_TYPES = new Set(['empty', 'cyclic', 'cyclicAMI'])
 
 /** Plural/spelling aliases so the contract's `roles` object can be passed verbatim. */
-const ROLE_ALIASES = {
+export const ROLE_ALIASES = {
   walls: 'wall',
   inlets: 'inlet',
   outlets: 'outlet',
@@ -113,7 +113,7 @@ export function readBoundary(caseDir, region = '') {
   return { file, region, text, patches: parseBoundary(text) }
 }
 
-function normalizeRoles(roles) {
+export function normalizeRoles(roles) {
   const out = []
   const problems = []
   for (const [key, value] of Object.entries(roles ?? {})) {

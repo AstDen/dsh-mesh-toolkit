@@ -3,6 +3,27 @@
 This document describes how the packages are built, tested and delivered to the user.
 It belongs to the plan `PLAN-release-1.0.md`, blocker 2 "packaging".
 
+## Contract tests (workbench handoff)
+
+`scripts/contract-test.mjs` is the two-way acceptance suite from `docs/WORKBENCH-CONTRACT.md` §7, in three tiers that
+degrade to `SKIP` instead of failing:
+
+| tier | runs when | covers |
+|---|---|---|
+| library | always | `meshToolkit` apiVersion/refusals, `mesh-handoff/1` validation, role aliases and refusals, the advice table (y+, escalation, route downgrade), unit suspicion |
+| tools | the packages are importable (`plugins/*/node_modules` linked to a DSH checkout) | the ambiguous-units question through `mesh_build` (T4) |
+| OpenFOAM | a bashrc resolves (`CONTRACT_TEST_BASHRC`, else `/usr/lib/openfoam/openfoam2512/etc/bashrc`) | T1 mesh→gate→handoff, T5 roles with unchanged metrics, T6 rebuild after a broken partial mesh, T2 y+ feedback → revise |
+
+CI runs `node scripts/contract-test.mjs --no-mesh` (library tier + independence), because a bare runner has neither
+DSH nor OpenFOAM. A developer machine runs the full suite:
+
+```bash
+node scripts/contract-test.mjs                                     # all tiers that can run
+CONTRACT_TEST_STL=/path/to/a1-cube.stl node scripts/contract-test.mjs   # OpenFOAM tier with a real fixture
+```
+
+The OpenFOAM tier needs one closed STL fixture; without it the tier prints `SKIP fixture missing`.
+
 ## Publication channel: git installation (the decision)
 
 The packages are **not published to npm** at this stage, and here is why — verified against the code, not by feel:
