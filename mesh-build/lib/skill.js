@@ -11,7 +11,7 @@ export const SKILL = {
     + 'whether an existing mesh passes the project quality gate.',
   content: `# mesh-build — volume meshes and the quality gate
 
-## Tools (4)
+## Tools (5)
 - **mesh_hints** — knowledge cards: snappy, cfMesh/pMesh, gmsh route D, the gate, delivery, rejected routes.
   Without arguments — the catalogue; \`query\` — search; \`id\` — one card.
 - **mesh_build** — routes from \`data/engine.json\`:
@@ -22,6 +22,9 @@ export const SKILL = {
 - **mesh_deliver** — delivery of a mesh that passed the gate: an OpenFOAM case (a real \`constant/\`, a \`.foam\` marker)
   + \`.tar.gz\`, ANSYS/Fluent \`.msh\` + \`read_mesh.jou\` + \`.zip\`, a report \`delivery_<name>.{json,md}\`.
   Requires a fresh \`mesh-passport.json\`; \`force:true\` — only for old cases.
+- **mesh_patch_types** — assign solver roles (inlet/outlet/wall/symmetry/empty/interface) to existing patches by
+  retyping \`constant/<region>/polyMesh/boundary\` (a \`.bak\`, a diff, no face splitting); updates \`handoff.json\`,
+  \`recheck:true\` proves the gate metrics did not change. Splitting one patch into inlet+outlet needs topoSet+createPatch.
 
 ## Workflow
 1. \`mesh_hints({ query: "snappy non-ortho layers" })\` — read the rules.
@@ -33,6 +36,8 @@ export const SKILL = {
    not the small snappy knobs (hint snappy-toggles-neutral).
 6. Delivery: \`mesh_deliver({ caseDir, name, minVol })\` — after a PASS gate and a fresh passport;
    the tool itself checks the round-trip, the interface and the gate inside the packaged case.
+7. Solver boundary conditions: \`mesh_patch_types({ caseDir, roles:{ inlet:[...], outlet:[...], walls:[...] } })\`
+   then \`mesh_check\` again — the boundary file changed, so the passport is stale until it is refreshed.
 
 ## Hard rules
 - Threshold quality — only \`mesh_check\` (the JS gate, profile project); "Mesh OK" without -meshQuality is not a verdict.

@@ -23,7 +23,8 @@ import {
   catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
 import { readCasePatches } from './lib/patches.js'
-import { buildHandoff, qualityFromGate, writeHandoff } from '../sim-core/lib/handoff.js'
+import { applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
+import { buildHandoff, qualityFromGate, readHandoff, writeHandoff } from '../sim-core/lib/handoff.js'
 import { ensureToolkit } from '../sim-core/lib/toolkit.js'
 import {
   buildCaseManifest, buildMeshPassport, passportFreshness, readMeshPassport,
@@ -501,6 +502,154 @@ export function apply(ctx, rawConfig) {
   })
 
   register({
+    name: 'mesh_patch_types',
+    description: 'Assign contract roles (inlet/outlet/wall/symmetry/empty/interface) to existing boundary patches by '
+      + 'retyping constant/<region>/polyMesh/boundary — a .bak backup, a before/after diff, no face splitting. Refuses '
+      + 'when a patch is missing, when one patch is listed in two roles, when the current type is a topological '
+      + 'constraint (empty/cyclic), and when a multi-region case is addressed without region. Updates handoff.json; '
+      + 'recheck:true re-runs the gate to show that patch types did not change the metrics.',
+    parameters: {
+      caseDir: { type: 'string', description: 'Case directory (relative to the project root or absolute inside it).' },
+      roles: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Role → patch names, e.g. { "inlet": ["inlet"], "outlet": ["outlet"], "walls": ["walls", "obstacle"], "symmetry": ["world"] }. '
+          + 'Roles: inlet, outlet, wall, symmetry, empty, interface (cyclic/wedge need manual setup).',
+      },
+      region: { type: 'string', description: 'Region to edit in a multi-region case (required when several regions exist).' },
+      dryRun: { type: 'boolean', description: 'Print the planned diff without writing the boundary file.' },
+      recheck: { type: 'boolean', description: 'Run the quality gate after the edit and compare the metrics with the handoff.' },
+      profile: { type: 'string', description: 'Gate profile for recheck: project (default), gate or relaxed.' },
+      minVol: { type: 'number', description: 'Absolute minVol for recheck (m^3); omit to reuse the handoff value.' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id or an absolute bashrc path (needed for recheck only).' },
+    },
+    async execute(args, config) {
+      const caseDir = resolveCase(config, args, { mustExist: true, hint: 'mesh_patch_types edits an existing mesh' })
+      const regions = listCaseRegions(caseDir)
+      if (!regions.length) return { error: `no constant/polyMesh/boundary in ${displayPath(config, caseDir)}` }
+      if (!args.roles || typeof args.roles !== 'object') {
+        return {
+          error: 'roles is required, e.g. { "inlet": ["inlet"], "outlet": ["outlet"], "walls": ["walls"] }',
+          patches: readCasePatches(caseDir),
+          regions: regions.map((r) => r || 'base'),
+        }
+      }
+      const plan = planRetype({ caseDir, region: args.region, roles: args.roles })
+      if (!plan.ok) {
+        return {
+          ok: false,
+          caseDir: displayPath(config, caseDir),
+          region: plan.region ?? (args.region ?? null),
+          regions: (plan.regions ?? regions).map((r) => r || 'base'),
+          patches: (plan.patches ?? []).map((p) => ({ name: p.name, type: p.type, nFaces: p.nFaces })),
+          problems: plan.problems,
+          changes: plan.changes ?? [],
+          next: ['fix the problems above (names come from patches[].name) and rerun mesh_patch_types',
+            'a single patch split into inlet/outlet needs a face set: topoSet + createPatch, then rerun'],
+        }
+      }
+      const summary = {
+        caseDir: displayPath(config, caseDir),
+        region: plan.region || 'base',
+        file: displayPath(config, plan.file),
+        dryRun: Boolean(args.dryRun),
+        changes: plan.changes,
+        unchanged: plan.notes,
+        patches: null,
+        backup: null,
+        handoff: null,
+        recheck: null,
+      }
+      if (args.dryRun) {
+        summary.patches = plan.patches.map((p) => ({ name: p.name, type: p.type, nFaces: p.nFaces }))
+        summary.next = ['drop dryRun to write the boundary file (a .bak backup is kept)']
+        return summary
+      }
+
+      let applied
+      try {
+        applied = applyRetype(plan)
+      } catch (error) {
+        return { ...summary, error: error.message, next: ['nothing was changed: fix the reported problem and rerun'] }
+      }
+      summary.backup = applied.backup ? displayPath(config, applied.backup) : null
+      summary.before = applied.before
+      summary.after = applied.after
+      summary.patches = applied.patches.map(({ bodyStart, bodyEnd, ...p }) => ({ name: p.name, type: p.type, nFaces: p.nFaces }))
+
+      // Keep the handoff in step with the physical boundary: roles are the contract's view of it.
+      const previous = readHandoff(caseDir)
+      try {
+        const patchesNow = readCasePatches(caseDir)
+        const flat = (patchesNow?.entries ?? []).flatMap((entry) => (entry.patches ?? []).map((p) => ({ ...p, region: entry.region ?? null })))
+        // inlet and outlet are both type `patch`: the semantic role lives only in this document, so carry
+        // the previous assignments forward and add the ones applied now.
+        const assignedRoles = {}
+        for (const p of previous?.patches ?? []) {
+          if (p?.name && p.role && p.role !== 'unknown' && (p.type === 'patch' || p.type == null)) assignedRoles[p.name] = p.role
+        }
+        for (const change of applied.changes) assignedRoles[change.name] = change.role
+        const doc = buildHandoff({
+          caseDir,
+          producer: {
+            plugin: name,
+            version: diskVersion(),
+            openfoam: {
+              distribution: config.foam?.distribution || null,
+              version: config.foam?.version || null,
+              bashrc: config.openfoamBashrc || null,
+            },
+          },
+          units: config.units === 'm' ? 'm' : 'mm',
+          mesh: { route: previous?.mesh?.route ?? 'existing-case', cells: previous?.mesh?.cells ?? null, regions: regions.filter(Boolean) },
+          quality: previous?.quality ?? null,
+          patches: flat,
+          assignedRoles,
+          history: [
+            ...(previous?.history ?? []),
+            { event: 'patch-types', at: new Date().toISOString(), changes: applied.changes.map((c) => `${c.name}: ${c.from} -> ${c.to}`) },
+          ],
+        })
+        const written = writeHandoff(caseDir, doc)
+        summary.handoff = {
+          file: displayPath(config, written.file),
+          bytes: written.bytes,
+          roles: written.handoff.roles,
+          flowReady: written.handoff.next.every((n) => n.tool !== 'mesh_patch_types'),
+          next: written.handoff.next,
+        }
+      } catch (error) {
+        summary.handoff = { error: error.message }
+      }
+
+      if (args.recheck) {
+        const before = previous?.quality ?? null
+        const gate = gateCase(config, caseDir, {
+          profile: args.profile ?? config.gate?.profile,
+          minVol: args.minVol ?? before?.minVol ?? undefined,
+        })
+        const metrics = gate.results?.[0]?.metrics ?? {}
+        summary.recheck = {
+          verdict: gate.verdict,
+          cells: metrics.cells ?? null,
+          maxNonOrtho: metrics.maxNonOrtho ?? null,
+          minVolume: metrics.minVolume ?? null,
+          sameAsRecorded: before
+            ? metrics.cells === before.cells && metrics.maxNonOrtho === before.maxNonOrtho && metrics.minVolume === before.minVolume
+            : null,
+          recorded: before ? { verdict: before.verdict, cells: before.cells, maxNonOrtho: before.maxNonOrtho, minVolume: before.minVolume } : null,
+        }
+      }
+
+      summary.next = summary.recheck
+        ? [`handoff.json updated (${summary.handoff?.file ?? 'not written'}); the mesh itself is unchanged — deliver with mesh_deliver`]
+        : ['run mesh_check({caseDir, minVol}) to refresh the passport: the boundary file changed, so the old passport is stale',
+          'then deliver with mesh_deliver']
+      return summary
+    },
+  })
+
+  register({
     name: 'mesh_check',
     description: 'Quality verdict for an existing mesh: the sim-core JS gate (checkMesh -meshQuality with a complete '
       + 'meshQualityDict) for every region, verdict from the log text (checkMesh exits 0 even on failures). '
@@ -571,6 +720,12 @@ export function apply(ctx, rawConfig) {
       let handoff = null
       try {
         const flatPatches = (patches?.entries ?? []).flatMap((entry) => (entry.patches ?? []).map((p) => ({ ...p, region: entry.region ?? null })))
+        // Keep the semantic roles mesh_patch_types assigned: type `patch` alone cannot tell inlet from outlet.
+        const previous = readHandoff(caseDir)
+        const assignedRoles = {}
+        for (const p of previous?.patches ?? []) {
+          if (p?.name && p.role && p.role !== 'unknown' && (p.type === 'patch' || p.type == null)) assignedRoles[p.name] = p.role
+        }
         const doc = buildHandoff({
           caseDir,
           producer: {
@@ -599,6 +754,7 @@ export function apply(ctx, rawConfig) {
             passport: passport ? { status: freshness?.status ?? null, createdAt: passport.createdAt } : null,
           }),
           patches: flatPatches,
+          assignedRoles,
           next: gate.pass ? [] : [{ tool: 'mesh_check', args: { caseDir: '.' } }],
         })
         handoff = writeHandoff(caseDir, doc)
@@ -779,7 +935,7 @@ export function apply(ctx, rawConfig) {
   provideService(ctx, 'simMesh', {
     version: CAPABILITIES.simMesh,
     owner: name,
-    capabilities: ['hints', 'build', 'check', 'deliver'],
+    capabilities: ['hints', 'build', 'check', 'deliver', 'patchTypes'],
     invoke: (tool, args, exec) => {
       const handler = handlers[tool]
       if (!handler) throw new Error(`simMesh: unknown tool "${tool}"`)
@@ -789,6 +945,7 @@ export function apply(ctx, rawConfig) {
     build: (args, exec) => handlers.mesh_build(args, exec),
     check: (args, exec) => handlers.mesh_check(args, exec),
     deliver: (args, exec) => handlers.mesh_deliver(args, exec),
+    patchTypes: (args, exec) => handlers.mesh_patch_types(args, exec),
   })
 
   // meshToolkit (apiVersion 1): the contract-level facade a solver-side workbench resolves at call
@@ -797,5 +954,6 @@ export function apply(ctx, rawConfig) {
   toolkit.register('mesh', (args, exec) => handlers.mesh_build(args, exec), { plugin: name, version, tool: 'mesh_build' })
   toolkit.register('gate', (args, exec) => handlers.mesh_check(args, exec), { plugin: name, version, tool: 'mesh_check' })
   toolkit.register('deliver', (args, exec) => handlers.mesh_deliver(args, exec), { plugin: name, version, tool: 'mesh_deliver' })
+  toolkit.register('patchTypes', (args, exec) => handlers.mesh_patch_types(args, exec), { plugin: name, version, tool: 'mesh_patch_types' })
   toolkit.register('hints', (args, exec) => handlers.mesh_hints(args, exec), { plugin: name, version, tool: 'mesh_hints' })
 }

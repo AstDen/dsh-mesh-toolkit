@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.1 — 2026-11-26
+
+- **plan A2 (workbench contract)**: new tool `mesh_patch_types` assigns contract roles
+  (inlet/outlet/wall/symmetry/empty/interface) to existing patches by retyping
+  `constant/<region>/polyMesh/boundary` — a `.bak` backup, a before/after diff, and only the `type` line is
+  rewritten (`nFaces`/`startFace`/`inGroups` untouched). It never splits faces: a single patch cannot become
+  inlet+outlet without a face set (`topoSet` + `createPatch`), and the refusal says so.
+- Refusals instead of guesses: an unknown patch name lists the available `name (type)`; one patch in two
+  roles; `empty`/`cyclic`/`cyclicAMI` cannot become a flow boundary without rebuilding the mesh; `cyclic`/
+  `wedge` need a neighbour patch or wedge geometry; a multi-region case must name `region`.
+- Roles that the boundary file cannot express are kept in `handoff.json`: after retyping, inlet and outlet are
+  both type `patch`, so the document carries the semantic assignment (and `mesh_check` carries it forward).
+- `recheck:true` re-runs the gate and reports `sameAsRecorded` with the earlier cells/non-ortho/minVolume —
+  patch types change what a solver sees, not the mesh metrics.
+- Role keys accept the contract's plural forms (`walls`, `symmetries`, `interfaces`), so `next[]` args from
+  `handoff.json` can be passed verbatim.
+- New knowledge card `patch-roles` (hint id), and the bundled skill lists the tool.
+
 ## 0.6.0 — 2026-11-26
 
 - **plan A1 (workbench contract)**: `mesh_check` and `mesh_deliver` now write `handoff.json`

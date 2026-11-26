@@ -253,6 +253,10 @@ export function roleSummary(patches) {
 /**
  * Assemble a `mesh-handoff/1` document. Every argument is optional so the function also serves
  * mesh_deliver (where only the packaged case and the delivery report exist).
+ *
+ * `assignedRoles` ({patch: role}) carries a role the boundary file cannot express: after retyping,
+ * an inlet and an outlet are both type `patch`, so the semantic role lives in this document. It only
+ * applies where the type is ambiguous; `wall`/`symmetry`/`empty` stay authoritative.
  */
 export function buildHandoff({
   caseDir,
@@ -268,18 +272,23 @@ export function buildHandoff({
   files = null,
   history = [],
   next = null,
+  assignedRoles = null,
 }) {
   const scale = scaleFromBlockMeshDict(caseDir)
   const domain = domainFromCase(caseDir)
   const stls = stlProvenance(caseDir)
-  const patchList = (patches ?? []).map((p) => ({
-    region: p.region ?? null,
-    name: p.name,
-    type: p.type ?? null,
-    role: PATCH_ROLES.includes(p.role) ? p.role : patchRole(p),
-    nFaces: p.nFaces ?? null,
-    area_m2: p.area_m2 ?? null,
-  }))
+  const patchList = (patches ?? []).map((p) => {
+    const assigned = PATCH_ROLES.includes(assignedRoles?.[p.name]) ? assignedRoles[p.name] : null
+    const ambiguousType = !p.type || p.type === 'patch'
+    return {
+      region: p.region ?? null,
+      name: p.name,
+      type: p.type ?? null,
+      role: PATCH_ROLES.includes(p.role) ? p.role : (ambiguousType && assigned ? assigned : patchRole(p)),
+      nFaces: p.nFaces ?? null,
+      area_m2: p.area_m2 ?? null,
+    }
+  })
   const { roles, flowReady } = roleSummary(patchList)
   const notes = []
   if (!flowReady) {

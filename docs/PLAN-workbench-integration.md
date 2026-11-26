@@ -184,7 +184,7 @@ Key principles:
   `openfoam_<name>/` case (with `files.delivery` and a `history[]` event); the source case is updated too.
 - Roles come from the patch type first and the name only refines `unknown` (`inlet|outlet|wall|symmetry|
   cyclic|empty|interface|wedge|unknown`); `next[]` carries the ready `mesh_patch_types` call while inlet/outlet
-  are missing (A2 will execute it).
+  are missing (A2 executes it: `mesh_patch_types`, shipped in 0.6.1).
 - `meshToolkit` service (`apiVersion: 1`, `sim-core/lib/toolkit.js`) registered by both packages:
   `generate`/`qa`/`hints` from mesh-stl, `mesh`/`gate`/`deliver`/`hints` from mesh-build; absent methods answer
   `{ok:false, error:'not-provided', available, hint}`.
@@ -194,7 +194,7 @@ Key principles:
   `a1-cube (2 2)`, patches `world:symmetry`, `a1-cube:wall`, `next[]` = `mesh_patch_types` with
   `walls:["a1-cube"]`, STL sha256 present, delivery copies the handoff and records the `delivered` event.
 
-### A2. `mesh_patch_types` (C)
+### A2. `mesh_patch_types` (C) — ✅ done, 2026-11-26 (mesh-build 0.6.1)
 
 - Input: `caseDir`, `roles: {inlet: [names], outlet: [...], walls: [...], symmetry: [...], interface: [...]}`,
   `regions?`, `profile?` (re-check of the gate after the edit), `dryRun`.
@@ -204,6 +204,22 @@ Key principles:
   multi-region and the region is not specified.
 - Acceptance: B1 case `fluid` (one `wall` patch with 56 560 faces) → the inlet/outlet/walls roles are assigned,
   a repeated `mesh_check` gives the same metrics (the gate does not depend on patch types).
+
+**Сделано (факты).** `plugins/mesh-build/lib/patchtypes.js` (parse/plan/apply) + tool `mesh_patch_types`
+(`caseDir`, `roles` incl. plural aliases, `region`, `dryRun`, `recheck`, `profile`, `minVol`). It rewrites only the
+`type` line inside each named patch, keeps `<boundary>.bak`, returns `{before, after, changes}` and regenerates
+`handoff.json`; roles that the boundary file cannot express (inlet and outlet are both type `patch`) are stored in
+the handoff and carried forward by `mesh_check`. Refusals: `patch-not-found` (lists the available `name (type)`),
+`role-conflict`, `incompatible-type` (empty/cyclic/cyclicAMI), `needs-manual-setup` (cyclic/wedge),
+`ambiguous-region` (multi-region without `region`), and a split of one patch into inlet+outlet (needs
+`topoSet`+`createPatch`). Measured on `benchmark/runs/20261125-1805/mesh/c2` (fresh node): `18/18` checks in
+`experiments/_scratch/verify-a2.mjs` — dryRun plans `world symmetry→patch` without writing; apply writes the file
+and a `.bak`; the second pass reaches `flowReady` and empties `next[]`; `recheck` returns PASS with
+`sameAsRecorded: true` (66 241 cells, 24.2346°, minVolume 1.52824e-11); all refusals produce their codes; the
+multi-region case is refused without `region` and planned with `region:"fluid"`; `meshToolkit.patchTypes` resolves.
+New knowledge card `patch-roles`; the bundled skill lists the tool. Acceptance for B1 (`fluid`, single `wall`
+patch) follows the same path — the case is meshed, not yet retyped in the benchmark run (Appendix C was the manual
+step this tool replaces).
 
 ### A3. `mesh_revise` (C)
 
@@ -349,7 +365,7 @@ and synchronise the contract version on changes.
 | Milestone | Content | Days |
 |---|---|---|
 | M1 | A1 handoff + A9 service (skeleton) + schemas | 2 |
-| M2 | A2 `mesh_patch_types` + A3 `mesh_revise` (revision table) | 2 |
+| M2 | A2 `mesh_patch_types` (✅ 0.6.1) + A3 `mesh_revise` (revision table) | 2 |
 | M3 | A4 primitives + A5 y+ + A6 domain/scale | 2 |
 | M4 | A7 `mesh_surface_check` + A8 caps + tests/CI | 2 |
 | M5 | joint T1–T5 with the workbench author | 1–2 |

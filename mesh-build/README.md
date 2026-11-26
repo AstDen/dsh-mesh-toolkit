@@ -13,6 +13,7 @@ OpenFOAM/cfMesh command on this machine, the logs stay on disk, and a short summ
 | `mesh_build` | route + case scaffold + gate | `route`, `caseDir`, `scaffold`, `stl`, `scaffoldOptions`, `np`, `splitRegions`, `gate`, `profile`, `minVol`, `overwrite`, `skipBlockMesh`, `dryRun`, `gmshScript`, `gmshArgs`, `msh` |
 | `mesh_check` | JS gate per region; writes `mesh-passport.json`, leaves the mesh untouched | `caseDir`, `regions`, `profile`, `minVol` |
 | `mesh_deliver` | delivery of a gate-passing mesh: OF case + `.tar.gz`, Fluent `.msh` + `.zip`, a report with the checks | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
+| `mesh_patch_types` | solver roles for existing patches (retype `boundary`, `.bak` + diff, updates `handoff.json`) | `caseDir`, `roles`, `region`, `dryRun`, `recheck`, `profile`, `minVol` |
 
 
 ## Description and topics
@@ -105,8 +106,9 @@ from the route's `failures`.
 
 ## Shared core and passports
 
-The gate, the `checkMesh` parser, config, paths and cards live in `../sim-core` (package `sim-core`, 0.3.0);
-this plugin is a provider of the `simMesh` service (`build`/`check`/`hints`) and a consumer of `simHints`.
+The gate, the `checkMesh` parser, config, paths, cards and the `mesh-handoff/1` writer live in `../sim-core`;
+this plugin is a provider of the `simMesh` service (`build`/`check`/`deliver`/`patchTypes`/`hints`), a provider of
+the `meshToolkit` service (`mesh`/`gate`/`deliver`/`patchTypes`) and a consumer of `simHints`.
 The project profile is `sim-project.json` at the root (units, caseRoots, scratch, foam, gate, geometry, cores).
 After a scaffold `case-manifest.json` is written, after the gate — `mesh-passport.json`:
 route, cells, regions, gate, sha256/size/mtime of the polyMesh. `mesh_check` reports passport freshness
@@ -124,6 +126,21 @@ and any mismatch between the recorded verdict and the current one.
 dictionary (check disabled) and the response carries `disabled-minVol-not-configured`; on failure — the advice
 `minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` is kept as an escape hatch to
 `tools/qa/mesh_gate.sh`.
+
+## Patch roles (`mesh_patch_types`)
+
+A scaffolded snappy case gives two patches: the obstacle/box faces as `wall` and the outer domain box as
+`symmetry` (`world`). A solver needs flow roles, and in a regional case `changeDictionary` does not work, so the
+type is retyped in `constant/<region>/polyMesh/boundary` (AGENTS.md §13, exp-006/D-013). `mesh_patch_types` does
+that edit: it rewrites only the `type` line of each named patch, keeps `<boundary>.bak`, returns the before/after
+diff, and refuses what it cannot do safely — an unknown patch name (listing the available `name (type)`), one
+patch in two roles, `empty`/`cyclic`/`cyclicAMI` as a target for a flow boundary (topological constraints),
+`cyclic`/`wedge` without a neighbour patch or wedge geometry, a multi-region case without `region`, and splitting
+one patch into inlet+outlet (that needs a face set: `topoSet` + `createPatch`, or named patches from the
+geometry). Inlet and outlet end up as type `patch`, so the semantic role is stored in `handoff.json` and carried
+forward by `mesh_check`. `recheck:true` re-runs the gate and reports `sameAsRecorded` — patch types change what a
+solver reads, never the mesh metrics. After a retype the passport is stale: run `mesh_check` again before
+`mesh_deliver`.
 
 ## OpenFOAM versions
 

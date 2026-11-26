@@ -271,9 +271,9 @@ ctx.provide('meshToolkit', {
 })
 ```
 
-Status (2026-11-26, mesh-toolkit 0.6.0): the service exists and is filled lazily by whichever package is
-installed — mesh-stl registers `generate`, `qa`, `hints`; mesh-build registers `mesh`, `gate`, `deliver`, `hints`.
-`revise` and `patchTypes` answer `{ok:false, error:"not-provided", available, hint}` until A2/A3 land. Methods
+Status (2026-11-26, mesh-toolkit 0.6.1): the service exists and is filled lazily by whichever package is
+installed — mesh-stl registers `generate`, `qa`, `hints`; mesh-build registers `mesh`, `gate`, `deliver`,
+`patchTypes`, `hints`. `revise` answers `{ok:false, error:"not-provided", available, hint}` until A3 lands. Methods
 return the tool payload itself (the same JSON a tool call gives); failures are the structured error above, never
 a thrown exception. `capabilities()` reports `{apiVersion, methods[], missing[]}` for discovery.
 
