@@ -17,6 +17,9 @@ import {
 
 export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const PKG_VERSION = readPackageVersion(PACKAGE_ROOT)
+// PKG_VERSION is captured at import: a version-only bump in package.json never changes this
+// module, so the HMR reconciler has nothing to evict. Touch a module file (this comment) or
+// restart DSH when the reported version must match package.json.
 
 /**
  * Version on disk, read at CALL time: a long-running DSH keeps the version it loaded at
