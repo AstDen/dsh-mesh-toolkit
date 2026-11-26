@@ -548,7 +548,8 @@ export function apply(ctx, rawConfig) {
       + 'from constant/polyMesh (JS, no OpenFOAM and no version-specific utility), then compare bounding box, area, '
       + 'volume and an approximate Hausdorff distance (triangle-centroid sampling both ways). Catches a domain that '
       + 'clips the geometry (benchmark DEF-11: bboxRel ≈ 0.5) and a snappy mesh that lost features. PASS when '
-      + 'bboxRel <= tol, areaRel <= 2·tol and hausdorffRel <= tol.',
+      + 'bboxRel <= tol and hausdorffRel <= tol; area and volume are reported as diagnostics, because a snapped '
+      + 'voxel surface is stair-stepped and legitimately carries more area than the smooth STL.',
     parameters: {
       caseDir: { type: 'string', description: 'Case directory (relative to the project root or absolute inside it).' },
       stl: { type: 'array', items: { type: 'string' }, description: 'Reference STL(s); default: the handoff geometry, else the first file in constant/triSurface.' },
