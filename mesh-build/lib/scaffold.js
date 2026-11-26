@@ -8,6 +8,7 @@
  * @module mesh-build/lib/scaffold
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { probeCaps } from './caps.js'
 import { basename, join } from 'node:path'
 import { displayPath, resolveProjectPath, stem } from './common.js'
 import { cellBudgetWarning, readStlBboxMm, stlOutsideDomainWarning } from './precheck.js'
@@ -83,7 +84,7 @@ function inside(point, min, max) {
   return point.every((v, i) => v > min[i] && v < max[i])
 }
 
-function blockMeshDict({ domainMin, domainMax, cells, patchType }) {
+function blockMeshDict({ domainMin, domainMax, cells, patchType, unitsKey = 'scale' }) {
   const [x0, y0, z0] = domainMin
   const [x1, y1, z1] = domainMax
   const [nx, ny, nz] = cells
@@ -91,7 +92,7 @@ function blockMeshDict({ domainMin, domainMax, cells, patchType }) {
 // Domain in meters, one hex block, one boundary patch.
 // patch type symmetry: snapping cannot push points off the plane (exp-006 D-013).
 
-convertToMeters 1;
+${unitsKey} 1;
 
 x0 ${fmt(x0)};
 y0 ${fmt(y0)};
@@ -144,7 +145,7 @@ mergePatchPairs
 `
 }
 
-function snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureAngle }) {
+function snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureAngle, layerAxisKey = 'minMedialAxisAngle' }) {
   const geometry = surfaces
     .map((s) => `        ${s.name}.stl\n        {\n            type triSurfaceMesh;\n            // Explicit file: OpenFOAM.org 14 no longer accepts the key as the filename.\n            file "${s.name}.stl";\n            name ${s.name};\n            scale 0.001;\n        }`)
     .join('\n')
@@ -169,7 +170,7 @@ function snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureA
     nSmoothThickness 2;
     maxFaceThicknessRatio 0.5;
     maxThicknessToMedialRatio 0.3;
-    minMedialAxisAngle 90; // v2512 requires minMedialAxisAngle; minMedianAxisAngle is not read and kills addLayers
+    ${layerAxisKey} 90; // probed from the annotated dict: v2512+ reads minMedialAxisAngle, older builds minMedianAxisAngle
     nBufferCellsNoExtrude 0;
     nLayerIter 50;
     layers
@@ -484,8 +485,13 @@ export function writeSnappyCase(config, caseDir, options) {
     writeFile(full, content)
     files.push(relative)
   }
-  write('system/blockMeshDict', blockMeshDict({ domainMin, domainMax, cells, patchType }))
-  write('system/snappyHexMeshDict', snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureAngle: Number(options.resolveFeatureAngle ?? 30) }))
+  const caps = options.caps ?? probeCaps(config)
+  write('system/blockMeshDict', blockMeshDict({ domainMin, domainMax, cells, patchType, unitsKey: caps.dictKeys?.blockMeshUnits ?? 'scale' }))
+  write('system/snappyHexMeshDict', snappyDict({
+    surfaces, locations, defaultLevel, layers,
+    resolveFeatureAngle: Number(options.resolveFeatureAngle ?? 30),
+    layerAxisKey: caps.dictKeys?.layerAxis ?? 'minMedialAxisAngle',
+  }))
   write('system/meshQualityDict', meshQualityDict({ minVol, maxNonOrtho, minVolRatio, minTwist }))
   write('system/surfaceFeatureExtractDict', surfaceFeatureExtractDict(surfaces))
   write('system/surfaceFeaturesDict', surfaceFeaturesDict(surfaces))

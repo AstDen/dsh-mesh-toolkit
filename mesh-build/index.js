@@ -35,6 +35,7 @@ import {
 } from '../sim-core/lib/passport.js'
 import { isEmptyDir, installStl, writeSnappyCase } from './lib/scaffold.js'
 import { scaleSuspicion } from './lib/domain.js'
+import { capsSentence, capsSummary, probeCaps } from './lib/caps.js'
 import { compareSurfaces, exportPatchTriangles, readTriangles, writeTrianglesStl } from './lib/surfacecheck.js'
 import { readStlBboxMm } from './lib/precheck.js'
 import { cfmeshUnitsProblem, domainPatchProblem } from './lib/precheck.js'
@@ -385,10 +386,12 @@ export function apply(ctx, rawConfig) {
         return {
           dryRun: true,
           ok: problems.length === 0,
+          version: versionBlock(),
           route: route.id,
           caseDir: displayPath(config, caseDir),
           requires: route.requires ?? [],
           problems,
+          caps: capsSummary(ctx.features?.caps ?? probeCaps(config)),
           scaffold: preview ? { files: preview.files, surfaces: preview.surfaces, locations: preview.locations, cells: preview.cells, patchType: preview.patchType, units: preview.units } : null,
           plan,
           next: problems.length
@@ -448,6 +451,7 @@ export function apply(ctx, rawConfig) {
       }
       const started = Date.now()
       const routeResult = await runRoute(config, route, runArgs, caseDir)
+      const caps = probeCaps(config)
       const payload = {
         version: versionBlock(),
         ok: routeResult.ok,
@@ -456,6 +460,7 @@ export function apply(ctx, rawConfig) {
         durationMs: Date.now() - started,
         steps: routeResult.steps,
         written,
+        caps: capsSummary(caps),
       }
       if (!routeResult.ok) {
         const logText = routeResult.steps.map((s) => `${s.stdoutTail}\n${s.stderrTail}`).join('\n')
@@ -1088,6 +1093,42 @@ export function apply(ctx, rawConfig) {
         next: verdict === 'PASS'
           ? ['deliver with mesh_deliver, or send the handoff to the workbench']
           : ['read rebuilt + gate violations; call mesh_revise again with the same feedback (the next rung) or escalate after the ceiling'],
+      }
+    },
+  })
+
+  register({
+    name: 'mesh_capabilities',
+    description: 'What this OpenFOAM installation actually accepts: distribution and version, the executables '
+      + '(cfMesh is OpenCFD-only, surfaceFeatures is Foundation-only), and the dictionary keys of the installed build '
+      + '(blockMesh `scale` vs `convertToMeters`, snappy `minMedialAxisAngle` vs `minMedianAxisAngle`, '
+      + '`locationsInMesh`, `castellatedBufferLayer`). The keys are read from $WM_PROJECT_DIR/etc/caseDicts/annotated, '
+      + 'so a patched build is described correctly instead of being guessed from a version table.',
+    parameters: {
+      openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json or an absolute bashrc path; omitted = the profile default.' },
+      refresh: { type: 'boolean', description: 'Ignore the cached probe and re-read the installation.' },
+    },
+    async execute(args, config) {
+      const caps = probeCaps(config)
+      return {
+        configured: true,
+        tool: 'mesh_capabilities',
+        bashrc: caps.bashrc,
+        distribution: caps.distribution,
+        version: caps.version,
+        project: caps.project,
+        commands: caps.commands,
+        features: caps.features,
+        dictKeys: caps.dictKeys,
+        dicts: caps.dicts,
+        notes: caps.notes,
+        summary: capsSentence(caps),
+        next: [
+          'mesh_build reports the same block as `caps`; scaffolded dictionaries follow dictKeys',
+          caps.features.cfmesh
+            ? 'cfMesh is available: route "cfmesh" needs system/meshDict (see the cfmesh hint card)'
+            : 'cfMesh is not in this installation: use route "snappy" or "gmsh" (the preflight refuses cfmesh on org builds)',
+        ],
       }
     },
   })

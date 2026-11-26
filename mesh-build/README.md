@@ -13,6 +13,7 @@ OpenFOAM/cfMesh command on this machine, the logs stay on disk, and a short summ
 | `mesh_build` | route + case scaffold + gate | `route`, `caseDir`, `scaffold`, `stl`, `scaffoldOptions`, `np`, `splitRegions`, `gate`, `profile`, `minVol`, `overwrite`, `skipBlockMesh`, `dryRun`, `gmshScript`, `gmshArgs`, `msh` |
 | `mesh_check` | JS gate per region; writes `mesh-passport.json`, leaves the mesh untouched | `caseDir`, `regions`, `profile`, `minVol` |
 | `mesh_deliver` | delivery of a gate-passing mesh: OF case + `.tar.gz`, Fluent `.msh` + `.zip`, a report with the checks | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
+| `mesh_capabilities` | What this installation accepts: distribution/version, executables (cfMesh, gmsh, …) and the dictionary keys read from `$WM_PROJECT_DIR/etc/caseDicts/annotated` (`scale` vs `convertToMeters`, `minMedialAxisAngle` vs `minMedianAxisAngle`, `locationsInMesh`) | `openfoam`, `refresh` |
 | `mesh_first_layer` | y+ → layer sizing (flat plate: Cf, u_τ, first layer, δ, layer count) with a ready `scaffoldOptions` block; or the inverse: a known first layer → its y+ | `uRef`, `lRef`, `nu`, `yPlusTarget`, `expansionRatio`, `coverage`, `cellSize`, `layerSurfaces`, `firstLayer`, `caseDir` |
 | `mesh_surface_check` | Fidelity of the built surface vs the reference STL: exports the patch faces from `constant/polyMesh` (JS, no OpenFOAM utility needed) and compares bbox, volume, area and an approximate Hausdorff; catches a domain that clips the geometry | `caseDir`, `stl`, `patches`, `region`, `tol`, `samples`, `keepStl` |
 | `mesh_patch_types` | solver roles for existing patches (retype `boundary`, `.bak` + diff, updates `handoff.json`) | `caseDir`, `roles`, `region`, `dryRun`, `recheck`, `profile`, `minVol` |
@@ -151,6 +152,22 @@ and any mismatch between the recorded verdict and the current one.
 dictionary (check disabled) and the response carries `disabled-minVol-not-configured`; on failure — the advice
 `minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` is kept as an escape hatch to
 `tools/qa/mesh_gate.sh`.
+
+## Capabilities (`mesh_capabilities`)
+
+One probe answers what the installation really accepts — and the scaffold follows it, so no dictionary key is
+guessed from a version number:
+
+```js
+mesh_capabilities({ openfoam: "com2606" })
+// summary: "OpenFOAM v2606 (com) · cfMesh yes · gmsh yes · features dict surfaceFeatureExtractDict ·
+//           layer key minMedialAxisAngle · blockMesh key scale"
+```
+
+The probe reads two independent sources because either one alone lies: the executables (cfMesh is OpenCFD-only,
+`surfaceFeatures` is Foundation-only) and the annotated case dictionaries shipped with the build (they carry the key
+spelling of *this* build, which a version table cannot know for a patched release). The result is cached per bashrc;
+`refresh: true` re-reads it. `mesh_build` returns the same block as `caps`.
 
 ## Surface fidelity (`mesh_surface_check`)
 

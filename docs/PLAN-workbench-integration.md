@@ -324,7 +324,19 @@ What shipped (facts):
   (sampling of the reference centroids, `closestPtTriangle`).
 - Acceptance: E1 with a trimmed domain (our DEF-11) → FAIL with `bboxRel ≈ 0.5`; A1 → PASS.
 
-### A8. Capability matrix (R)
+### A8. Capability matrix (R) — ✅ done, 2026-11-26 (mesh-build 0.7.4)
+
+What shipped (facts):
+- `mesh-build/lib/caps.js` (`mesh-caps/1`): one `bash -c` probe per installation returns distribution, version,
+  the executables (cfMesh, pMesh, gmsh, foamyHexMesh, foamRun, mergeTol) **and** the dictionary keys read from
+  `$WM_PROJECT_DIR/etc/caseDicts/annotated` (`scale` vs `convertToMeters`, `minMedialAxisAngle` vs
+  `minMedianAxisAngle`, `locationsInMesh`, `castellatedBufferLayer`, `relativeSizes`). Cached per bashrc.
+- `scaffold.js` writes the probed keys: `scale 1;` (the v1012 `convertToMeters` IOWarning is gone) and the layer
+  axis key the build actually reads; `routes.js` `probeInstallation` delegates to the same matrix.
+- Tool `mesh_capabilities`; `mesh_build` reports the block as `caps` (runs and dry runs).
+- Measured: com v2512/v2606 — cfMesh yes, `surfaceFeatureExtractDict`, `locationsInMesh`, `mergeTol`;
+  org 14 — cfMesh no, `surfaceFeaturesDict`, no `locationsInMesh`, `foamRun`, no `mergeTol`.
+- Acceptance: `experiments/_scratch/verify-a8.mjs` 24/24.
 
 - `plugins/mesh-build/lib/caps.js`: determine the distribution/version and the key set from the `bashrc`
   (`scale` vs `convertToMeters`, `surfaceFeaturesDict` vs `surfaceFeatureExtractDict`,

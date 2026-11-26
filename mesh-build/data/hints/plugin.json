@@ -167,5 +167,47 @@
       "experiments/_scratch/verify-a7.mjs: 12/12 — c2 PASS (bboxRel 0, hausdorffRel 0.0005), sphere r5 PASS with areaRel 0.46, benchmark E1 clipped FAIL bboxRel 0.41"
     ],
     "when": "after the gate PASS, whenever the STL may not fit the domain (or the domain was derived from the bbox)"
+  },
+  {
+    "id": "capability-matrix",
+    "title": "Probe OpenFOAM capabilities instead of guessing from the version",
+    "statement": "Distribution-specific dictionary keys are read from the installed build, not from a version table: mesh_capabilities probes the executables and $WM_PROJECT_DIR/etc/caseDicts/annotated, and mesh_build's scaffold writes the probed keys (scale vs convertToMeters, minMedialAxisAngle vs minMedianAxisAngle). On OpenFOAM.com there is no surfaceFeatures and no locationsInMesh; cfMesh exists only in OpenCFD builds.",
+    "topics": [
+      "capabilities",
+      "probe",
+      "OpenFOAM versions",
+      "org",
+      "com",
+      "dictionary keys",
+      "convertToMeters",
+      "minMedialAxisAngle",
+      "cfMesh availability",
+      "locationsInMesh"
+    ],
+    "appliesTo": [
+      "mesh_build",
+      "mesh_capabilities",
+      "scaffold"
+    ],
+    "when": "Before choosing a route or a snappyHexMeshDict key, and when a dictionary key is rejected or silently ignored by an unfamiliar build.",
+    "recipe": [
+      "Call mesh_capabilities({ openfoam: \"<id or bashrc>\" }) — read distribution, version, features and dictKeys",
+      "Trust dictKeys: the scaffold, the route steps and the layer key follow them",
+      "cfmesh available only when features.cfmesh; otherwise route snappy or gmsh",
+      "features.featuresNew decides surfaceFeaturesDict vs surfaceFeatureExtractDict",
+      "A patched build is described correctly; a version table would lie — do not hardcode keys"
+    ],
+    "pitfalls": [
+      "Do not infer the distribution from four-digit vs short version alone: probe the executables",
+      "bash rejects `key.snappy.name=$(...)` as an assignment (dots in variable names) — use printf",
+      "The probe is cached per bashrc; pass refresh:true after installing another OpenFOAM"
+    ],
+    "evidence": [
+      "plugins/mesh-build/lib/caps.js: PROBED_COMMANDS, SNAPPY_KEYS, probeScript, dictKeys",
+      "plugins/mesh-build/lib/scaffold.js: unitsKey/layerAxisKey follow caps.dictKeys",
+      "experiments/_scratch/verify-a8.mjs 24/24 (com v2512, com v2606, org 14, route plans, overridden caps)",
+      "measured: com — cfMesh yes, surfaceFeatureExtractDict, locationsInMesh, mergeTol; org 14 — cfMesh no, surfaceFeaturesDict, no locationsInMesh, foamRun"
+    ],
+    "status": "verified"
   }
 ]

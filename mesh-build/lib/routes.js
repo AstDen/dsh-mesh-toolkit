@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { displayPath, q, readJson, runBash, tail } from './common.js'
+import { probeCaps } from './caps.js'
 
 /** Load and validate the engine description. */
 export function loadEngine(dataDir) {
@@ -36,40 +37,23 @@ export function catalogRoutes(engine) {
   }))
 }
 
-// Which executables/flags this installation actually has. The probe is cached per
-// bashrc, because the answer changes only when the installation changes — and it is
-// the only honest way to know that cfMesh is missing on OpenFOAM.org.
+// Which executables/flags this installation actually has. Delegated to lib/caps.js, which reads both the
+// executables and the annotated dictionaries of the installed build (the only honest oracle: cfMesh is
+// OpenCFD-only, `surfaceFeatures` is Foundation-only, and the layer key differs between builds).
 const PROBE_CACHE = new Map()
 
-/** Probe one installation: executables and flags that differ between distributions. */
+/** Probe one installation: executables, dictionary keys and distribution-specific features. */
 export function probeInstallation(config) {
   const key = config.openfoamBashrc || '(none)'
   if (PROBE_CACHE.has(key)) return PROBE_CACHE.get(key)
-  const names = ['blockMesh', 'snappyHexMesh', 'surfaceFeatureExtract', 'surfaceFeatures', 'cartesianMesh', 'pMesh', 'tetMesh', 'reconstructParMesh', 'splitMeshRegions', 'gmshToFoam']
-  const command = [
-    `for t in ${names.join(' ')}; do printf '%s=%s\\n' "$t" "$(command -v "$t" || true)"; done`,
-    'if reconstructParMesh -help 2>&1 | grep -q -- -mergeTol; then echo mergeTol=1; else echo mergeTol=0; fi',
-  ].join('; ')
-  const result = runBash(command, {
-    cwd: config.projectRoot || process.cwd(),
-    timeoutMs: 120000,
-    openfoamBashrc: config.openfoamBashrc,
-    maxBuffer: 1024 * 1024,
-  })
-  const tools = {}
-  let mergeTol = null
-  for (const line of result.stdout.split('\n')) {
-    const [k, v] = line.split('=')
-    if (!k) continue
-    if (k === 'mergeTol') mergeTol = v === '1'
-    else if (names.includes(k) && v) tools[k] = v
-  }
+  const caps = probeCaps(config)
   const probe = {
-    tools,
-    mergeTol,
-    surfaceFeatures: Boolean(tools.surfaceFeatures),
-    ok: result.code === 0,
-    error: result.code === 0 ? null : tail(result.stderr, 600),
+    tools: caps.commands ?? {},
+    mergeTol: caps.features?.mergeTol === true,
+    surfaceFeatures: caps.features?.featuresNew === true,
+    ok: caps.ok,
+    error: caps.error,
+    caps,
   }
   PROBE_CACHE.set(key, probe)
   return probe

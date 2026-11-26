@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.4 — 2026-11-26
+
+Plan A8 of the workbench contract: the capability matrix is probed once and every dictionary key follows it.
+
+- New `lib/caps.js` (`mesh-caps/1`): probes the installation in one `bash -c` run — version, executables
+  (cfMesh, gmsh, foamyHexMesh, foamRun, mergeTol) and, through `$WM_PROJECT_DIR/etc/caseDicts/annotated`, the
+  **dictionary keys of this build** (`scale` vs `convertToMeters`, `minMedialAxisAngle` vs `minMedianAxisAngle`,
+  `locationsInMesh`, `castellatedBufferLayer`, `relativeSizes`). A version table lies for patched builds; the
+  annotated dictionaries do not.
+- `scaffold.js` writes the probed keys: `scale 1;` instead of the deprecated `convertToMeters` (the v1012 IOWarning
+  is gone) and the layer axis key the build actually reads.
+- `routes.js` `probeInstallation` delegates to the matrix, so step conditions and merge flags come from one source.
+- New tool `mesh_capabilities`; `mesh_build` reports the same block as `caps`.
+- Measured: com v2512/v2606 — cfMesh yes, `surfaceFeatureExtractDict`, `locationsInMesh` yes, `mergeTol` yes;
+  org 14 — cfMesh no, `surfaceFeaturesDict`, no `locationsInMesh`, `foamRun` yes, `mergeTol` no.
+- Fixes found while building it: bash rejects `key.snappy.foo=$(…)` as an assignment (dots are illegal in names) —
+  the probe prints `printf` lines instead; the module needed `../../sim-core/lib/process.js`, not `../sim-core/…`.
+
+Acceptance: `experiments/_scratch/verify-a8.mjs` 24/24.
+
 ## 0.7.3 — 2026-11-26
 
 Plan A7 of the workbench contract: `mesh_surface_check` compares the meshed surface with the reference STL.
