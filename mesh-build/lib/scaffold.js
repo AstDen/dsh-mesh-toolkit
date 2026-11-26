@@ -1,9 +1,11 @@
 /**
  * mesh-build/lib/scaffold.js — write a minimal, verified snappyHexMesh case.
  *
- * Units: the case is in METERS (blockMesh `convertToMeters 1`), STL files are
- * in MILLIMETERS and get `scale 0.001` in the geometry block — the project
- * contract. The domain boundary patch is `symmetry` by default because a
+ * Units: the case is in METERS (the blockMesh units key is probed from the
+ * installed build — `scale 1` on v2512/v2606 and org 14, `convertToMeters 1`
+ * on older builds; see lib/caps.js), STL files are in MILLIMETERS and get
+ * `scale 0.001` in the geometry block — the project contract. The domain
+ * boundary patch is `symmetry` by default because a
  * `patch` type lets snapping move points off the plane (exp-006).
  * @module mesh-build/lib/scaffold
  */

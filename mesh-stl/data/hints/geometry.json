@@ -120,11 +120,12 @@
       "topics": ["units", "stl", "openfoam"],
       "status": "verified",
       "when": "any STL → OpenFOAM chain",
-      "statement": "The project's canonical STLs are in mm while the OpenFOAM case is in metres. This is fixed in three places: (1) blockMesh in mm → convertToMeters 0.001; (2) geometry{...} in snappyHexMeshDict → scale 0.001 (while the STL is in mm); (3) locationInMesh/locationsInMesh are in metres. The mesh_build scaffold writes the case in metres directly (convertToMeters 1), but scale 0.001 on geometry stays. A mismatch gives “the point is not inside the mesh” or a mesh 1000 times too large.",
+      "statement": "The project's canonical STLs are in mm while the OpenFOAM case is in metres. This is fixed in three places: (1) blockMesh in mm → `convertToMeters 0.001`; (2) geometry{...} in snappyHexMeshDict → scale 0.001 (while the STL is in mm); (3) locationInMesh/locationsInMesh are in metres. The mesh_build scaffold instead writes the case in metres and itself uses the units key probed from the installed build (`scale 1` on the current OpenFOAM.com/.org builds, `convertToMeters 1` on older ones — see mesh_capabilities), while scale 0.001 on geometry stays. A mismatch gives “the point is not inside the mesh” or a mesh 1000 times too large.",
       "recipe": [
         "STL: mm (bbox_mm in the stl_qa report)",
-        "blockMeshDict: convertToMeters 0.001",
-        "snappy geometry: scale 0.001; locationInMesh in metres"
+        "hand-written blockMeshDict in mm: convertToMeters 0.001",
+        "snappy geometry: scale 0.001; locationInMesh in metres",
+        "scaffolded case: metres, units key probed by mesh_capabilities (scale on v2512/v2606 and org 14)"
       ],
       "evidence": ["AGENTS.md §8 and §13; exp-003"],
       "improves": ["absence of scale errors"],
