@@ -64,5 +64,39 @@
       "plugins/mesh-stl/lib/registry.js: registryFilePath() resolves from projectRoot, otherwise from cwd",
       "run of 2026-11-26 in /tmp: 12 tri, PASS, 2584 cells, gate PASS, DELIVERED"
     ]
+  },
+  {
+    "id": "primitive-parts",
+    "title": "Cone, pipe and parts[]: analytic volume checks the triangulation",
+    "topics": [
+      "primitive",
+      "cone",
+      "pipe",
+      "parts",
+      "assembly",
+      "transform",
+      "rotate",
+      "scale",
+      "volume",
+      "stl_generate"
+    ],
+    "status": "verified",
+    "when": "a quick closed body is needed for a route or gate test, or a multi-body assembly must go into one STL without a CAD kernel",
+    "statement": "The built-in `primitive` family emits box, sphere, cylinder, cone (apex or frustum), pipe (hollow cylinder with annular caps) and a `parts[]` assembly in plain JS — no python, no project data. Every body takes `center_mm`; each body or part accepts `translate_mm`, `rotate_deg` (degrees about the global X, then Y, then Z) and a uniform `scale`. `parts[]` writes ONE STL with several closed shells and `volume_mm3_theory` is the analytic sum, so `stl_check({expectVolume})` checks the triangulation instead of trusting it.",
+    "recipe": [
+      "stl_generate({ family: 'primitive', params: { shape: 'pipe', radius_outer_mm: 3, radius_inner_mm: 2, height_mm: 10 } })",
+      "stl_generate({ family: 'primitive', params: { parts: [{ shape: 'box', size_mm: [10,10,10] }, { shape: 'cylinder', radius_mm: 2, height_mm: 10, translate_mm: [20,0,0] }] } })",
+      "stl_check({ stl, expectVolume: <analytic>, expectBodies: 1 }) — bodies = 1 + closed voids, so a parts[] assembly expects the shell count"
+    ],
+    "evidence": [
+      "plugins/mesh-stl/lib/shapes.js: coneTriangles, pipeTriangles (per-surface orientation), mergeTriangles, transformTriangles",
+      "plugins/mesh-stl/lib/primitives.js: bodyTriangles, parts[], analytic volumes",
+      "experiments/_scratch/verify-a4.mjs: 15/15 — cone 94.096 vs pi*r^2*h/3 = 94.248, pipe 78.316 vs 78.540, parts 1125.31 vs 1125.66, rotated+scaled box 8000.0"
+    ],
+    "pitfalls": [
+      "a pipe is not convex: orienting the whole body outward would point the inner wall into the material, so each surface is oriented against an expected direction",
+      "rotate_deg is applied before translate and about the global axes in X→Y→Z order — not intrinsic rotations",
+      "a parts[] assembly is several shells in one STL: snappy meshes it, but `expectBodies` must be the shell count, not 1"
+    ]
   }
 ]

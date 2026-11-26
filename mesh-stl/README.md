@@ -100,11 +100,20 @@ The mechanics (config, the `sim-project.json` profile, path resolver, process ru
 `simGeometry` service (`hints`/`generate`/`qa`) and contributes its cards to the shared `simHints`.
 
 Three families write STL in plain JS and work **without a project** and without python: `primitive`
-(`lib/primitives.js`; `shape` = `box` | `sphere` | `cylinder`, parameters `size_mm` /
-`radius_mm`+`height_mm` / `center_mm` / `segments`/`rings`/`sections`), `stratified-channel`
+(`lib/primitives.js`), `stratified-channel`
 (`lib/generators/stratified.js`; two boxes of 12 triangles each) and `box-array`
 (`lib/generators/box-array.js`; a lattice of spheres/cylinders plus a container). The shared triangle emitters are
 `lib/shapes.js`. QA of every output is the built-in JS (`lib/qa/`).
+
+`primitive` bodies: `box` (`size_mm`), `sphere` (`radius_mm`, `segments`, `rings`), `cylinder`
+(`radius_mm`, `height_mm`, `sections`), `cone` (`radius_bottom_mm`, `radius_top_mm` — `0` gives an apex,
+`height_mm`), `pipe` (`radius_outer_mm` > `radius_inner_mm`, `height_mm` — a hollow cylinder with annular caps,
+which is not convex, so its inner wall is oriented toward the axis). All of them take `center_mm`,
+and every body — or each entry of `parts[]` — accepts `translate_mm`, `rotate_deg` (degrees about the global
+X, then Y, then Z) and a uniform `scale`. `parts: [{shape: "box", size_mm: [10,10,10]}, {shape: "cylinder",
+radius_mm: 2, height_mm: 10, translate_mm: [20,0,0]}]` writes ONE STL with two closed shells, and
+`volume_mm3_theory` is the analytic sum (cone: `pi*h*(r1^2+r1*r2+r2^2)/3`, pipe: `pi*h*(R^2-r^2)`).
+Presets `cone_r3_apex_h10`, `cone_frustum_r3_r1_h10`, `pipe_r3_r2_h10`, `parts_cube_and_cylinder` are shipped.
 
 `generators.root` (`sim-project.json` → `generators.root`, or `MESH_STL_GENERATORS_ROOT`) selects the
 script tree: `package` (by default `generators/` inside this package) or `project`

@@ -1,0 +1,14 @@
+{
+  "shape": "cone",
+  "radius_bottom_mm": 3,
+  "radius_top_mm": 1,
+  "height_mm": 10,
+  "sections": 64,
+  "center_mm": [
+    0,
+    0,
+    0
+  ],
+  "units": "mm",
+  "note": "Truncated cone: R_bottom=3 mm, R_top=1 mm, H=10 mm. Volume = pi*h*(r1^2+r1*r2+r2^2)/3."
+}

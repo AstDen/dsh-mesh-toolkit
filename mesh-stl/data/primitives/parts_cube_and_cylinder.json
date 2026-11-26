@@ -1,0 +1,24 @@
+{
+  "parts": [
+    {
+      "shape": "box",
+      "size_mm": [
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "radius_mm": 2,
+      "height_mm": 10,
+      "translate_mm": [
+        20,
+        0,
+        0
+      ]
+    }
+  ],
+  "units": "mm",
+  "note": "Two bodies in one STL: a 10 mm cube and a cylinder 20 mm to its right. rotate_deg [x,y,z] and scale apply per part."
+}

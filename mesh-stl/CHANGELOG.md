@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1 — 2026-11-26
+
+- **plan A4 (workbench contract)**: the built-in `primitive` family gained `cone` (with an apex and a truncated
+  form), `pipe` (hollow cylinder with annular caps) and a `parts[]` assembly — one STL with several closed shells.
+  Every body or part accepts `translate_mm`, `rotate_deg` (degrees about the global X, then Y, then Z) and a
+  uniform `scale`; `volume_mm3_theory` is the analytic sum.
+- A pipe is not convex, so `lib/shapes.js` orients its surfaces against an expected direction (outer wall out,
+  inner wall toward the axis, caps at -z/+z) instead of the whole-body `orientOutward`.
+- New presets `cone_r3_apex_h10`, `cone_frustum_r3_r1_h10`, `pipe_r3_r2_h10`, `parts_cube_and_cylinder`.
+- Refusals: `radius_inner_mm >= radius_outer_mm`, an empty `parts[]`, an unknown shape, a non-positive `scale`,
+  a malformed `translate_mm`. Acceptance `experiments/_scratch/verify-a4.mjs` — 15/15, measured volumes within
+  0.16 % of the analytic values and every output watertight with the expected shell count.
+
 ## 0.4.0 — 2026-11-26
 
 - **plan A1 (workbench contract)**: contributes `generate`, `qa` and `hints` to the new `meshToolkit`

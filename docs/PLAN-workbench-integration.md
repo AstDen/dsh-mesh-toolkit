@@ -246,7 +246,7 @@ y+ фидбек (y+=1 при U=10 м/с, L=0.01 м) пересобрал сло�
   the route to a more robust one (snappy → cfmesh) instead of repeating the same parameters: this is a cheap
   insurance against an "infinite" loop, and it is also fixed in their skill.
 
-### A4. The `cone`/`pipe` primitives and `parts[]` (R)
+### A4. The `cone`/`pipe` primitives and `parts[]` (R) — ✅ done, 2026-11-26 (mesh-stl 0.4.1)
 
 - `shapes.js`: `coneTriangles(r, h, sections)`, `pipeTriangles(rOuter, rInner, h, sections)`
   (the inner wall + two annular bands), `composeTriangles(parts)` with `translate`/`rotateDeg`/`scale`.

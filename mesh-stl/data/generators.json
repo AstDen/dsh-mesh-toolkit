@@ -312,8 +312,8 @@
     },
     {
       "id": "primitive",
-      "title": "Portable primitives (box, sphere, cylinder)",
-      "description": "STL from the built-in JS generator: no Python, no CAD, no project data. Needed to test a meshing route on another machine and in the benchmark.",
+      "title": "Portable primitives (box, sphere, cylinder, cone, pipe, parts[])",
+      "description": "Closed bodies written in plain JS — box, sphere, cylinder, cone (with an apex), pipe (hollow cylinder), and a parts[] assembly with per-part translate/rotate_deg/scale. No python, no project data.",
       "engine": "primitive",
       "script": "mesh-stl/lib/primitives.js",
       "preset": {
@@ -332,7 +332,7 @@
           "qa": true
         }
       ],
-      "notes": "Units are mm, a single closed shell, outward normals. Parameters: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Works without python and without a project: generation and QA run in JS.",
+      "notes": "Generation and QA run on JS. Every body takes center_mm; each body or parts[] entry accepts translate_mm, rotate_deg (X then Y then Z, degrees) and a uniform scale. volume_mm3_theory is analytic.",
       "hints": [
         "stl-contract",
         "units-mm"

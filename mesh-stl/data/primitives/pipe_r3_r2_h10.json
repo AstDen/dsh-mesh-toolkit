@@ -1,0 +1,14 @@
+{
+  "shape": "pipe",
+  "radius_outer_mm": 3,
+  "radius_inner_mm": 2,
+  "height_mm": 10,
+  "sections": 48,
+  "center_mm": [
+    0,
+    0,
+    0
+  ],
+  "units": "mm",
+  "note": "Pipe R_out=3, R_in=2, H=10 mm: a hollow cylinder with annular caps (not convex)."
+}
