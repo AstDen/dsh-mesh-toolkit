@@ -554,8 +554,8 @@ export function apply(ctx, rawConfig) {
           generator: `${name}@${diskVersion()}`,
           environment: {
             id: config.foamSelected?.id ?? null,
-            distribution: config.foam?.distribution ?? null,
-            version: config.foam?.version ?? null,
+            distribution: config.foam?.distribution || null,
+            version: config.foam?.version || null,
             bashrc: config.openfoamBashrc || null,
           },
         })
@@ -577,8 +577,8 @@ export function apply(ctx, rawConfig) {
             plugin: name,
             version: diskVersion(),
             openfoam: {
-              distribution: config.foam?.distribution ?? null,
-              version: config.foam?.version ?? null,
+              distribution: config.foam?.distribution || null,
+              version: config.foam?.version || null,
               bashrc: config.openfoamBashrc || null,
             },
           },
@@ -713,8 +713,8 @@ export function apply(ctx, rawConfig) {
               plugin: name,
               version: diskVersion(),
               openfoam: {
-                distribution: config.foam?.distribution ?? null,
-                version: config.foam?.version ?? null,
+                distribution: config.foam?.distribution || null,
+                version: config.foam?.version || null,
                 bashrc: config.openfoamBashrc || null,
               },
             },

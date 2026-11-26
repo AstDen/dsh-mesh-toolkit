@@ -284,7 +284,8 @@ export function buildHandoff({
   const notes = []
   if (!flowReady) {
     const walls = roles.wall.length ? roles.wall : patchList.map((p) => p.name)
-    notes.push(`patches are not split into inlet/outlet yet (${patchList.length} patch(es), all roles: ${JSON.stringify(roles)}): retype before a flow run (mesh_patch_types, plan A2; until then foamDictionary -entry boundary.<patch>.type)`)
+    const shape = Object.entries(roles).filter(([, names]) => names.length).map(([role, names]) => `${role}: ${names.join(', ')}`).join('; ')
+    notes.push(`patches are not split into inlet/outlet yet (${patchList.length} patch(es) — ${shape}): retype before a flow run (mesh_patch_types, plan A2; until then foamDictionary -entry boundary.<patch>.type)`)
     if (next == null || (Array.isArray(next) && next.length === 0)) next = [{ tool: 'mesh_patch_types', args: { caseDir: '.', roles: { inlet: [], outlet: [], walls } } }]
   }
   if (scale.scale == null) notes.push('scale/convertToMeters not found in system/blockMeshDict: the workbench must not trust units.scale')
