@@ -93,39 +93,42 @@
 
 ---
 
-## Блокер 2. Упаковка и релиз-инжиниринг (🟡 2 дня)
+## Блокер 2. Упаковка и релиз-инжиниринг (✅ готово, 2026-11-26)
 
-Сделано в 0.5.1: отдельный репозиторий, теги, GitHub Release, CHANGELOG всех трёх пакетов,
-`repository`/`homepage` в `package.json`. Осталось:
+Сделано в 0.5.1: отдельный репозиторий, теги, GitHub Release, CHANGELOG всех трёх пакетов.
+Закрыто в 0.5.4 / 0.3.6 / 0.4.4:
 
-### 2.1 CI (⬜ 0.5 дня)
-`.github/workflows/ci.yml`, matrix node 20/24, без OpenFOAM:
-- `node --check` по всем `.js/.mjs` (через `find`, не `git ls-files` — удалённые файлы ломают проверку);
-- `node mesh-build/scripts/smoke.mjs` и `node mesh-stl/scripts/smoke.mjs`;
-- `node scripts/check-catalogue.mjs` — id карточек уникальны после слияния каталогов, у каждой есть
-  `evidence`, нет карточек без `topics`;
-- `node scripts/check-versions.mjs` — версии трёх `package.json` согласованы, верхняя запись CHANGELOG
-  совпадает с версией, `sim-core` peer-диапазон валиден;
-- `node scripts/qa-parity.mjs` (из 1.1).
+### 2.1 CI (✅)
+`.github/workflows/ci.yml`, matrix node 20/24, без OpenFOAM: `node --check` по `find` (не
+`git ls-files`), `python3 -m compileall` по `mesh-stl/generators` и `benchmark/scripts`, `bash -n`
+по пакетным shell-скриптам, оба `smoke.mjs`, `scripts/check-catalogue.mjs` (21 + 24 карточки, 35
+уникальных после слияния, 10 общих — отчёт, не ошибка) и `scripts/check-versions.mjs`
+(package.json == CHANGELOG == баннер README, `engines`, лицензия, `repository`,
+`dsh.bundle.patch`), `qa-parity.mjs` с `pip install trimesh numpy` и проверка полноты tarball'ов
+(`generators/`, `lib/qa/`, `scripts/deliver/`, `docs/`).
 
-### 2.2 Публикация (⬜ 0.5 дня)
-- Решить канал: **npm** (`@astden/dsh-mesh-build`, `-mesh-stl`, `-sim-core`) или git-установка
-  (`dsh plugin add github:AstDen/dsh-mesh-toolkit#path:/mesh-build`). Workbench ставится из GitHub
-  (`"private": true`), поэтому git-канал — рабочий вариант без токена npm.
-- `files` в `package.json`: только `lib/`, `data/`, `locale/`, `scripts/`, `generators/`, `*.md`
-  (исключить тесты и скретч).
-- `scripts/bump.mjs`: одна команда поднимает три версии + заголовки CHANGELOG + git tag.
+### 2.2 Публикация (✅ решение: git-канал)
+Канал — **git + `dsh plugin install_bundle` с абсолютным путём**, как у workbench
+(`"private": true`), плюс `*.tgz` из ассетов Release как оффлайновый вариант. Причина отказа от
+npm: `mesh-stl`/`mesh-build` импортируют ядро относительным путём `../sim-core/lib/index.js`, а
+имена без scope на npm заняты; переход на npm — отдельная задача (scoped-имена + импорты
+`sim-core/lib/...`). Подробности и команды — `docs/PACKAGING.md`.
+`files` починен: `mesh-stl` получил `generators/` (иначе tarball ехал без python-генераторов),
+`mesh-build` — `docs/` (README ссылается на `docs/PORTABLE.md`). Оба дефекта ловятся новым шагом CI.
+`scripts/bump.mjs` — одна команда на три пакета (patch/minor/major/явная версия, `--packages`,
+`--dry-run`, `--date`), правит `package.json`, заголовок CHANGELOG, баннер README и запускает
+`check-versions`.
 
-### 2.3 `engines.dsh` (⬜ 0.5 дня)
-- Сейчас `">=0.2.1-rc.5 <0.3.0"` при установленном 0.2.2-rc.5 и workbench `">=0.2.2-rc.1"`.
-  Выровнять на `">=0.2.2-rc.1"` (без верхней границы), проверить загрузку на 0.2.2-rc.5,
-  записать матрицу в README.
+### 2.3 `engines.dsh` (✅)
+Выровнено на `">=0.2.2-rc.1 <0.3.0"` во всех трёх пакетах (в `sim-core` поле добавлено), peer-диапазоны
+`@deepseek-ai/dsh-*` — так же. Верхняя граница `<0.3.0` сохранена намеренно (отклонение от текста
+плана): мажор DSH может ломать API, а workbench объявляет только нижнюю границу — снимать верхнюю
+имеет смысл вместе с проверкой на 0.3.0.
 
-### 2.4 Release workflow (⬜ 0.5 дня)
-`.github/workflows/release.yml` на тег `v*`: собрать тело релиза из CHANGELOG, создать Release
-(в Actions `gh release create` с `GITHUB_TOKEN` — токен не нужен), приложить `.zip/.tar.gz` пакетов.
-
----
+### 2.4 Release workflow (✅)
+`.github/workflows/release.yml` на тег `v*`: проверки, `npm pack` трёх пакетов в `dist/`, тело из
+`docs/RELEASE-<тег>.md` (иначе краткая сводка), `gh release create/upload` с `GITHUB_TOKEN`,
+в конце печать ассетов. Ручной вызов API из релизов 0.5.1/0.5.3 больше не нужен.
 
 ## Блокер 3. Контракт с workbench (⬜ 2–3 дня)
 

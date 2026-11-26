@@ -61,8 +61,14 @@ jobs:
           npm pack --pack-destination "$work" --cache "$work/cache" ./mesh-build >/dev/null
           stl_tgz="$(ls "$work"/mesh-stl-*.tgz)"
           build_tgz="$(ls "$work"/mesh-build-*.tgz)"
-          tar tzf "$stl_tgz" | grep -q '^package/generators/pore_cell/gen_fcc_cell.py$' || { echo "mesh-stl tarball lost generators/"; exit 1; }
-          tar tzf "$stl_tgz" | grep -q '^package/lib/qa/index.js$' || { echo "mesh-stl tarball lost lib/qa/"; exit 1; }
-          tar tzf "$build_tgz" | grep -q '^package/scripts/deliver/make_delivery.sh$' || { echo "mesh-build tarball lost scripts/deliver/"; exit 1; }
-          tar tzf "$build_tgz" | grep -q '^package/docs/PORTABLE.md$' || { echo "mesh-build tarball lost docs/"; exit 1; }
+          # list once into a file: piping tar into `grep -q` trips SIGPIPE and prints
+          # "tar: stdout: write error" even when the entry exists
+          tar tzf "$stl_tgz" > "$work/mesh-stl.list"
+          tar tzf "$build_tgz" > "$work/mesh-build.list"
+          check() { grep -qx "$1" "$2" || { echo "MISSING $1 in $2"; exit 1; }; }
+          check package/generators/pore_cell/gen_fcc_cell.py "$work/mesh-stl.list"
+          check package/lib/qa/index.js "$work/mesh-stl.list"
+          check package/lib/generators/box-array.js "$work/mesh-stl.list"
+          check package/scripts/deliver/make_delivery.sh "$work/mesh-build.list"
+          check package/docs/PORTABLE.md "$work/mesh-build.list"
           echo "tarballs OK"

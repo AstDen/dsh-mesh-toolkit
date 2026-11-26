@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.6 — 2026-11-26
+
+- `files` теперь включает `generators/`: без этого `npm pack` терял python-генераторы, и семейства
+  `fcc-cell`, `channel-spheres`, `packing`, `cad-porous`, `blob-foam` падали на `@package/generators/...`
+  в установленном пакете.
+- `scripts/qa-parity.mjs` сам находит python-эталон: `tools/qa/stl_qa.py`, затем пакетная копия
+  `generators/cad/py_qa.py` (или `MESH_STL_QA_SCRIPT`), поэтому паритет проверяется и в отдельно
+  взятом пакете / в CI.
+- `engines.dsh` и peer-диапазоны выровнены на `>=0.2.2-rc.1 <0.3.0`; заполнено `repository`.
+
 ## 0.3.5 — 2026-11-26
 
 ### Добавлено

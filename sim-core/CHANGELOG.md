@@ -1,5 +1,11 @@
 # Changelog — sim-core
 
+## 0.4.4 — 2026-11-26
+
+- Добавлено `engines.dsh: ">=0.2.2-rc.1 <0.3.0"` (ядро тоже проверяет совместимость с рантаймом).
+- Заполнено поле `repository` (`directory: sim-core`); версия участвует в проверке
+  `scripts/check-versions.mjs` (package.json == CHANGELOG == баннер README).
+
 ## 0.4.3 — 2026-11-26
 
 ### Добавлено

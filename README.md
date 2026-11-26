@@ -1,6 +1,8 @@
 # dsh-mesh-toolkit
 
-> **0.5.2** · packages: mesh-build 0.5.2 · mesh-stl 0.3.4 · sim-core 0.4.2 · Three packages for **DeepSeek Harness**: a shared core plus two
+[![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
+
+> **0.5.4** · packages: mesh-build 0.5.4 · mesh-stl 0.3.6 · sim-core 0.4.4 · Three packages for **DeepSeek Harness**: a shared core plus two
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 20–33 searchable knowledge
