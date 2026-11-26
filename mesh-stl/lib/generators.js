@@ -111,8 +111,10 @@ export function buildContext(family, config, args) {
   const outDir = requested
     ? (isAbsolute(String(requested)) ? resolve(String(requested)) : resolve(config.projectRoot, String(requested)))
     : join(workRoot, family.id)
-  if (!isInside(config.projectRoot, outDir)) {
-    throw new Error(`outDir must stay inside the project root ${config.projectRoot}: ${outDir}`)
+  // portable mode has no projectRoot (no sim-project.json) — the cwd plays that role
+  const projectBase = config.projectRoot || config.rootDir || process.cwd()
+  if (!isInside(projectBase, outDir)) {
+    throw new Error(`outDir must stay inside the project root ${projectBase}: ${outDir}`)
   }
   const presetFile = args.paramsFile
     ? resolveProjectPath(config, args.paramsFile)
