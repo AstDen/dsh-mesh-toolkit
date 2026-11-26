@@ -273,10 +273,17 @@ const pyAvailable = (() => {
   const python = process.env.MESH_STL_PYTHON
     || (existsSync(join(REPO_ROOT, '.venv', 'bin', 'python')) ? join(REPO_ROOT, '.venv', 'bin', 'python') : 'python3')
   try {
-    execFileSync(python, ['-c', 'import trimesh'], { stdio: 'ignore' })
+    // trimesh alone is not enough: split()/bodies need a graph engine (networkx),
+    // otherwise the QA call dies with "ImportError: no graph engines available!".
+    execFileSync(python, ['-c', 'import trimesh, networkx'], { stdio: 'ignore' })
     return { ok: true }
   } catch {
-    return { ok: false, why: `${python} cannot import trimesh` }
+    try {
+      execFileSync(python, ['-c', 'import trimesh'], { stdio: 'ignore' })
+      return { ok: false, why: `${python} has trimesh but no graph engine (pip install networkx)` }
+    } catch {
+      return { ok: false, why: `${python} cannot import trimesh` }
+    }
   }
 })()
 

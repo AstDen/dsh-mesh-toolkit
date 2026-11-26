@@ -56,10 +56,11 @@ node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генера
 `stl_hints`, `stl_generate`, `stl_check`. Если плагин активируется с ошибкой схемы, DSH укажет
 точный путь параметра — правьте `index.js`, затем повторите `set_plugin` с `"target": "include:mesh-stl"`.
 
-Требования: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`. Встроенные семейства (`primitive`,
+Требования: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`. Встроенные семейства (`primitive`,
 `stratified-channel`, `box-array`) и QA STL работают без python и без данных проекта. Python-семейства
 (`fcc-cell`, `channel-spheres`, `double-layer-burner`, `blob-foam`, `packing`, `cad-porous`) запускают
-скрипты из `generators/` этого пакета и требуют модули `trimesh` и `numpy` (для части — `cadquery`,
+скрипты из `generators/` этого пакета и требуют `trimesh`, `numpy` и `networkx` (trimesh без graph
+engine падает с `ImportError: no graph engines available!`; для части семейств — `cadquery`,
 `scipy`, `skimage`). Перед запуском плагин проверяет импорт и возвращает `python-bridge-missing`
 с командой установки вместо traceback.
 

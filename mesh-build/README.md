@@ -46,7 +46,7 @@
 node plugins/mesh-build/scripts/smoke.mjs   # конфиг, маршруты, карточки, скаффолд в tmp, план serial/parallel
 ```
 
-Требования: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`, OpenFOAM (ESI v2512; `etc/bashrc` ищется в
+Требования: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, OpenFOAM (ESI v2512; `etc/bashrc` ищется в
 стандартных каталогах установки, явный путь — `openfoamBashrc`/`MESH_BUILD_OPENFOAM_BASHRC`),
 `tools/qa/mesh_gate.sh`, `tools/deliver/make_delivery.sh`, `mpirun` для параллельного мешинга.
 

@@ -50,7 +50,9 @@ jobs:
 
       - name: JS QA parity vs python reference
         run: |
-          python3 -m pip install --quiet --disable-pip-version-check trimesh numpy
+          # trimesh needs networkx for split()/bodies; without it the reference engine dies
+          # with "ImportError: no graph engines available!"
+          python3 -m pip install --quiet --disable-pip-version-check trimesh numpy networkx
           node mesh-stl/scripts/qa-parity.mjs
 
       - name: package tarballs are complete
