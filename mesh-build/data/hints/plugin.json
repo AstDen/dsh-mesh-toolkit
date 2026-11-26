@@ -205,8 +205,7 @@
     "evidence": [
       "plugins/mesh-build/lib/caps.js: PROBED_COMMANDS, SNAPPY_KEYS, probeScript, dictKeys",
       "plugins/mesh-build/lib/scaffold.js: unitsKey/layerAxisKey follow caps.dictKeys",
-      "experiments/_scratch/verify-a8.mjs 24/24 (com v2512, com v2606, org 14, route plans, overridden caps)",
-      "measured: com — cfMesh yes, surfaceFeatureExtractDict, locationsInMesh, mergeTol; org 14 — cfMesh no, surfaceFeaturesDict, no locationsInMesh, foamRun"
+      "experiments/_scratch/verify-a8.mjs 24/24 (com v2512, com v2606, org 14, route plans, overridden caps)"
     ],
     "status": "verified"
   }
