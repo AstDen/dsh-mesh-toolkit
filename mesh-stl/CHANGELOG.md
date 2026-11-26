@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.3 — 2026-11-26
+
+Portable mode fix found by the clean-user acceptance:
+
+- `outDir` was refused whenever `sim-project.json` was absent (`outDir must stay inside the project root : …`),
+  because the guard compared against an empty `config.projectRoot`. The project root now falls back to
+  `config.rootDir`/`cwd`, and the refusal names portable mode when it fires.
+
 ## 1.0.0-rc.2 — 2026-11-26
 
 No functional change: the version moves with the toolkit so the three packages stay aligned.

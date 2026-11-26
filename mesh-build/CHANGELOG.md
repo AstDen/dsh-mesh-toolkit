@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-rc.3 — 2026-11-26
+
+Clean-user acceptance: install the package where no project, no checkout and no project venv exist, then run
+`doctor` and `demo` literally as `docs/QUICKSTART.md` says. The run and its numbers are in
+[`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) (READY 7 pass / 2 warn, demo OK in 26.3 s, 148 288 cells, gate PASS).
+
+Fix found by it:
+
+- `scripts/demo.mjs` crashed in its own diagnostic when the generator failed before `missingOutputs` existed
+  (`TypeError: Cannot read properties of undefined (reading 'slice')`), hiding the real cause.
+
 ## 1.0.0-rc.2 — 2026-11-26
 
 Day-3 hardening of the quality loop, all covered by the new unit tests (`mesh-build/test/`, 34 checks).

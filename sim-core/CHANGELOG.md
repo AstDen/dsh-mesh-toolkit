@@ -1,5 +1,9 @@
 # Changelog — sim-core
 
+## 1.0.0-rc.3 — 2026-11-26
+
+No functional change: the version moves with the toolkit so the three packages stay aligned.
+
 ## 1.0.0-rc.2 — 2026-11-26
 
 No functional change: the version moves with the toolkit so the three packages stay aligned.
