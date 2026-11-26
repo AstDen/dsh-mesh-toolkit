@@ -23,7 +23,7 @@ import {
   catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
 import { readCasePatches } from './lib/patches.js'
-import { applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
+import { applyRoleAssignments, applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
 import { buildHandoff, qualityFromGate, readHandoff, writeHandoff } from '../sim-core/lib/handoff.js'
 import { ensureToolkit } from '../sim-core/lib/toolkit.js'
 import {
@@ -610,7 +610,7 @@ export function apply(ctx, rawConfig) {
             { event: 'patch-types', at: new Date().toISOString(), changes: applied.changes.map((c) => `${c.name}: ${c.from} -> ${c.to}`) },
           ],
         })
-        const written = writeHandoff(caseDir, doc)
+        const written = writeHandoff(caseDir, applyRoleAssignments(doc, assignedRoles))
         summary.handoff = {
           file: displayPath(config, written.file),
           bytes: written.bytes,
@@ -641,10 +641,14 @@ export function apply(ctx, rawConfig) {
         }
       }
 
+      const touched = applied.changes.length > 0
       summary.next = summary.recheck
         ? [`handoff.json updated (${summary.handoff?.file ?? 'not written'}); the mesh itself is unchanged — deliver with mesh_deliver`]
-        : ['run mesh_check({caseDir, minVol}) to refresh the passport: the boundary file changed, so the old passport is stale',
-          'then deliver with mesh_deliver']
+        : touched
+          ? ['run mesh_check({caseDir, minVol}) to refresh the passport: the boundary file changed, so the old passport is stale',
+            'then deliver with mesh_deliver']
+          : ['nothing to retype: the roles were already assigned; the handoff is up to date, the passport stays fresh',
+            summary.handoff?.flowReady ? 'ready for a solver: deliver with mesh_deliver' : 'assign the missing roles (inlet/outlet) or split patches with topoSet+createPatch']
       return summary
     },
   })
@@ -726,6 +730,11 @@ export function apply(ctx, rawConfig) {
         for (const p of previous?.patches ?? []) {
           if (p?.name && p.role && p.role !== 'unknown' && (p.type === 'patch' || p.type == null)) assignedRoles[p.name] = p.role
         }
+        // history is an audit trail: keep the earlier events and append this verdict
+        const history = [
+          ...(previous?.history ?? []),
+          { event: 'gate', at: new Date().toISOString(), verdict: gate.verdict, profile: args.profile ?? config.gate?.profile, minVol: args.minVol ?? gate.results?.[0]?.minVol ?? null },
+        ]
         const doc = buildHandoff({
           caseDir,
           producer: {
@@ -755,9 +764,10 @@ export function apply(ctx, rawConfig) {
           }),
           patches: flatPatches,
           assignedRoles,
+          history,
           next: gate.pass ? [] : [{ tool: 'mesh_check', args: { caseDir: '.' } }],
         })
-        handoff = writeHandoff(caseDir, doc)
+        handoff = writeHandoff(caseDir, applyRoleAssignments(doc, assignedRoles))
       } catch (error) {
         handoff = { error: error.message }
       }

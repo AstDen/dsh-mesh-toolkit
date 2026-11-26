@@ -248,3 +248,34 @@ export function applyRetype(plan) {
   }
   return { file: plan.file, region: plan.region, backup, changes: plan.changes, before, after, patches: fresh }
 }
+
+/**
+ * Write the semantic role assignment into a `mesh-handoff/1` document that was already built.
+ *
+ * Inlet and outlet are both type `patch`, so the boundary file cannot carry the difference; the role lives
+ * in the handoff. Doing it here (rather than only inside sim-core's builder) keeps the live process
+ * consistent: sim-core modules are not evicted by a plugin toggle, mesh-build modules are.
+ */
+export function applyRoleAssignments(doc, assigned = {}) {
+  if (!doc || !Array.isArray(doc.patches)) return doc
+  const roles = { inlet: [], outlet: [], wall: [], symmetry: [], cyclic: [], empty: [], interface: [], wedge: [], unknown: [] }
+  for (const patch of doc.patches) {
+    const ambiguous = !patch.type || patch.type === 'patch'
+    const assignedRole = ambiguous && assigned?.[patch.name] && assigned[patch.name] in roles ? assigned[patch.name] : null
+    const role = assignedRole ?? (patch.role in roles ? patch.role : 'unknown')
+    patch.role = role
+    roles[role].push(patch.name)
+  }
+  doc.roles = roles
+  doc.flowReady = roles.inlet.length > 0 && roles.outlet.length > 0
+  const next = Array.isArray(doc.next) ? doc.next : []
+  if (doc.flowReady) {
+    doc.next = next.filter((n) => n?.tool !== 'mesh_patch_types')
+  } else if (!next.some((n) => n?.tool === 'mesh_patch_types')) {
+    const walls = roles.wall.length ? roles.wall : doc.patches.map((p) => p.name)
+    doc.next = [...next, { tool: 'mesh_patch_types', args: { caseDir: '.', roles: { inlet: roles.inlet, outlet: roles.outlet, walls } } }]
+  } else {
+    doc.next = next
+  }
+  return doc
+}
