@@ -23,6 +23,7 @@ import {
   catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
 import { readCasePatches } from './lib/patches.js'
+import { runBash } from '../sim-core/lib/process.js'
 import { applyRoleAssignments, applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
 import { loadAdvice, planRevision } from './lib/revise.js'
 import { caseCellSize, computeFirstLayer, yPlusFromThickness } from './lib/firstlayer.js'
@@ -34,6 +35,7 @@ import {
 } from '../sim-core/lib/passport.js'
 import { isEmptyDir, installStl, writeSnappyCase } from './lib/scaffold.js'
 import { scaleSuspicion } from './lib/domain.js'
+import { compareSurfaces, exportPatchTriangles, readTriangles, writeTrianglesStl } from './lib/surfacecheck.js'
 import { readStlBboxMm } from './lib/precheck.js'
 import { cfmeshUnitsProblem, domainPatchProblem } from './lib/precheck.js'
 import { runDelivery } from './lib/deliver.js'
@@ -537,6 +539,123 @@ export function apply(ctx, rawConfig) {
         ? ['mesh_deliver({ caseDir, name, outDir, minVol, gateProfile }) — project tools/deliver/make_delivery.sh, or the packaged copy in the bundle (hint delivery-bundle)']
         : ['read gate.results[].metrics and mesh_hints, adjust geometry/interface level/layers, rerun']
       return payload
+    },
+  })
+
+  register({
+    name: 'mesh_surface_check',
+    description: 'Fidelity check of the built surface against the reference STL: export the patch faces straight '
+      + 'from constant/polyMesh (JS, no OpenFOAM and no version-specific utility), then compare bounding box, area, '
+      + 'volume and an approximate Hausdorff distance (triangle-centroid sampling both ways). Catches a domain that '
+      + 'clips the geometry (benchmark DEF-11: bboxRel ≈ 0.5) and a snappy mesh that lost features. PASS when '
+      + 'bboxRel <= tol, areaRel <= 2·tol and hausdorffRel <= tol.',
+    parameters: {
+      caseDir: { type: 'string', description: 'Case directory (relative to the project root or absolute inside it).' },
+      stl: { type: 'array', items: { type: 'string' }, description: 'Reference STL(s); default: the handoff geometry, else the first file in constant/triSurface.' },
+      patches: { type: 'array', items: { type: 'string' }, description: 'Patches to export; default: every non-domain patch (type wall/patch, name not "world").' },
+      region: { type: 'string', description: 'Region to export in a multi-region case (default: the base region).' },
+      tol: { type: 'number', description: 'Relative tolerance (default 0.05 = 5 %).' },
+      samples: { type: 'number', description: 'Triangle-centroid samples per direction (default 2000).' },
+      keepStl: { type: 'boolean', description: 'Keep the exported .surface-check.stl instead of deleting it.' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json or an absolute bashrc path.' },
+    },
+    async execute(args, config) {
+      let caseDir = ''
+      try {
+        caseDir = resolveCase(config, args, { mustExist: true, hint: 'mesh_surface_check reads constant/polyMesh/boundary and the reference STL' })
+      } catch (error) {
+        return { error: error.message }
+      }
+      if (!existsSync(join(caseDir, 'constant', 'polyMesh', 'boundary'))) {
+        return { error: `no constant/polyMesh/boundary in ${displayPath(config, caseDir)}: build the mesh first` }
+      }
+      // reference: explicit STL -> handoff geometry -> the first triSurface file
+      const refFiles = []
+      if (Array.isArray(args.stl) && args.stl.length) {
+        for (const item of args.stl) refFiles.push(resolveProjectPath(config, String(item)))
+      } else {
+        const handoff = readHandoff(caseDir)
+        const claimed = handoff?.geometry?.stl ? [handoff.geometry.stl] : (handoff?.geometry?.stls ?? []).map((s) => s.file)
+        for (const item of claimed) if (item) refFiles.push(join(caseDir, String(item)))
+        if (!refFiles.length) {
+          const tri = join(caseDir, 'constant', 'triSurface')
+          const first = existsSync(tri) ? readdirSync(tri).filter((f) => f.endsWith('.stl')).sort()[0] : null
+          if (first) refFiles.push(join(tri, first))
+        }
+      }
+      const missing = refFiles.filter((file) => !existsSync(file))
+      if (missing.length) return { error: `reference STL not found: ${missing.join(', ')}` }
+      if (!refFiles.length) return { error: 'no reference STL: pass stl or put one into constant/triSurface' }
+
+      // patches: explicit list, else the wall-ish patches that carry the geometry
+      let patches = Array.isArray(args.patches) ? args.patches.map(String) : []
+      if (!patches.length) {
+        const report = readCasePatches(caseDir)
+        const entry = args.region ? report.entries.find((e) => e.region === args.region) : report.entries[0]
+        if (!entry) return { error: `region "${args.region}" not found in ${displayPath(config, caseDir)}` }
+        patches = entry.patches
+          .filter((p) => p.name !== 'world' && ['wall', 'patch'].includes(p.type))
+          .map((p) => p.name)
+      }
+      if (!patches.length) return { error: 'no patches to export: pass patches explicitly' }
+
+      let exported
+      try {
+        exported = exportPatchTriangles(caseDir, patches, { region: args.region })
+      } catch (error) {
+        return {
+          error: error.message,
+          patches,
+          next: ['check the patch names (mesh_check lists them) — a patch that does not exist aborts the export'],
+        }
+      }
+
+      const exportFile = join(caseDir, '.surface-check.stl')
+      if (args.keepStl) writeTrianglesStl(exportFile, exported.triangles)
+
+      // STL units (mm by default) → case metres; the export is always in metres
+      const handoffUnits = readHandoff(caseDir)?.units?.stl ?? 'mm'
+      const scale = handoffUnits === 'm' ? 1 : 0.001
+
+      let result
+      try {
+        const referenceTris = []
+        for (const file of refFiles) referenceTris.push(readTriangles(file))
+        const merged = new Float64Array(referenceTris.reduce((n, arr) => n + arr.length, 0))
+        let offset = 0
+        for (const arr of referenceTris) { merged.set(arr, offset); offset += arr.length }
+        if (scale !== 1) for (let i = 0; i < merged.length; i += 1) merged[i] *= scale
+        result = compareSurfaces(merged, exported.triangles, { tol: args.tol ?? 0.05, samples: args.samples ?? 2000 })
+      } catch (error) {
+        return { error: `comparison failed: ${error.message}`, patches, stl: refFiles.map((f) => displayPath(config, f)) }
+      }
+
+      const verdict = result.pass ? 'PASS' : 'FAIL'
+      return {
+        configured: true,
+        tool: 'mesh_surface_check',
+        caseDir: displayPath(config, caseDir),
+        region: args.region ?? null,
+        patches,
+        stl: refFiles.map((file) => displayPath(config, file)),
+        tol: result.tol,
+        verdict,
+        pass: result.pass,
+        units: { stl: handoffUnits, case: 'm', scale },
+        reference: result.reference,
+        mesh: result.mesh,
+        diffs: result.diffs,
+        hausdorff_m: result.hausdorff_m,
+        samples: result.samples,
+        faces: exported.faces,
+        surfaceFile: args.keepStl ? displayPath(config, exportFile) : null,
+        note: result.note,
+        next: result.pass
+          ? ['the surface matches the STL: continue with the solver setup (handoff.json lists the roles and the next steps)']
+          : result.diffs.bboxRel > result.tol
+            ? ['the bounding box differs: the domain most likely clips the geometry — enlarge domainMin/domainMax (or the domain margins) and rebuild']
+            : ['area or Hausdorff differ: refine the surface (refinementLevels) or raise the snap/snap iterations, then rebuild'],
+      }
     },
   })
 

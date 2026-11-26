@@ -299,7 +299,25 @@ y+ фидбек (y+=1 при U=10 м/с, L=0.01 м) пересобрал сло�
   explicit-domain override, a real snappy build from `domain {type:"external"}` with `targetCells 60000`
   (47×37×37 background) and **gate PASS**, and the whole `needs_input` path through the tool.
 
-### A7. `mesh_surface_check` (R)
+### A7. `mesh_surface_check` (R) — ✅ done, 2026-11-26 (mesh-build 0.7.3)
+
+What shipped (facts):
+
+- `plugins/mesh-build/lib/surfacecheck.js`: ASCII/binary STL reader, `surfaceMetrics` (area, volume, bbox),
+  `closestOnTriangle` + `buildGrid`/`distanceToGrid` (uniform grid, expanding rings) and `hausdorffApprox`
+  sampling triangle centroids **both ways**; `compareSurfaces` returns `{pass, diffs{bboxRel, areaRel, volRel,
+  hausdorffRel}, hausdorff_m, areasDiffer}`.
+- `exportPatchTriangles(caseDir, patches, {region})`: the patch surface comes straight from
+  `constant/polyMesh/{points,faces,boundary}` (fan triangulation, metres, ASCII-only with an explicit error).
+  `surfaceMeshTriangulate` is OpenFOAM.org-only and missing from 2512, so the JS route removes both the
+  distribution dependency and the OpenFOAM requirement.
+- Tool `mesh_surface_check`: reference STL from the handoff (or `stl`), patch list from the boundary (default: the
+  wall/patch patches, not `world`), STL units from `units.stl` (mm → m), PASS = `bboxRel <= tol && hausdorffRel <= tol`;
+  area stays a diagnostic because a snapped voxel surface is stair-stepped.
+- Acceptance `experiments/_scratch/verify-a7.mjs`: **12/12** — c2 (cube fully inside) PASS with bboxRel 0 and
+  hausdorffRel 0.0005; c1-l2 sphere r5 PASS with areaRel 0.46 (step-stairs) and hausdorffRel 0.007; benchmark E1 with
+  the documented clipped domain FAIL at bboxRel 0.41 with the domain advice; refusals for a missing case, a case
+  without polyMesh and an unknown patch.
 
 - Input: `caseDir`, `stl` (the reference), `patches`, `tol` (0.05 by default).
 - `surfaceMeshTriangulate -patches …` → STL, then bbox/area/volume + approximate Hausdorff

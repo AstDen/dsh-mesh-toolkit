@@ -14,6 +14,7 @@ OpenFOAM/cfMesh command on this machine, the logs stay on disk, and a short summ
 | `mesh_check` | JS gate per region; writes `mesh-passport.json`, leaves the mesh untouched | `caseDir`, `regions`, `profile`, `minVol` |
 | `mesh_deliver` | delivery of a gate-passing mesh: OF case + `.tar.gz`, Fluent `.msh` + `.zip`, a report with the checks | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
 | `mesh_first_layer` | y+ → layer sizing (flat plate: Cf, u_τ, first layer, δ, layer count) with a ready `scaffoldOptions` block; or the inverse: a known first layer → its y+ | `uRef`, `lRef`, `nu`, `yPlusTarget`, `expansionRatio`, `coverage`, `cellSize`, `layerSurfaces`, `firstLayer`, `caseDir` |
+| `mesh_surface_check` | Fidelity of the built surface vs the reference STL: exports the patch faces from `constant/polyMesh` (JS, no OpenFOAM utility needed) and compares bbox, volume, area and an approximate Hausdorff; catches a domain that clips the geometry | `caseDir`, `stl`, `patches`, `region`, `tol`, `samples`, `keepStl` |
 | `mesh_patch_types` | solver roles for existing patches (retype `boundary`, `.bak` + diff, updates `handoff.json`) | `caseDir`, `roles`, `region`, `dryRun`, `recheck`, `profile`, `minVol` |
 | `mesh_revise` | plan A3: a `mesh-feedback/1` document becomes the next revision (advice table as data, rebuild + re-gate + history) | `caseDir`, `feedback`, `feedbackFile`, `attempt`, `apply`, `profile`, `minVol`, `np` |
 
@@ -150,6 +151,25 @@ and any mismatch between the recorded verdict and the current one.
 dictionary (check disabled) and the response carries `disabled-minVol-not-configured`; on failure — the advice
 `minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` is kept as an escape hatch to
 `tools/qa/mesh_gate.sh`.
+
+## Surface fidelity (`mesh_surface_check`)
+
+Snappy may silently drop half of the geometry when `domainMin`/`domainMax` cut the STL — the gate still says PASS
+because the mesh it kept is fine. This tool compares the meshed surface with the reference STL:
+
+```js
+mesh_surface_check({ caseDir: "cases/sphere", stl: ["stl/sphere.clean.stl"], tol: 0.05 })
+// -> { verdict: "PASS", diffs: { bboxRel: 0.0002, areaRel: 0.002, volRel: 0.0002, hausdorffRel: 0.0005 }, faces: 1848 }
+```
+
+- The patch surface is exported from `constant/polyMesh/{points,faces,boundary}` in JS: `surfaceMeshTriangulate`
+  exists only in OpenFOAM.org, and the pointer needs no OpenFOAM at all.
+- Reference STL units come from `handoff.json` (`units.stl`, millimetres by default) and are converted to metres.
+- **PASS = `bboxRel <= tol` and `hausdorffRel <= tol`.** Area and volume are diagnostics: a snapped voxel surface is
+  stair-stepped, so a sphere legitimately has `areaRel ≈ 0.46` while its Hausdorff stays under 1 %.
+- The Hausdorff is approximate — triangle centroids of one surface against the triangles of the other (uniform grid,
+  expanding-ring queries, both directions), which is fast and catches clipping, not sub-micron ripples.
+- A FAIL with `bboxRel > tol` means the domain clips the geometry: enlarge it (or use `domain: { type: "external" }`).
 
 ## First layer from y+ (`mesh_first_layer`)
 

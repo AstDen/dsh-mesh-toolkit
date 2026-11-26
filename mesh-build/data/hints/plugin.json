@@ -134,5 +134,38 @@
       "layers need room: on a 10 mm cube with a 2 mm gap the medial-axis limit removes the extrusion; the same request on a case with a wider domain grows all 9 600 faces",
       "cfMesh needs system/meshDict in metres before a route downgrade can run"
     ]
+  },
+  {
+    "id": "surface-fidelity",
+    "title": "A domain that clips the STL still passes the gate — compare the surface with the reference STL",
+    "status": "verified",
+    "topics": [
+      "qa",
+      "domain",
+      "fidelity",
+      "mesh_surface_check",
+      "hausdorff",
+      "clipping"
+    ],
+    "appliesTo": {
+      "tools": [
+        "mesh_surface_check"
+      ]
+    },
+    "statement": "snappyHexMesh keeps only the part of the surface inside the background box and closes the cut with faces on the domain plane; the gate then judges the remaining mesh, so a clipped geometry still reports PASS. mesh_surface_check exports the patch faces from constant/polyMesh and compares bbox, volume, area and an approximate Hausdorff with the reference STL: PASS requires bboxRel and hausdorffRel within tol; area is a diagnostic because a stair-stepped voxel surface legitimately carries more area than the smooth STL.",
+    "recipe": [
+      "mesh_surface_check({ caseDir, stl: ['stl/x.clean.stl'], tol: 0.05 }) after mesh_check PASS, before delivery",
+      "bboxRel > tol → the domain clips the geometry: enlarge domainMin/domainMax or pass domain: { type: 'external' }",
+      "areaRel large with bboxRel and hausdorffRel small → normal for a snapped voxel surface, no action"
+    ],
+    "pitfalls": [
+      "surfaceMeshTriangulate is OpenFOAM.org only — the tool exports from polyMesh in JS, so it needs no OpenFOAM",
+      "the Hausdorff is approximate (triangle-centroid sampling): it catches clipping and lost features, not micron ripples"
+    ],
+    "evidence": [
+      "plugins/mesh-build/lib/surfacecheck.js: exportPatchTriangles + compareSurfaces",
+      "experiments/_scratch/verify-a7.mjs: 12/12 — c2 PASS (bboxRel 0, hausdorffRel 0.0005), sphere r5 PASS with areaRel 0.46, benchmark E1 clipped FAIL bboxRel 0.41"
+    ],
+    "when": "after the gate PASS, whenever the STL may not fit the domain (or the domain was derived from the bbox)"
   }
 ]

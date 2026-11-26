@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.3 — 2026-11-26
+
+Plan A7 of the workbench contract: `mesh_surface_check` compares the meshed surface with the reference STL.
+
+- Exports the patch surface **from `constant/polyMesh` in JS** — no `surfaceMeshTriangulate`, which OpenFOAM.com
+  does not ship (ORG-only), and therefore no OpenFOAM environment at all.
+- Compares bounding box, area, volume and an approximate Hausdorff distance (triangle-centroid sampling both ways,
+  uniform grid with expanding-ring queries, ~10 ms per case).
+- **PASS = bbox and Hausdorff within tol**; the area keeps its diagnostic role because a snapped voxel surface is
+  stair-stepped and legitimately carries more area than the smooth STL (sphere r5: areaRel 0.46, Hausdorff 0.7 %).
+- Catches a domain that clips the geometry: the benchmark E1 case gives `bboxRel 0.41` and FAIL with the advice to
+  enlarge the domain (an A1-shaped case with a clipped cube gives the same verdict — the check is honest about it).
+- STL units come from the handoff (`units.stl`, mm by default) and are converted to metres before the comparison.
+
+Acceptance: `experiments/_scratch/verify-a7.mjs` 12/12.
+
 ## 0.7.2 — 2026-11-26
 
 Plan A6 — the domain can be inferred instead of typed, and a suspicious STL asks about its units.

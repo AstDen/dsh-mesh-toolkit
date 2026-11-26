@@ -43,8 +43,8 @@ export const SKILL = {
    the tool itself checks the round-trip, the interface and the gate inside the packaged case.
 7. Solver boundary conditions: \`mesh_patch_types({ caseDir, roles:{ inlet:[...], outlet:[...], walls:[...] } })\`
 8. Near-wall layers: \`mesh_first_layer({ uRef, lRef, nu, yPlusTarget, caseDir })\` → feed its \`scaffoldOptions\` into \`mesh_build\`, or send a \`mesh-feedback/1\` yplus document to \`mesh_revise\`
-   then \`mesh_check\` again — the boundary file changed, so the passport is stale until it is refreshed.
-8. A solver run sent back feedback (y+ too high, non-ortho, skewness): \`mesh_revise({ caseDir, feedback, apply:true })\`,
+9. Fidelity: \`mesh_surface_check({ caseDir, stl })\` compares the meshed patches with the reference STL (bbox + Hausdorff; area is a diagnostic — a stair-stepped voxel surface has more of it) — after \`mesh_check\` PASS, before delivery
+10. A solver run sent back feedback (y+ too high, non-ortho, skewness): \`mesh_revise({ caseDir, feedback, apply:true })\`,
    read \`changes[]\`, repeat at most to the ceiling — the advice table decides the next rung, not the operator.
 
 ## Hard rules
