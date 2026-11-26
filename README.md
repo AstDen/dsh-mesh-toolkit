@@ -241,36 +241,6 @@ geometry 20 · mesh 25 · robustness 20 · ergonomics 20 · performance 15.
 [benchmark/PROMPT.md](benchmark/PROMPT.md) is the shorter two-task variant (primitives
 and packings) for a quick evaluation pass.
 
-## Comparison
-
-Measured against [`@yakovlev-i-a/dsh-openfoam-workbench`](https://github.com/yakovlev-i-a/dsh-openfoam-workbench)
-0.9.22 on 2026-11-26 — both packages installed in the same DSH host, the same STL and the same
-`checkMesh`. The two are complements: that package carries the solver-facing half (case setup, BCs, runs),
-this one the geometry-and-mesh half, and the seam between them is
-[`docs/WORKBENCH-CONTRACT.md`](docs/WORKBENCH-CONTRACT.md).
-
-| | dsh-mesh-toolkit | dsh-openfoam-workbench 0.9.22 |
-|---|---|---|
-| licence | MIT | Apache-2.0 |
-| tools | 12 | 64 |
-| knowledge cards | 40 (from 20+ experiments) | — |
-| pore-scale generator families | 9 (FCC cell, packings, blob foam, CAD porous, …) | — |
-| primitives (box/sphere/cylinder/cone/pipe/`parts[]`) | ✅ | ✅ |
-| STL QA without Python | ✅ in-process JS (+ python reference, 15/15 parity) | ✅ in-process |
-| routes | snappy, cfMesh (cartesianMesh/pMesh/tetMesh), gmsh OCC | snappy |
-| threshold gate (`checkMesh -meshQuality`, verdict from log text) | ✅ PASS/FAIL per region | ✅ |
-| mesh passport + stale-verdict detection | ✅ | — |
-| one-command delivery (OpenFOAM case + `.tar.gz` + Fluent `.msh` + round-trip) | ✅ | — |
-| `handoff.json` + revision loop (`mesh_feedback` → `mesh_revise`) | ✅ | consumes the seam (Part B) |
-| OpenFOAM-free surface fidelity check (bbox/Hausdorff vs STL) | ✅ | ✅ (needs a triangulator) |
-| portable mode (no `sim-project.json`) | ✅ (acceptance: `docs/ACCEPTANCE.md`) | ✅ |
-
-One measured difference in the seam: the workbench's `parseBoundaryPatches` truncates hyphenated patch
-names (`lib/of-engine.js:972`, `/(\w+)\s*\{([^}]*)\}/g` → `a1-cube` becomes `cube`), which we pin with the
-`M3c` contract check; a scaffolded case then fails on `Cannot find patchField entry for a1-cube`. Reported
-upstream in issue #1; until it is fixed, deliveries with hyphenated patch names need the patch renamed or
-the case scaffolded by hand.
-
 ## Limits
 
 - No solvers and no Fluent run: the delivery builds the `.msh` and the journal, it does
@@ -301,8 +271,8 @@ docs/GALLERY.md           what the example geometries look like
 CONTRIBUTING.md           the checks to run, what an issue needs
 docs/extending.md         data schemas, routes, thresholds, reload rule
 docs/PORTABLE.md          working without sim-project.json
-docs/WORKBENCH-CONTRACT.md  mesh-toolkit ↔ openfoam-workbench contract (schemas, roles, loop)
-docs/PLAN-workbench-integration.md  analysis of the workbench, adoption methodology, work items
+docs/WORKBENCH-CONTRACT.md  handoff contract for a solver-side agent (schemas, roles, loop)
+docs/PLAN-workbench-integration.md  integration analysis, adoption methodology, work items
 sim-core/                 shared library (not installed as a bundle)
   lib/config.js           layered config + sim-project.json discovery
   lib/project.js          profile normalisation, built-in gate profiles
