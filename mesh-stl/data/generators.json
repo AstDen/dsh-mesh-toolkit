@@ -332,7 +332,7 @@
           "qa": true
         }
       ],
-      "notes": "Единицы — мм, одна замкнутая оболочка, нормали наружу. Параметры: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Вне проекта STL пишется, QA недоступен без tools/qa/stl_qa.py.",
+      "notes": "Единицы — мм, одна замкнутая оболочка, нормали наружу. Параметры: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Работает без python и без проекта: генерация и QA — на JS.",
       "hints": [
         "stl-contract",
         "units-mm"
@@ -364,7 +364,7 @@
           "qa": true
         }
       ],
-      "notes": "Плоскость горизонтальная, без наклона; пористой начинки нет — это чистый стратифицированный слой. Для двухфазной/CHT-задачи интерфейс лучше сшивать conform-мешером (gmsh route D).",
+      "notes": "Плоскость горизонтальная, без наклона; пористой начинки нет — это чистый стратифицированный слой. Выходы: {outDir}/{name}.lower.stl и {outDir}/{name}.upper.stl (роль fluid у обоих). Для двухфазной/CHT-задачи интерфейс лучше сшивать conform-мешером (gmsh route D).",
       "hints": [
         "stl-contract",
         "units-mm",
