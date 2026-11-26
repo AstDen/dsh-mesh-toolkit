@@ -145,6 +145,21 @@ scaffolded by them until this is fixed on their side. Until then a caller should
 underscored surface names. When they ship the fix, `CONTRACT_TEST_REQUIRE_WORKBENCH=1 node
 scripts/contract-test.mjs` starts failing on M3c — that is the signal to flip the check back to a hard one.
 
+## Release assets
+
+A tag produces four tarballs:
+
+| Asset | What it is | How a user uses it |
+|---|---|---|
+| `mesh-toolkit-<version>.tgz` | the whole repository as one package (`files` in the root `package.json`: `mesh-build/`, `mesh-stl/`, `sim-core/`, `scripts/`, `docs/`, `market/`, `cordis.patch.yml`) | unpack into `node_modules/mesh-toolkit`, then `node node_modules/mesh-toolkit/scripts/doctor.mjs` and `…/demo.mjs` |
+| `mesh-build-<version>.tgz` | one tree | side-by-side development checkout (three tarballs unpacked as siblings) |
+| `mesh-stl-<version>.tgz` | one tree | same |
+| `sim-core-<version>.tgz` | shared library (no `dsh` field, not a bundle) | same |
+
+The single-package tarball is the one a user without git should download; it is also the shape `pnpm add
+git+…#<commit>` produces. Verified from a clean directory on 2026-11-26: `doctor` READY 7 pass / 2 warn,
+`demo` OK in 25.7 s.
+
 ## Publishing to plugin markets
 
 DSH has no central marketplace and ships no index source: a plugin market is a format-1 JSON index at an

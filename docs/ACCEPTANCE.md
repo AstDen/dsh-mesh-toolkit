@@ -77,6 +77,21 @@ inside it.
 Both fixes are covered by the run above: `doctor` and `demo` now complete from a clean directory with no
 project, no checkout and no environment variables other than the ones a shell already has.
 
+## Second channel: the release tarball (same day)
+
+`mesh-toolkit-1.0.0-rc.3.tgz` from the release page, unpacked into `node_modules/mesh-toolkit` in another
+clean directory, with the same peer symlinks:
+
+| Step | Outcome |
+|---|---|
+| `curl -L …/mesh-toolkit-1.0.0-rc.3.tgz` | 1 950 912 B, 165 entries (`scripts/`, `docs/`, `market/` included) |
+| `node node_modules/mesh-toolkit/scripts/doctor.mjs` | **READY — 7 pass, 2 warn, 0 fail** |
+| `node node_modules/mesh-toolkit/scripts/demo.mjs` | **DEMO OK in 25.7 s** |
+
+The three-tree tarballs also unpack side by side and import (`mesh-build/lib/caps.js` resolves `../sim-core`
+through the sibling layout), but they do not carry `scripts/doctor.mjs` — the single-package tarball is the
+one to hand to a user without git.
+
 ## What this run does not cover
 
 - A real DSH host enabling the bundle through `install_bundle` (the peers were symlinked instead) — the

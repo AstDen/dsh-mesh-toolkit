@@ -31,10 +31,13 @@ jobs:
           node mesh-stl/scripts/smoke.mjs
           node mesh-build/scripts/smoke.mjs
 
-      - name: pack the three packages
+      - name: pack the single package and the three trees
         run: |
           set -euo pipefail
           mkdir -p dist
+          # one package that carries the whole tree (the install channel the README documents first)
+          npm pack --pack-destination dist --cache "$RUNNER_TEMP/npm-cache" . >/dev/null
+          # the three trees stay available for side-by-side development checkouts
           for pkg in mesh-build mesh-stl sim-core; do
             npm pack --pack-destination dist --cache "$RUNNER_TEMP/npm-cache" "./$pkg" >/dev/null
           done

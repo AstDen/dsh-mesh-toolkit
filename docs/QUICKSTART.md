@@ -5,6 +5,11 @@ the toolkit runs in any directory (portable mode), and only the third step needs
 
 ## 1. Install
 
+Three ways in, all ending with the same `node_modules/mesh-toolkit`: a git install (below), a plugin market
+(add the index URL from `market/index.json`), or the release tarball
+`mesh-toolkit-<version>.tgz` — unpack it into `node_modules/mesh-toolkit` and the `scripts/` inside it run
+`doctor` and `demo` without a checkout.
+
 The repository root is a single package, so one line installs everything:
 
 ```bash

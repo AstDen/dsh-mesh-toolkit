@@ -18,7 +18,10 @@
     "sim-core",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs",
+    "market",
+    "CONTRIBUTING.md"
   ],
   "keywords": [
     "deepseek-harness",
