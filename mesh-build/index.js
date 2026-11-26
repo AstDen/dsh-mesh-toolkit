@@ -33,6 +33,8 @@ import {
   writeCaseManifest, writeMeshPassport,
 } from '../sim-core/lib/passport.js'
 import { isEmptyDir, installStl, writeSnappyCase } from './lib/scaffold.js'
+import { scaleSuspicion } from './lib/domain.js'
+import { readStlBboxMm } from './lib/precheck.js'
 import { cfmeshUnitsProblem, domainPatchProblem } from './lib/precheck.js'
 import { runDelivery } from './lib/deliver.js'
 import { SKILL } from './lib/skill.js'
@@ -63,7 +65,8 @@ const text = (value) => [{ type: 'text', text: typeof value === 'string' ? value
 const jsonOutput = { schema: { type: 'json' }, render: (_args, value) => text(value) }
 
 const SCAFFOLD_KEYS = [
-  'domainMin', 'domainMax', 'cells', 'cellSize', 'locationInMesh', 'locationsInMesh',
+  'domainMin', 'domainMax', 'cells', 'cellSize', 'targetCells', 'domain', 'assumeUnits',
+  'locationInMesh', 'locationsInMesh',
   'refinementLevels', 'defaultLevel', 'layerSurfaces', 'nLayers', 'layerThickness',
   'minThickness', 'symmetryDomain', 'minVol', 'maxNonOrtho', 'resolveFeatureAngle', 'expansionRatio', 'minTwist',
 ]
@@ -247,7 +250,7 @@ export function apply(ctx, rawConfig) {
       caseDir: { type: 'string', description: 'Case directory (relative to the project root or absolute inside it).' },
       scaffold: { type: 'boolean', description: 'Write a runnable snappy case first (requires stl + scaffoldOptions.domainMin/domainMax/cellSize or cells/locationInMesh).' },
       stl: { type: 'array', items: { type: 'string' }, description: 'STL file(s). Scaffold: surfaces named after file stems. Existing case: copied into constant/triSurface.' },
-      scaffoldOptions: { type: 'object', additionalProperties: true, description: 'snappy scaffold: domainMin, domainMax (meters), cells [nx,ny,nz] or cellSize (m), locationInMesh [x,y,z]|[{point,name}], refinementLevels {surfaceName:level}, defaultLevel, layerSurfaces [name], nLayers, symmetryDomain, minVol, maxNonOrtho.' },
+      scaffoldOptions: { type: 'object', additionalProperties: true, description: 'snappy scaffold: domainMin/domainMax (meters) or domain {type: external|internal|wrap, margins{upstream,downstream,lateral,vertical_top,vertical_bottom}, sizeFactor, flowAxis} derived from the STL bbox; cells [nx,ny,nz] or cellSize (m) or targetCells; locationInMesh [x,y,z]|[{point,name}], refinementLevels {surfaceName:level}, defaultLevel, layerSurfaces [name], nLayers, symmetryDomain, minVol, maxNonOrtho, assumeUnits (skip the unit-suspicion question).' },
       np: { type: 'number', description: 'Parallel subdomains for meshing (default from config; 1 = serial).' },
       splitRegions: { type: 'boolean', description: 'Run splitMeshRegions after meshing (multi-region CHT). Default: true when more than one locationInMesh was given.' },
       gate: { type: 'boolean', description: 'Run the quality gate after meshing (default true).' },
@@ -308,6 +311,35 @@ export function apply(ctx, rawConfig) {
         gmshScript: args.gmshScript ? resolveProjectPath(config, String(args.gmshScript)) : '',
       }
       const options = scaffoldOptions({ ...args, np }, stlInputs, np)
+
+      // --- unit suspicion: a domain-less run keeps the caller's explicit numbers, but an inferred
+      // domain (scaffoldOptions.domain) multiplies the bbox by margins — if the STL may be in metres,
+      // ask instead of building a 1000× too large box (plan A6) ---
+      if (options.domain && !options.assumeUnits) {
+        const bbox = readStlBboxMm(stlInputs[0])
+        if (bbox) {
+          const scale = scaleSuspicion(bbox)
+          if (scale.suspicious) {
+            return {
+              ok: false,
+              phase: 'domain',
+              route: route.id,
+              caseDir: displayPath(config, caseDir),
+              needs_input: [{
+                id: 'geometry-units',
+                header: 'STL units',
+                question: `scaffoldOptions.domain infers the box from the STL bbox (${scale.maxExtentMm.toFixed(1)} mm across). Is this file in millimetres?`,
+                options: [
+                  { label: 'Millimetres (recommended)', description: 'The bbox is millimetres: build the domain from the numbers as they are.' },
+                  { label: 'Metres', description: 'The file is metres: scale it before meshing (surfaceTransformPoints -scale) or pass explicit domainMin/domainMax in metres.' },
+                ],
+              }],
+              suspicion: scale,
+              next: ['pass scaffoldOptions.assumeUnits: "mm" to proceed, or give explicit domainMin/domainMax (meters)'],
+            }
+          }
+        }
+      }
 
       // --- dry run: preview scaffold in a temp dir, preflight, then plan the route ---
       if (args.dryRun) {
@@ -450,6 +482,11 @@ export function apply(ctx, rawConfig) {
           }
         }
       }
+
+      // Scaffold warnings (domain mode, target cells, STL outside the domain, cell budget) belong to the
+      // answer: they used to stay inside `written.scaffold` and never reached the caller.
+      const scaffoldWarnings = written.scaffold?.warnings ?? []
+      if (scaffoldWarnings.length) payload.warnings = [...new Set([...(payload.warnings ?? []), ...scaffoldWarnings])]
 
       // --- optional layers summary from the snappy log ---
       const snappyLog = findSnappyLog(config, caseDir)

@@ -277,15 +277,27 @@ y+ фидбек (y+=1 при U=10 м/с, L=0.01 м) пересобрал сло�
 - Known follow-up (A7/A9): the gate ignores `minLayerCoverage` (0.8 is only a profile field), so a layered mesh is
   judged on non-ortho/skew/minVol alone; layer coverage is currently reported by the scaffold but not scored.
 
-### A6. Domain and scale (R)
+### A6. Domain and scale (R) — ✅ done, 2026-11-26 (mesh-build 0.7.2)
 
-- `scaffoldOptions.domain: {type: "external|internal|box|wrap", margins: {upstream, downstream, lateral,
-  vertical_top, vertical_bottom}, sizeFactor}`; `external` — multipliers from `L = max extent`.
-- `targetCells`/`cellSize`/`cells`: with `targetCells`, choose `cells` from the domain extent.
-- `precheck.js`: `scaleSuspicion(bboxMm, {askAbove: 100 mm})` → the response `{needs_input: [mm|m]}` instead of
-  a silent trimming.
-- Acceptance: C1 sphere (domain 40×20×20 mm, 0.5 mm) → `cells [40,20,20]` from `cellSize 5e-4` and
-  `targetCells ≈ 16 000` gives the same result; STL in metres → `needs_input`.
+- `plugins/mesh-build/lib/domain.js`: `computeDomain({bboxMm, type, margins, sizeFactor, flowAxis})`,
+  `cellSizeFromTarget`, `cellsFromSize`, `scaleSuspicion(bboxMm, {askAboveMm})`, `DEFAULT_MARGINS`
+  (upstream 3, downstream 5, lateral 3, vertical 3/3, wrap 0.1).
+- `scaffoldOptions.domain {type: external|internal|wrap, margins, sizeFactor, flowAxis}` builds the box from the
+  **STL bbox**, so the caller never types coordinates; `type: "box"` deliberately refuses and asks for explicit
+  `domainMin`/`domainMax`, which stay authoritative and produce an override warning.
+- `scaffoldOptions.targetCells` → `cellSize = (V/targetCells)^(1/3)`; the answer reports the chosen cell size.
+  `cells` and `cellSize` still win when given.
+- Unit suspicion lives in the tool, not the scaffold: with an inferred domain and a bbox over 100 mm,
+  `mesh_build` returns `{ok:false, phase:"domain", needs_input:[{id:"geometry-units", …}]}`; `assumeUnits:"mm"`,
+  an explicit domain, or a smaller model proceed. (A scaffold with explicit `domainMin`/`domainMax` never asks —
+  the benchmark cases and existing scripts keep their behaviour.)
+- Bug found while wiring: scaffold warnings (domain mode, target cells, STL outside the domain, cell budget) never
+  reached the tool answer — they now do (`payload.warnings`).
+- Acceptance `experiments/_scratch/verify-a6.mjs`: **26/26** — external margins from L (10 mm sphere →
+  −35…55 × ±35 mm), internal == bbox, wrap 0.1·L, `box` refused, unknown type refused, `targetCells 16000` on a
+  40×20×20 mm box → **1.0 mm cells, `cells [40,20,20]`**, suspicion thresholds (10 mm quiet, 150 mm asks),
+  explicit-domain override, a real snappy build from `domain {type:"external"}` with `targetCells 60000`
+  (47×37×37 background) and **gate PASS**, and the whole `needs_input` path through the tool.
 
 ### A7. `mesh_surface_check` (R)
 

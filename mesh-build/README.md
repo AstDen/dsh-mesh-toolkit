@@ -106,6 +106,28 @@ from the route's `failures`.
 `refinementLevels {surface:level}`, `defaultLevel`, `layerSurfaces`, `nLayers`, `layerThickness`,
 `minThickness`, `symmetryDomain`, `minVol`, `maxNonOrtho`, `resolveFeatureAngle`.
 
+### Domain sizing without typing a box
+
+Instead of `domainMin`/`domainMax` you can let the scaffold derive the box from the STL bounding box:
+
+```js
+scaffoldOptions: { domain: { type: "external" }, targetCells: 60000, locationInMesh: [-0.01, 0, 0] }
+```
+
+- `type: "external"` — multiples of `L` = the largest STL extent: upstream 3·L, downstream 5·L, lateral 3·L,
+  vertical 3·L below and above (`flowAxis: "x"` by default). `type: "internal"` is the bbox itself,
+  `type: "wrap"` pads 0.1·L on every side. Margins and `sizeFactor` override the multiples.
+- Explicit `domainMin`/`domainMax` always win — the answer then carries a warning that the mode was ignored.
+- `targetCells` picks the background cell size from the domain volume (`(V/targetCells)^(1/3)`); the answer
+  says which cell size it used, and `cells: [nx,ny,nz]` still wins when given.
+- **Unit suspicion**: if the inferred domain's STL bbox is wider than 100 mm, `mesh_build` answers `needs_input`
+  ("is this file in millimetres?") instead of quietly building a 1000× too large box. `assumeUnits: "mm"`, an
+  explicit domain, or a smaller model continues without asking.
+
+Measured: sphere r5 with `domain {type:"external"}` and `targetCells 60000` → box −35…55 × ±35 mm,
+47×37×37 background cells, snappy builds, gate PASS. A 40×20×20 mm box with `targetCells 16000` → 1.0 mm cells,
+`cells [40,20,20]`.
+
 ## Shared core and passports
 
 The gate, the `checkMesh` parser, config, paths, cards and the `mesh-handoff/1` writer live in `../sim-core`;

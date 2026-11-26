@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.2 — 2026-11-26
+
+Plan A6 — the domain can be inferred instead of typed, and a suspicious STL asks about its units.
+
+- `scaffoldOptions.domain {type: external|internal|wrap, margins, sizeFactor, flowAxis}` builds the box from the
+  STL bbox: `external` uses multiples of L = max extent (upstream 3, downstream 5, lateral 3, vertical 3/3),
+  `internal` is the bbox, `wrap` pads 0.1·L on every side. Explicit `domainMin`/`domainMax` stay authoritative
+  and produce a warning when both are given.
+- `scaffoldOptions.targetCells` derives the background cell size from the domain volume
+  (`cellSize = (V/targetCells)^(1/3)`), so "about 60 000 cells" is a valid input; the answer says which cell size
+  it picked.
+- Unit suspicion: when the domain is inferred from the STL and the bbox exceeds 100 mm, `mesh_build` returns
+  `needs_input` instead of building a 1000× too large box; `assumeUnits: "mm"` (or explicit domainMin/domainMax)
+  continues.
+- Scaffold warnings (domain mode, target cells, STL outside the domain, cell budget) now reach the tool answer —
+  they used to stay inside `written.scaffold`.
+- Measured: sphere r5 + `domain {type:"external"}` + `targetCells 60000` → derived box −35…55 × ±35 mm, 47×37×37
+  background cells, snappy builds, gate PASS; `targetCells 16000` on the 40×20×20 mm box gives 1.0 mm cells and
+  `cells [40,20,20]`.
+
 ## 0.7.1 — 2026-11-26
 
 Plan A5 — first-layer sizing as a tool instead of a skill step.
