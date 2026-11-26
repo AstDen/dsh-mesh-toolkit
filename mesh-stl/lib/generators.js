@@ -13,6 +13,7 @@ import {
   displayPath, jsonSafe, q, readJson, resolveProjectPath, runPython, slugify, stem, tail,
 } from './common.js'
 import { buildPrimitive } from './primitives.js'
+import { qaStl } from './qa/index.js'
 
 /** Load the registry and validate the minimum shape. */
 export function loadRegistry(dataDir) {
@@ -325,9 +326,53 @@ export function declaredBodies(report, role) {
 }
 
 /** Run stl_qa.py on a single file and return its JSON. */
+/**
+ * QA an STL. Engine `js` (default) is the in-plugin implementation; `python`
+ * runs the legacy `tools/qa/stl_qa.py` and is kept for parity checks. When the
+ * JS engine throws and python is available, the python path answers instead —
+ * the result records which engine produced it.
+ */
 export function qaFile(config, file, options = {}) {
+  const engine = String(options.engine ?? config.qa?.engine ?? 'js').toLowerCase()
+  if (engine !== 'python') {
+    try {
+      return compactReport(qaStl(file, options), options, 'js')
+    } catch (error) {
+      const fallback = qaFileViaPython(config, file, options)
+      if (!fallback.error) {
+        return { ...fallback, engine: 'python-fallback', fallbackReason: error.message }
+      }
+      return { error: `JS QA failed: ${error.message}`, engine: 'js' }
+    }
+  }
+  return qaFileViaPython(config, file, options)
+}
+
+/** Compact, tool-facing QA result (the shape agents and stl_check already consume). */
+function compactReport(report, options, engine) {
+  return {
+    engine,
+    verdict: report.verdict ?? null,
+    problems: report.problems ?? [],
+    warnings: report.warnings ?? [],
+    expectedBodies: report.expected_bodies ?? null,
+    watertight: report.cleaned?.is_watertight ?? report.is_watertight ?? null,
+    windingConsistent: report.cleaned?.is_winding_consistent ?? report.is_winding_consistent ?? null,
+    triangles: report.cleaned?.triangles ?? report.triangles ?? null,
+    bodies: report.cleaned?.bodies ?? report.bodies ?? null,
+    volumeMm3: report.cleaned?.volume ?? report.volume ?? null,
+    areaMm2: report.cleaned?.area ?? report.area ?? null,
+    bboxMm: report.bbox_size ?? null,
+    degenerateFaces: report.degenerate_faces ?? null,
+    clean: report.clean ?? null,
+    raw: options.includeRaw ? report : undefined,
+  }
+}
+
+/** Legacy engine: the project python script (needs a python with trimesh). */
+function qaFileViaPython(config, file, options = {}) {
   const qaScript = join(config.projectRoot, 'tools', 'qa', 'stl_qa.py')
-  if (!existsSync(qaScript)) return { error: `stl_qa.py not found: ${qaScript}` }
+  if (!existsSync(qaScript)) return { error: `stl_qa.py not found: ${qaScript}`, engine: 'python' }
   const jsonFile = join(tmpdir(), `mesh-stl-qa-${process.pid}-${Date.now()}.json`)
   mkdirSync(tmpdir(), { recursive: true })
   const args = ['--stl', file, '--json', jsonFile]
@@ -344,12 +389,14 @@ export function qaFile(config, file, options = {}) {
   if (!report) {
     return {
       error: 'stl_qa.py produced no JSON',
+      engine: 'python',
       code: result.code,
       stdoutTail: tail(result.stdout, 3000),
       stderrTail: tail(result.stderr, 3000),
     }
   }
   return {
+    engine: 'python',
     verdict: report.verdict ?? null,
     problems: report.qa_problems ?? [],
     warnings: report.warnings ?? [],

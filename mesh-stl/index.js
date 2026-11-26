@@ -138,8 +138,9 @@ export function apply(ctx, rawConfig) {
 
   register({
     name: 'stl_check',
-    description: 'STL QA and passport: watertight/winding/bodies/volume/area/bbox, optional cleanup via '
-      + 'stl_qa.py --clean-out, optional append to stl/registry.csv. Never meshes anything.',
+    description: 'STL QA and passport: watertight/winding/bodies/volume/area/bbox, optional cleanup, '
+      + 'optional append to stl/registry.csv. QA runs in-process on JS (lib/qa/); engine:"python" uses '
+      + 'tools/qa/stl_qa.py as the reference implementation. Never meshes anything.',
     parameters: {
       stl: { type: 'string', description: 'STL path (relative to the project root or absolute). Required.' },
       cleanup: { type: 'boolean', description: 'Also write a cleaned STL (vertex merge, drop degenerate/duplicate faces).' },
@@ -155,6 +156,7 @@ export function apply(ctx, rawConfig) {
       paramsFile: { type: 'string', description: 'Registry params file reference.' },
       fluidOrSolid: { type: 'string', description: 'Registry fluid_or_solid value (default "solid").' },
       notes: { type: 'string', description: 'Registry notes.' },
+      engine: { type: 'string', enum: ['js', 'python'], description: "QA engine: 'js' (default, in-process) or 'python' (tools/qa/stl_qa.py, parity reference)." },
     },
     async execute(args, config) {
       const blocked = requireProject(config)
@@ -180,6 +182,7 @@ export function apply(ctx, rawConfig) {
         expectBodies: args.expectBodies,
         maxVolumeErr: args.maxVolumeErr,
         maxAreaErr: args.maxAreaErr,
+        engine: args.engine,
       })
       if (qa.error) return { error: qa.error, file: displayPath(config, stlPath), qa }
       if (args.maxVolumeErr != null && args.maxVolumeErr > 0 && args.maxVolumeErr <= 0.05) {

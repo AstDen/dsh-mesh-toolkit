@@ -2,7 +2,8 @@
 
 Набор из трёх инструментов для проекта `Mesh_3D_pore_scale`: параметрическая генерация геометрии,
 проверка STL по контракту и паспорт в `stl/registry.csv`. Работает на реальных скриптах проекта
-(`geometry/`), ничего не выдумывает: все метрики берутся из `tools/qa/stl_qa.py`.
+(`geometry/`), ничего не выдумывает: все метрики считает собственный QA на JS (`lib/qa/`), а
+`tools/qa/stl_qa.py` остаётся эталоном паритета и доступен как `engine: "python"`.
 
 ## Инструменты
 
@@ -51,8 +52,8 @@ node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генера
 `stl_hints`, `stl_generate`, `stl_check`. Если плагин активируется с ошибкой схемы, DSH укажет
 точный путь параметра — правьте `index.js`, затем повторите `set_plugin` с `"target": "include:mesh-stl"`.
 
-Требования: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`, python проекта `.venv/bin/python` (gmsh/trimesh/
-cadquery — по семействам), `tools/qa/stl_qa.py`.
+Требования: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`. Для двух семейств (`fcc-cell`, `double-layer-burner`)
+нужен python проекта `.venv/bin/python`; QA STL работает без python и без проекта.
 
 ## Конфигурация
 
@@ -69,8 +70,8 @@ cadquery — по семействам), `tools/qa/stl_qa.py`.
 }
 ```
 
-`projectRoot` и `python` можно не задавать: корень ищется вверх от рабочего каталога агента
-(маркеры `tools/qa/stl_qa.py` и `geometry/`), интерпретатор — `<projectRoot>/.venv/bin/python`.
+`projectRoot` и `python` можно не задавать: корень ищется вверх от рабочего каталога агента по
+`sim-project.json`, интерпретатор — `<projectRoot>/.venv/bin/python`.
 `workRoot`/`registry` — пути **относительно** корня проекта.
 
 Переменные: `MESH_STL_PROJECT_ROOT`, `MESH_STL_PYTHON`, `MESH_STL_WORK_ROOT`, `MESH_STL_REGISTRY`,
@@ -88,8 +89,8 @@ cadquery — по семействам), `tools/qa/stl_qa.py`.
 
 Семейство `primitive` пишет STL на чистом JS (`lib/primitives.js`): `shape` = `box` | `sphere` | `cylinder`,
 параметры `size_mm` / `radius_mm`+`height_mm` / `center_mm` / `segments`/`rings`/`sections`.
-Это единственный генератор, который работает **без проекта**: Python, CAD и `tools/qa/stl_qa.py`
-не нужны (QA тогда недоступен, STL всё равно пишется). Пресеты — в `data/primitives/`.
+Это единственный генератор, который работает **без проекта** и без python: геометрия и QA STL — на JS.
+Пресеты — в `data/primitives/`.
 
 Генераторы вне проекта задаются в `sim-project.json.geometry.scriptRoots` (абсолютные пути):
 резолвер вернёт `resolvedFrom`; project-relative путь ищется в проекте первым.
@@ -108,7 +109,7 @@ cadquery — по семействам), `tools/qa/stl_qa.py`.
 | `blob-foam` | `geometry/pore_cell/gen_blob_foam.py` | `geometry/pore_cell/params/blob_foam_*.json` |
 
 Каждый запуск: копия/мердж `params.json` → шаги генератора → лог на шаг в `<outDir>/logs/` →
-QA каждого объявленного выхода через `stl_qa.py` → возврат `{ok, files[{path, qa}], commands, next}`.
+QA каждого объявленного выхода (JS по умолчанию) → возврат `{ok, files[{path, qa}], commands, next}`.
 
 ## Карточки знаний (`data/hints/*.json`)
 

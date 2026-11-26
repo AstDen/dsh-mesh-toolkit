@@ -1,6 +1,6 @@
 # dsh-mesh-toolkit
 
-> **0.5.1** · Three packages for **DeepSeek Harness**: a shared core plus two
+> **0.5.1** · packages: mesh-build 0.5.1 · mesh-stl 0.3.2 · sim-core 0.4.1 · Three packages for **DeepSeek Harness**: a shared core plus two
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 20–33 searchable knowledge
@@ -9,7 +9,7 @@
 | Package | Jobs | Tools |
 |---|---|---|
 | [`sim-core/`](sim-core/) | config layering, `sim-project.json`, path resolver, checkMesh parser, JS quality gate, passports, shared cards | library, no tools |
-| [`mesh-stl/`](mesh-stl/) | STL families and portable primitives, contract QA, cleanup, passport row | `stl_hints` · `stl_generate` · `stl_check` |
+| [`mesh-stl/`](mesh-stl/) | STL families and portable primitives, in-plugin JS contract QA (python `stl_qa.py` as parity reference), cleanup, passport row | `stl_hints` · `stl_generate` · `stl_check` |
 | [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D on any OpenFOAM build, JS quality gate, mesh passport, OF+Fluent delivery | `mesh_hints` · `mesh_build` · `mesh_check` · `mesh_deliver` |
 
 Thin wrappers over the project's real generators and OpenFOAM binaries. No invented

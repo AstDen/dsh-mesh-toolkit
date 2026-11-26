@@ -16,7 +16,7 @@ export const SKILL = {
 - **stl_hints** — карточки знаний проекта (проверенные правила + доказательства + рецепты).
   Без аргументов — каталог; \`query\` — поиск; \`id\` — одна карточка.
 - **stl_generate** — запускает реальный генератор из реестра \`data/generators.json\`.
-  Без \`family\` — список семей и пресетов. Пишет params/logs/STL и сам проверяет каждый выход через stl_qa.py.
+  Без \`family\` — список семей и пресетов. Пишет params/logs/STL и сам проверяет каждый выход встроенным QA (JS, без python).
 - **stl_check** — проверка STL: watertight, winding, число тел, объём/площадь/bbox, чистка
   (\`cleanup:true\`) и паспорт в \`stl/registry.csv\` (\`register:true\`).
 
