@@ -114,7 +114,11 @@ export function buildContext(family, config, args) {
   // portable mode has no projectRoot (no sim-project.json) — the cwd plays that role
   const projectBase = config.projectRoot || config.rootDir || process.cwd()
   if (!isInside(projectBase, outDir)) {
-    throw new Error(`outDir must stay inside the project root ${projectBase}: ${outDir}`)
+    const portable = !config.projectRoot
+    const hint = portable
+      ? ' (portable mode: the working directory is the project root, so pass outDir relative to it)'
+      : ''
+    throw new Error(`outDir must stay inside the project root ${projectBase}: ${outDir}${hint}`)
   }
   const presetFile = args.paramsFile
     ? resolveProjectPath(config, args.paramsFile)
