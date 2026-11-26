@@ -127,6 +127,14 @@ node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генера
 Каждый запуск: копия/мердж `params.json` → шаги генератора → лог на шаг в `<outDir>/logs/` →
 QA каждого объявленного выхода (JS по умолчанию) → возврат `{ok, files[{path, qa}], commands, next}`.
 
+## Портативный режим (без `sim-project.json`)
+
+`stl_generate`/`stl_check` работают в пустом каталоге: отчёт несёт `project: "defaults"`,
+относительные пути считаются от текущего каталога, реестр — `./stl/registry.csv` (создаётся сам),
+выходы — `./stl/generated/<family>/`. Реестр только для чтения не ломает вердикт
+(`registered: {ok:false, error, row}`). Полный сквозной сценарий, включая мешинг и поставку, —
+[`mesh-build/docs/PORTABLE.md`](../mesh-build/docs/PORTABLE.md), карточка `portable-setup`.
+
 ## Карточки знаний (`data/hints/*.json`)
 
 `snappy.json` — ловушки мешинга, влияющие на геометрию (minVol, единицы, пятна на плоскостях домена,

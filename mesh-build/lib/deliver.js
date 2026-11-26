@@ -14,6 +14,8 @@ import { displayPath, q, resolveProjectPath, runBash, tail } from './common.js'
 import { passportFreshness, readMeshPassport } from '../../sim-core/lib/passport.js'
 
 export const DELIVER_SCRIPT = 'tools/deliver/make_delivery.sh'
+/** Packaged copy shipped inside the bundle, used when the project has no tools/deliver (plan 1.4). */
+export const PACKAGED_DELIVER_SCRIPT = 'scripts/deliver/make_delivery.sh'
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 /** Pick the last JSON object printed by the script (stdout also carries `[deliver]` lines). */
@@ -100,8 +102,16 @@ export function planDelivery(config, args) {
     ? resolveProjectPath(config, String(args.outDir))
     : join(caseDir, 'deliver')
 
-  const script = join(config.projectRoot, DELIVER_SCRIPT)
-  if (!existsSync(script)) throw new Error(`нет ${DELIVER_SCRIPT} в ${displayPath(config, config.projectRoot)}`)
+  const projectScript = join(config.projectRoot, DELIVER_SCRIPT)
+  const packagedScript = join(config.packageRoot, PACKAGED_DELIVER_SCRIPT)
+  const scriptOrigin = existsSync(projectScript) ? 'project' : (existsSync(packagedScript) ? 'package' : null)
+  const script = scriptOrigin === 'project' ? projectScript : packagedScript
+  if (!scriptOrigin) {
+    throw new Error(`нет ${DELIVER_SCRIPT} в ${displayPath(config, config.projectRoot)} и нет пакетной копии ${PACKAGED_DELIVER_SCRIPT} в бандле`)
+  }
+  // The packaged mesh_gate.sh writes its overlay where MESH_GATE_CACHE_DIR points, so a case-local
+  // delivery never needs a writable copy of the installed bundle (or a project .cache/).
+  const gateCache = join(outDir, '.gate')
 
   const gateProfile = String(args.gateProfile ?? args.profile ?? config.gate?.profile ?? 'project')
   if (!['project', 'gate', 'relaxed', 'none'].includes(gateProfile)) {
@@ -123,7 +133,7 @@ export function planDelivery(config, args) {
     warnings.push('minVol не задан: скрипт использует свой порог 1e-14; для поровых ячеек передайте minVol явно')
   }
   return {
-    caseDir, name, outDir, script, gateProfile,
+    caseDir, name, outDir, script, scriptOrigin, gateProfile, gateCache,
     minVol: minVol ?? null,
     command: argv.join(' '),
     warnings,
@@ -200,7 +210,8 @@ export function runDelivery(config, args) {
   }
   const started = Date.now()
   const run = runBash(plan.command, {
-    cwd: config.projectRoot,
+    cwd: config.projectRoot || config.rootDir || process.cwd(),
+    env: plan.gateCache ? { MESH_GATE_CACHE_DIR: plan.gateCache } : {},
     timeoutMs: config.timeoutMs,
     openfoamBashrc: config.openfoamBashrc,
     maxBuffer: 128 * 1024 * 1024,

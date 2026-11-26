@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   PACKAGE_ROOT, PKG_VERSION, displayPath, diskVersion, executionCwd, expandStlInputs, jsonSafe,
-  normalizeConfig, resolveProjectPath, tail, unconfiguredPayload, versionInfo,
+  normalizeConfig, resolveProjectPath, tail, versionInfo,
 } from './lib/common.js'
 import { gateCase } from './lib/gate.js'
 import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
@@ -116,7 +116,16 @@ export function apply(ctx, rawConfig) {
   /** Tool handlers, reused by the simMesh capability service below. */
   const handlers = {}
 
-  const requireProject = (cfg) => (cfg.configured ? null : unconfiguredPayload(cfg))
+  /** Case-local mode is supported (plan 1.4): report which defaults apply instead of refusing. */
+  const PORTABLE_HINT = 'working without sim-project.json: caseDir and STL paths resolve from the current directory, '
+    + 'cases default to ./cases, the gate profile to "project" and the quality gate writes its overlay next to the case. '
+    + 'Create sim-project.json (sim-core/schemas) to pin units, caseRoots, gate thresholds and OpenFOAM installations.'
+  const withPortable = (value, cfg) => {
+    if (cfg.configured || !value || typeof value !== 'object' || Array.isArray(value) || value.error) return value
+    const next = value.next === undefined ? [] : (Array.isArray(value.next) ? [...value.next] : [value.next])
+    if (!next.includes(PORTABLE_HINT)) next.push(PORTABLE_HINT)
+    return { ...value, project: cfg.project ?? 'defaults', configured: false, next }
+  }
   const resolveCase = (cfg, args, { mustExist = false, hint = null } = {}) => {
     if (!args.caseDir) throw new Error(`caseDir is required, e.g. "${displayPath(cfg, join(cfg.projectRoot, cfg.caseRoot, 'exp-NNN/case'))}"`)
     const dir = resolveProjectPath(cfg, String(args.caseDir))
@@ -174,7 +183,7 @@ export function apply(ctx, rawConfig) {
         try {
           const bound = bindFoam(configFor(exec), args, def.name)
           if (bound.error) return jsonSafe(bound.error)
-          return jsonSafe(await def.execute(args, bound.config))
+          return jsonSafe(withPortable(await def.execute(args, bound.config), bound.config))
         } catch (error) {
           return jsonSafe({ error: error.message, tool: def.name })
         }
@@ -248,8 +257,6 @@ export function apply(ctx, rawConfig) {
       openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
-      const blocked = requireProject(config)
-      if (blocked) return blocked
       if (!args.route) {
         return {
           configured: true,
@@ -485,7 +492,7 @@ export function apply(ctx, rawConfig) {
         payload.patches = readCasePatches(caseDir)
       } catch { /* boundary unreadable — not fatal */ }
       payload.next = payload.verdict === 'PASS'
-        ? ['tools/deliver/make_delivery.sh --case <case> --name <name> --out <dir> (hint delivery-bundle)']
+        ? ['mesh_deliver({ caseDir, name, outDir, minVol, gateProfile }) — project tools/deliver/make_delivery.sh, or the packaged copy in the bundle (hint delivery-bundle)']
         : ['read gate.results[].metrics and mesh_hints, adjust geometry/interface level/layers, rerun']
       return payload
     },
@@ -506,8 +513,6 @@ export function apply(ctx, rawConfig) {
       openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
-      const blocked = requireProject(config)
-      if (blocked) return blocked
       const caseDir = resolveCase(config, args, { mustExist: true, hint: 'mesh_check needs a built case with constant/polyMesh' })
       if (!existsSync(join(caseDir, 'constant'))) {
         return { error: `no constant/ directory in ${displayPath(config, caseDir)}` }
@@ -622,8 +627,6 @@ export function apply(ctx, rawConfig) {
       openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
-      const blocked = requireProject(config)
-      if (blocked) return blocked
       let result
       try {
         result = runDelivery(config, args)

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.3 — 2026-11-26
+
+### Добавлено
+- **Портативный режим (plan 1.4).** `mesh_build`/`mesh_check`/`mesh_deliver` работают без
+  `sim-project.json`: ответ несёт `project: "defaults"` и `configured: false`, кейсы по умолчанию
+  `./cases`, гейт `project`. Гейт `requireProject` больше не блокирует вызовы.
+- Пакетная поставка: если в проекте нет `tools/deliver/make_delivery.sh`, `mesh_deliver` берёт
+  `scripts/deliver/make_delivery.sh` из бандла (вместе с `scripts/qa/mesh_gate.sh` и
+  `scripts/deliver/region_layout.py`). Шлюз поставки пишет overlay в `<outDir>/.gate`
+  через `MESH_GATE_CACHE_DIR`.
+- Карточка знаний `portable-mesh-build`; документ `docs/PORTABLE.md` со сквозным сценарием.
+
+### Проверено
+- Сквозной прогон в пустом каталоге `/tmp`: primitive (12 tri) → `stl_check` PASS →
+  `mesh_build` snappy 2584 ячейки → `mesh_check` gate PASS → `mesh_deliver` DELIVERED
+  (`scriptOrigin` = package, 1.8 МБ артефактов).
+
 ## 0.5.2 — 2026-11-26
 
 - **`scripts/fluid-point.py` в пакете** — подбор `locationInMesh` по STL больше не требует дерева

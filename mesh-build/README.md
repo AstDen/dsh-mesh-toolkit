@@ -146,7 +146,9 @@ org14 — `25.2146°` при тех же 2584 ячейках (`experiments/exp-0
 
 ## Поставка (`mesh_deliver`)
 
-`mesh_deliver` вызывает `tools/deliver/make_delivery.sh` и возвращает короткий JSON вместо лога:
+`mesh_deliver` вызывает `make_delivery.sh` и возвращает короткий JSON вместо лога. Скрипт берётся из
+проекта (`tools/deliver/make_delivery.sh`), а если его нет — из бандла (`scripts/deliver/`, plan 1.4);
+выбранный источник виден в `scriptOrigin`:
 
 - **OpenFOAM**: `openfoam_<name>/` с настоящей `constant/` (`polyMesh`, `triSurface`), `system/`, `0/`,
   маркером `<name>.foam` (открывается в ParaView) и архив `.tar.gz`.
@@ -171,6 +173,14 @@ org14 — `25.2146°` при тех же 2584 ячейках (`experiments/exp-0
 
 Результат (проверено): multi-region 575 757 ячеек, интерфейс сходится, оба региона PASS,
 round-trip ok, 66.6 с; single-region FCC — 27 424 ячейки, 3.5 с.
+
+## Портативный режим (без `sim-project.json`)
+
+Инструменты работают в пустом каталоге: ответ несёт `project: "defaults"` и `configured: false`,
+кейсы по умолчанию лежат в `./cases`, профиль гейта — `project`, а `mesh_deliver` берёт пакетную
+копию `scripts/deliver/make_delivery.sh` (шлюз пишет overlay в `<outDir>/.gate`).
+Сквозной сценарий STL → snappy → gate → поставка и таблица значений по умолчанию —
+[`docs/PORTABLE.md`](docs/PORTABLE.md); карточка `mesh_hints({ id: "portable-mesh-build" })`.
 
 ## Карточки знаний (`data/hints/`)
 

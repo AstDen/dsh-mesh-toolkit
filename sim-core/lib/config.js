@@ -163,6 +163,8 @@ export function resolveConfig(options) {
     rootDir,
     cwd,
     profileInfo: found,
+    // Study/report label: the profile's project name, or 'defaults' in case-local mode (plan 1.4).
+    project: found.project ?? 'defaults',
     // project data
     units: String(found.units ?? 'mm'),
     caseRoots,

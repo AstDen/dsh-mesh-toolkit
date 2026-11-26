@@ -2,7 +2,15 @@
   {
     "id": "plugin-mesh-stl",
     "title": "Плагин mesh-stl: что делает и когда звать",
-    "topics": ["plugin", "mesh-stl", "description", "routing", "stl", "generators", "qa"],
+    "topics": [
+      "plugin",
+      "mesh-stl",
+      "description",
+      "routing",
+      "stl",
+      "generators",
+      "qa"
+    ],
     "status": "verified",
     "when": "нужно создать/проверить STL или понять, чем этот плагин отличается от mesh-build",
     "statement": "mesh-stl — DSH-бандл для геометрии: генерирует STL из проверенных семейств (fcc-cell, channel-spheres, double-layer-burner, packing, cad-porous), прогоняет контракт stl_qa.py (watertight, winding, bodies, volume/area/bbox в мм), чистит и пишет паспорт в stl/registry.csv. Три инструмента: stl_hints (эти карточки), stl_generate (реальный генератор с пресетом, dry-run, params-overrides), stl_check (QA + опциональная чистка и паспорт).",
@@ -16,7 +24,45 @@
       "plugins/mesh-stl/index.js: stl_hints, stl_generate, stl_check; data/generators.json — семейства и пресеты; lib/skill.js — инструкция агенту",
       "проверено живым запуском: fcc_cell_d5_r049 → PASS, watertight, 11 348 треугольников, 62.2183 мм³"
     ],
-    "improves": ["согласованность геометрии", "воспроизводимость STL", "выбор генератора"],
-    "appliesTo": ["stl_hints", "stl_generate", "stl_check"]
+    "improves": [
+      "согласованность геометрии",
+      "воспроизводимость STL",
+      "выбор генератора"
+    ],
+    "appliesTo": [
+      "stl_hints",
+      "stl_generate",
+      "stl_check"
+    ]
+  },
+  {
+    "id": "portable-setup",
+    "title": "Работа без sim-project.json: STL в пустом каталоге",
+    "topics": [
+      "portable",
+      "без проекта",
+      "sim-project.json",
+      "empty directory",
+      "портативно",
+      "defaults",
+      "registry",
+      "stl_generated"
+    ],
+    "status": "verified",
+    "when": "geometry/QA запускают в чистом каталоге, где нет sim-project.json (или он минимальный)",
+    "statement": "Инструменты mesh-stl работают без профиля проекта: отчёт несёт project:\"defaults\" и configured:false, относительные пути считаются от текущего каталога, реестр по умолчанию ./stl/registry.csv (заголовок создаётся сам), выходы генераторов идут в ./stl/generated/<family>/. Гейта «нет проекта» больше нет; если реестр только для чтения, QA-вердикт сохраняется, а запись возвращается как registered:{ok:false,error,row}. Проверено сквозным прогоном в /tmp: stl_generate(primitive) → stl_check(PASS, engine js) → mesh_build(snappy) → mesh_check(PASS) → mesh_deliver(DELIVERED).",
+    "recipe": [
+      "stl_generate({family:'primitive', name:'cube', params:{size_mm:[10,10,10]}}) — файл появится в ./stl/generated/primitive/",
+      "stl_check({stl:'stl/generated/primitive/cube.stl', expectVolume:1000, expectArea:600, expectBodies:1})",
+      "mesh_build({route:'snappy', caseDir:'cases/cube', stl:[...], scaffold:true, scaffoldOptions:{...}})",
+      "mesh_check({caseDir:'cases/cube', minVol:<h_min³/6>, profile:'project'}) → mesh_deliver({caseDir, name:'cube'})",
+      "нужны свои пути/пороги — создайте sim-project.json (sim-core/schemas): units, caseRoots, gate.profiles, foam.installations"
+    ],
+    "evidence": [
+      "plugins/sim-core/lib/config.js: project = found.project ?? 'defaults', configured = Boolean(profile)",
+      "plugins/mesh-stl/index.js: withPortable() добавляет project/configured и подсказку к next вместо отказа",
+      "plugins/mesh-stl/lib/registry.js: registryFilePath() считает от projectRoot, иначе от cwd",
+      "прогон 2026-11-26 в /tmp: 12 tri, PASS, 2584 ячейки, gate PASS, DELIVERED"
+    ]
   }
 ]

@@ -11,7 +11,7 @@ import { dirname, join, resolve } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   PACKAGE_ROOT, PKG_VERSION, displayPath, executionCwd, jsonSafe, normalizeConfig, resolveProjectPath, stem,
-  unconfiguredPayload, versionInfo,
+  versionInfo,
 } from './lib/common.js'
 import {
   catalogFamilies, loadRegistry, qaFile, runFamily,
@@ -41,8 +41,16 @@ export function apply(ctx, rawConfig) {
   /** Tool handlers, reused by the simGeometry capability service below. */
   const handlers = {}
 
-  /** Null when the project is configured, otherwise the actionable payload. */
-  const requireProject = (cfg) => (cfg.configured ? null : unconfiguredPayload(cfg))
+  /** Case-local mode is a supported mode, not an error (plan 1.4): say which defaults apply. */
+  const PORTABLE_HINT = 'working without sim-project.json: relative paths resolve from the current directory, '
+    + 'the STL registry defaults to ./stl/registry.csv (created on demand) and generated STLs go under ./stl/generated. '
+    + 'Create sim-project.json (sim-core/schemas) when you want to pin units, caseRoots or a gate profile.'
+  const withPortable = (value, cfg) => {
+    if (cfg.configured || !value || typeof value !== 'object' || Array.isArray(value) || value.error) return value
+    const next = value.next === undefined ? [] : (Array.isArray(value.next) ? [...value.next] : [value.next])
+    if (!next.includes(PORTABLE_HINT)) next.push(PORTABLE_HINT)
+    return { ...value, project: cfg.project ?? 'defaults', configured: false, next }
+  }
 
   function register(def) {
     const handler = (args, exec) => def.execute(args, exec ? configFor(exec) : config)
@@ -51,8 +59,9 @@ export function apply(ctx, rawConfig) {
       ...def,
       output: jsonOutput,
       async execute(args, exec) {
-        const value = await def.execute(args, configFor(exec))
-        return jsonSafe(value)
+        const cfg = configFor(exec)
+        const value = await def.execute(args, cfg)
+        return jsonSafe(withPortable(value, cfg))
       },
     })
     ctx.tools.register(tool)
@@ -112,8 +121,6 @@ export function apply(ctx, rawConfig) {
       dryRun: { type: 'boolean', description: 'Only resolve paths and commands; do not execute.' },
     },
     async execute(args, config) {
-      const blocked = requireProject(config)
-      if (blocked) return blocked
       if (!args.family) {
         return {
           configured: true,
@@ -160,8 +167,6 @@ export function apply(ctx, rawConfig) {
       engine: { type: 'string', enum: ['js', 'python'], description: "QA engine: 'js' (default, in-process) or 'python' (tools/qa/stl_qa.py, parity reference)." },
     },
     async execute(args, config) {
-      const blocked = requireProject(config)
-      if (blocked) return blocked
       if (!args.stl) return { error: 'stl is required' }
       const stlPath = resolveProjectPath(config, args.stl)
       if (!existsSync(stlPath)) return { error: `STL not found: ${stlPath}` }

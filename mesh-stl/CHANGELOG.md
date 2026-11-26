@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.5 — 2026-11-26
+
+### Добавлено
+- **Портативный режим (plan 1.4).** `stl_generate`/`stl_check` работают без `sim-project.json`:
+  `project: "defaults"`, `configured: false`, относительные пути от текущего каталога, реестр
+  `./stl/registry.csv` создаётся по требованию. Гейт `requireProject` больше не блокирует вызовы.
+- Карточка знаний `portable-setup`; ссылка на `mesh-build/docs/PORTABLE.md`.
+
+### Проверено
+- В пустом каталоге: `stl_generate(primitive)` → `./stl/generated/primitive/…stl`, QA PASS (JS),
+  `stl_check` PASS, затем полная цепочка meshing/поставки (см. mesh-build 0.5.3).
+
 ## 0.3.4 — 2026-11-26
 
 - **Реестр STL работает без проекта** (`lib/registry.js: registryFilePath`): относительный `registry`
