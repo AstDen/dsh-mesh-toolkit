@@ -5,7 +5,7 @@
 > **0.5.4** · packages: mesh-build 0.5.4 · mesh-stl 0.3.6 · sim-core 0.4.4 · Three packages for **DeepSeek Harness**: a shared core plus two
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
-> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 20–33 searchable knowledge
+> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 21–35 searchable knowledge
 > cards per catalog, no build step. Meshing routes adapt to OpenFOAM.com **or** OpenFOAM.org.
 
 | Package | Jobs | Tools |
@@ -24,14 +24,16 @@ a compact JSON summary. Plugins talk to each other through Cordis services
 Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
 **gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 
-**7 tools · 33 cards in the merged `mesh_hints` catalogue · 20 in `stl_hints` · 2 skills · 3 services · smoke and live tested
+**7 tools · 35 cards in the merged `mesh_hints` catalogue · 21 in `stl_hints` · 2 skills · 3 services · smoke and live tested
 
 ## Install
 
-Requirements: Node ≥ 20, DSH `>= 0.2.1-rc.5 < 0.3.0`, **`sim-core/` next to the
-bundles** (relative import `../sim-core/...`), an OpenFOAM installation (com or org). A project checkout with
-`.venv/` and `tools/qa/` is needed for project generator families and STL QA; the
-`primitive` family and existing-case meshing work without it.
+Requirements: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, **`sim-core/` next to the
+bundles** (relative import `../sim-core/...`), an OpenFOAM installation (com or org).
+No project checkout is required: generator scripts ship in `mesh-stl/generators/` and STL QA
+runs in-process on JS. Python is needed only for the python families
+(`trimesh`, `numpy`; `cadquery`/`scipy`/`skimage` for specific ones) and for the parity
+test (`tools/qa/stl_qa.py` is the reference, not a dependency).
 
 ```json
 { "action": "install_bundle", "target": "/path/to/dsh-mesh-toolkit/mesh-stl" }
@@ -87,10 +89,10 @@ Precedence: `sim-project.json` → `config` in `cordis.patch.yml` →
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `projectRoot` | auto-detect | walk up from the session cwd until `geometry/` + `tools/qa/` are found |
+| `projectRoot` | auto-detect | walk up from the session cwd for `sim-project.json`; without one the tools run on defaults (`project: "defaults"`) |
 | `workRoot` | `stl/generated` / `.cache/mesh-build` | project-relative output root |
 | `registry` | `stl/registry.csv` | STL passport |
-| `caseRoot` | `experiments` | mesh-build case lookup root |
+| `caseRoot` | `cases` | mesh-build case lookup root (cwd-relative; `caseRoots: ["./cases"]`) |
 | `foam.installations` / `foam.default` | profile | named OpenFOAM builds (`{id: {bashrc}}`); every tool takes `openfoam: "<id>|<bashrc>"` |
 | `openfoamBashrc` | auto | explicit `etc/bashrc`; otherwise `foam.default`, `openfoamRoots`, then `/usr/lib/openfoam`, `/opt/openfoam`, `~/openfoam` (newest wins) |
 | `openfoamRoots` | `[]` | extra trees, `MESH_*_OPENFOAM_ROOTS` (colon-separated) |
@@ -183,6 +185,9 @@ README.md                 this file
 benchmark/TESTS.md         universal regression suite (A–V, L)
 benchmark/PROMPT.md       shorter two-task evaluation protocol
 docs/extending.md         data schemas, routes, thresholds, reload rule
+docs/PORTABLE.md          working without sim-project.json
+docs/WORKBENCH-CONTRACT.md  mesh-toolkit ↔ openfoam-workbench contract (schemas, roles, loop)
+docs/PLAN-workbench-integration.md  analysis of the workbench, adoption methodology, work items
 sim-core/                 shared library (not installed as a bundle)
   lib/config.js           layered config + sim-project.json discovery
   lib/project.js          profile normalisation, built-in gate profiles
