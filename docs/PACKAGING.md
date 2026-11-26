@@ -145,3 +145,35 @@ scaffolded by them until this is fixed on their side. Until then a caller should
 underscored surface names. When they ship the fix, `CONTRACT_TEST_REQUIRE_WORKBENCH=1 node
 scripts/contract-test.mjs` starts failing on M3c — that is the signal to flip the check back to a hard one.
 
+## Publishing to plugin markets
+
+DSH has no central marketplace and ships no index source: a plugin market is a format-1 JSON index at an
+https URL that a user adds once (Plugins → Discover → Add index source, after enabling the experimental
+*Custom plugin indexes* bundle). This repository publishes its own index and needs nothing else.
+
+| File | Role |
+|---|---|
+| `package.json` (root) | the single installable package: `exports` for the two plugin rows, `files` covering the three trees, `dsh.bundle.patch` |
+| `cordis.patch.yml` (root) | the patch used by the single-package install: rows `mesh-toolkit/build` and `mesh-toolkit/stl` |
+| `market/index.json` | format-1 index, one plugin entry, git source pinned to a full commit |
+| `market/icon.svg` | relative icon, resolved against the index URL |
+| `scripts/make-index.mjs` | regenerates the index from `package.json` + `git HEAD` and validates it |
+
+```bash
+node scripts/make-index.mjs        # write market/index.json for HEAD
+node scripts/make-index.mjs --check # validate the committed file (CI)
+```
+
+The validator is the official `@deepseek-ai/dsh-plugin-market-index` parser; the script finds it in the
+repository, in `$DSH_MARKET_INDEX_DIR`, or in a `~/.npm/_npx/*` checkout, and prints `SKIP` when it cannot.
+The index URL users paste is
+
+```
+https://raw.githubusercontent.com/AstDen/dsh-mesh-toolkit/master/market/index.json
+```
+
+dsh fetches it with redirects disabled, so it must answer 200 directly — raw.githubusercontent does.
+
+Release order: bump the version → commit → `node scripts/make-index.mjs` (pins that commit) → commit
+`market/` → tag. The pinned commit must already contain the root `package.json`, otherwise an install from
+the index gets a tree without the bundle manifest.

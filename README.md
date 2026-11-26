@@ -5,8 +5,8 @@
 > **1.0.0-rc.1** · packages: mesh-build 1.0.0-rc.1 · mesh-stl 1.0.0-rc.1 · sim-core 1.0.0-rc.1
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
-> OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 21–35 searchable knowledge
-> cards per catalog, no build step. Meshing routes adapt to OpenFOAM.com **or** OpenFOAM.org.
+> OpenFOAM case plus an ANSYS/Fluent `.msh`. Twelve tools, 40 searchable knowledge
+> cards in the merged catalogue, no build step. Meshing routes adapt to OpenFOAM.com **or** OpenFOAM.org.
 > Every checked case carries a `handoff.json` (schema `mesh-handoff/1`) for a solver-side workbench,
 > and the optional `meshToolkit` service (`apiVersion: 1`) lets one call mesh, gate and deliver.
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | [`sim-core/`](sim-core/) | config layering, `sim-project.json`, path resolver, checkMesh parser, JS quality gate, passports, shared cards | library, no tools |
 | [`mesh-stl/`](mesh-stl/) | STL families and portable primitives, in-plugin JS contract QA (python `stl_qa.py` as parity reference), cleanup, passport row | `stl_hints` · `stl_generate` · `stl_check` |
-| [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D on any OpenFOAM build, JS quality gate, mesh passport, OF+Fluent delivery | `mesh_hints` · `mesh_build` · `mesh_check` · `mesh_deliver` |
+| [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D on any OpenFOAM build, JS quality gate, mesh passport, OF+Fluent delivery, capability probe, patch roles, feedback-driven revisions, y+ layers, surface fidelity | `mesh_hints` · `mesh_build` · `mesh_check` · `mesh_deliver` · `mesh_capabilities` · `mesh_patch_types` · `mesh_revise` · `mesh_first_layer` · `mesh_surface_check` |
 
 Thin wrappers over the project's real generators and OpenFOAM binaries. No invented
 metrics: every number comes from a real run, full logs stay on disk, the tool returns
@@ -26,27 +26,54 @@ a compact JSON summary. Plugins talk to each other through Cordis services
 Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
 **gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 
-**9 tools · 39 cards in the merged `mesh_hints` catalogue · 21 in `stl_hints` · 2 skills · 3 services · smoke and live tested
+**12 tools · 40 cards in the merged `mesh_hints` catalogue · 22 in `stl_hints` · 2 skills · 3 services · smoke and live tested
 
 ## Install
 
-Requirements: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, **`sim-core/` next to the
-bundles** (relative import `../sim-core/...`), an OpenFOAM installation (com or org).
+Requirements: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, an OpenFOAM installation (com or org).
 No project checkout is required: generator scripts ship in `mesh-stl/generators/` and STL QA
 runs in-process on JS. Python is needed only for the python families
 (`trimesh`, `numpy`; `cadquery`/`scipy`/`skimage` for specific ones) and for the parity
 test (`tools/qa/stl_qa.py` is the reference, not a dependency).
+
+### One package from git (recommended)
+
+The repository root is a single installable package: the three source trees ship inside it, so
+the relative imports between them keep working and there is nothing to place side by side.
+
+```bash
+dsh plugin --profile web add "git+https://github.com/AstDen/dsh-mesh-toolkit.git#<commit>"
+```
+
+`<commit>` is a full 40-hex commit from [`market/index.json`](market/index.json) (the same pin the
+plugin market uses). Start DSH, then `plugin_manager list_plugins` shows `mesh-toolkit` with both
+plugin rows enabled (`mesh-toolkit/build`, `mesh-toolkit/stl`).
+
+### From a plugin market
+
+DSH ships no index source, so add this repository's index once:
+
+1. enable the experimental **Custom plugin indexes** bundle;
+2. **Plugins → Discover → Add index source** →
+   `https://raw.githubusercontent.com/AstDen/dsh-mesh-toolkit/master/market/index.json`;
+3. install **Mesh toolkit — pore-scale meshing for OpenFOAM**.
+
+The index is a format-1 document (`market/index.json`) validated by the official
+`@deepseek-ai/dsh-plugin-market-index` parser, and it pins the same git commit, so both channels
+install identical code.
+
+### Side by side (development)
+
+Point the installer at the two bundle directories in a checkout:
 
 ```json
 { "action": "install_bundle", "target": "/path/to/dsh-mesh-toolkit/mesh-stl" }
 { "action": "install_bundle", "target": "/path/to/dsh-mesh-toolkit/mesh-build" }
 ```
 
-Keep the three directories as siblings — `sim-core` is a library, not a bundle, so
-there is nothing to install for it. The installer adds a `link:` dependency to the
-profile and enables the bundle.
-After editing `index.js`, `lib/*` or `data/*.json`, reload with disable → enable —
-a repeated `enabled: true` reports `changed: false` and does not re-import.
+`sim-core` is a library, not a bundle. This mode adds a `link:` dependency to the profile and
+enables each bundle through its own `cordis.patch.yml`; edit the sources in place and reload with
+disable → enable — a repeated `enabled: true` reports `changed: false` and does not re-import.
 
 Disable with `set_plugin` `enabled: false`; remove with `remove_bundle` (bundle package name).
 

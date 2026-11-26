@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "title": "Mesh toolkit",
+  "description": "Plugins for agent-driven volume meshing: STL in, gated OpenFOAM / Fluent mesh out.",
+  "metadata": {
+    "categories": {
+      "meshing": {
+        "title": "Meshing"
+      },
+      "geometry": {
+        "title": "Geometry"
+      }
+    },
+    "labels": {
+      "openfoam": {
+        "title": "OpenFOAM"
+      },
+      "pore-scale": {
+        "title": "Pore-scale"
+      },
+      "ansys-fluent": {
+        "title": "Ansys Fluent"
+      },
+      "quality-gate": {
+        "title": "Quality gate"
+      }
+    },
+    "sortKeys": {}
+  },
+  "plugins": [
+    {
+      "name": "mesh-toolkit",
+      "title": "Mesh toolkit — pore-scale meshing for OpenFOAM",
+      "description": "STL generation and QA, snappyHexMesh / cfMesh / gmsh routes, a quality gate read from checkMesh, a mesh passport, delivery to OpenFOAM and Ansys Fluent, and a handoff file other plugins can consume.",
+      "icon": "icon.svg",
+      "author": "AstDen",
+      "homepage": "https://github.com/AstDen/dsh-mesh-toolkit#readme",
+      "repository": {
+        "url": "https://github.com/AstDen/dsh-mesh-toolkit"
+      },
+      "metadata": {
+        "category": "meshing",
+        "keywords": [
+          "openfoam",
+          "snappyhexmesh",
+          "cfmesh",
+          "gmsh",
+          "stl",
+          "checkmesh",
+          "pore-scale",
+          "porous-media",
+          "ansys-fluent",
+          "quality-gate",
+          "mesh-quality"
+        ],
+        "labels": [
+          "openfoam",
+          "pore-scale",
+          "ansys-fluent",
+          "quality-gate"
+        ],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "1.0.0-rc.1",
+          "publishTimestamp": 1795688273,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/AstDen/dsh-mesh-toolkit",
+            "commit": "97503a0c27549791164f5c29bed0c7a4a26fe90f"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}

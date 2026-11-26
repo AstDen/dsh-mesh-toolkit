@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="mesh-toolkit: a porous cube behind a quality gate">
+  <rect width="128" height="128" rx="22" fill="#10161f"/>
+  <!-- isometric cube: top, left, right faces -->
+  <g stroke="#5fb3d4" stroke-width="3" stroke-linejoin="round" fill="none">
+    <path d="M64 24 L98 42 L64 60 L30 42 Z" fill="#16303d"/>
+    <path d="M30 42 L64 60 L64 96 L30 78 Z" fill="#122a36"/>
+    <path d="M98 42 L64 60 L64 96 L98 78 Z" fill="#0e232d"/>
+  </g>
+  <!-- pores: holes drilled through the faces -->
+  <g fill="#0b1219" stroke="#2f6b85" stroke-width="1.5">
+    <circle cx="52" cy="42" r="6"/>
+    <circle cx="74" cy="46" r="4.5"/>
+    <circle cx="44" cy="62" r="5"/>
+    <circle cx="52" cy="76" r="4"/>
+    <circle cx="80" cy="66" r="5.5"/>
+    <circle cx="76" cy="82" r="3.5"/>
+  </g>
+  <!-- quality gate: a check inside a hexagon at the lower right -->
+  <g transform="translate(88 84)">
+    <path d="M0 -22 L19 -11 L19 11 L0 22 L-19 11 L-19 -11 Z" fill="#0d2b1c" stroke="#3ddc84" stroke-width="3"/>
+    <path d="M-9 0 L-2 8 L11 -8" fill="none" stroke="#3ddc84" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

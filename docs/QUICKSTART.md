@@ -5,28 +5,27 @@ the toolkit runs in any directory (portable mode), and only the third step needs
 
 ## 1. Install
 
-**From git** (recommended; you get the tags and the docs):
+The repository root is a single package, so one line installs everything:
 
 ```bash
-git clone git@github.com:AstDen/dsh-mesh-toolkit.git ~/dsh-mesh-toolkit
-cd ~/dsh-mesh-toolkit && git checkout v0.7.5
+dsh plugin --profile <profile> add "git+https://github.com/AstDen/dsh-mesh-toolkit.git#<commit>"
 ```
 
-**From the release tarballs** — unpack the three packages into the profile's `node_modules`:
+`<commit>` is the full 40-hex pin in [`market/index.json`](../market/index.json) — the same commit the
+plugin market installs. The three source trees ship inside the package, so the relative imports
+between them work without any sibling layout.
 
-```bash
-tar -xzf mesh-build-0.7.5.tgz   && mv package mesh-build
-tar -xzf mesh-stl-0.4.1.tgz     && mv package mesh-stl
-tar -xzf sim-core-0.5.1.tgz     && mv package sim-core
-mv mesh-build mesh-stl sim-core ~/.dsh/profiles/<profile>/node_modules/
-```
+**From a plugin market** (no shell): enable the experimental *Custom plugin indexes* bundle, add
+`https://raw.githubusercontent.com/AstDen/dsh-mesh-toolkit/master/market/index.json` under
+Plugins → Discover → Add index source, then install *Mesh toolkit*.
 
-Either way the three packages must sit **side by side** in `node_modules`: `mesh-build` imports
-`../sim-core/lib/...` relatively, and a package manager that nests them breaks that import.
+**From a checkout** (development): clone the repository and point `install_bundle` at
+`<checkout>/mesh-stl` and `<checkout>/mesh-build`; keep the three directories as siblings.
 
 ## 2. Enable
 
-Enable both bundles (the installer adds a `link:` dependency to the profile and turns the bundle on):
+The single-package install enables both plugin rows (`mesh-toolkit/stl`, `mesh-toolkit/build`) by itself.
+With a checkout, enable each bundle (the installer adds a `link:` dependency and turns it on):
 
 ```json
 { "action": "install_bundle", "target": "/path/to/dsh-mesh-toolkit/mesh-stl" }
@@ -40,7 +39,7 @@ in its dependencies, and `plugin_manager list_plugins` shows them enabled. Resta
 Confirm from the agent side — `mesh_hints()` with no arguments prints the card catalogue and the version block:
 
 ```
-mesh_hints() -> versionInfo { reported: "0.7.5", onDisk: "0.7.5", stale: false }, 40 cards
+mesh_hints() -> versionInfo { reported: "1.0.0-rc.1", onDisk: "1.0.0-rc.1", stale: false }, 40 cards
 ```
 
 `stale: true` means the live process runs older code than the files on disk: toggle the bundle, and restart DSH

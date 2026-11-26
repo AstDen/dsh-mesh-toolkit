@@ -1,0 +1,61 @@
+{
+  "name": "mesh-toolkit",
+  "version": "1.0.0-rc.1",
+  "description": "Agent-driven volume meshing for OpenFOAM: STL QA, snappyHexMesh/cfMesh/gmsh, a quality gate that means something, a mesh passport, one-command delivery to OpenFOAM and Ansys Fluent, and a handoff file other plugins can read.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./mesh-build/index.js",
+    "./build": "./mesh-build/index.js",
+    "./stl": "./mesh-stl/index.js",
+    "./core": "./sim-core/lib/toolkit.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "mesh-build",
+    "mesh-stl",
+    "sim-core",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "openfoam",
+    "snappyhexmesh",
+    "cfmesh",
+    "gmsh",
+    "volume-mesh",
+    "cht",
+    "quality-gate",
+    "checkmesh",
+    "pore-scale",
+    "minvol"
+  ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0",
+    "@deepseek-ai/dsh-skill": ">=0.2.2-rc.1 <0.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AstDen/dsh-mesh-toolkit.git"
+  },
+  "homepage": "https://github.com/AstDen/dsh-mesh-toolkit#readme",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "market:index": "node scripts/make-index.mjs",
+    "check:catalogue": "node scripts/check-catalogue.mjs",
+    "check:versions": "node scripts/check-versions.mjs",
+    "test": "node scripts/contract-test.mjs --no-mesh"
+  }
+}

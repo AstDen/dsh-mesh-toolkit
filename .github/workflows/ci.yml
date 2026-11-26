@@ -51,6 +51,9 @@ jobs:
       - name: contract tests (workbench handoff; tools/OpenFOAM tiers skip on a bare runner)
         run: node scripts/contract-test.mjs --no-mesh
 
+      - name: plugin-market index is valid
+        run: node scripts/make-index.mjs --check
+
       - name: JS QA parity vs python reference
         run: |
           # trimesh needs networkx for split()/bodies; without it the reference engine dies

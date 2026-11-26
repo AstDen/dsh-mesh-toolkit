@@ -1,0 +1,21 @@
+# mesh-toolkit bundle patch: both plugins from ONE installed package.
+#
+# This is the patch used when the repository is installed as a single package
+# (`dsh plugin --profile <p> add "git+https://github.com/AstDen/dsh-mesh-toolkit.git#<commit>"`).
+# The plugin rows are resolved as export subpaths of this package, so the three
+# source trees stay siblings and every relative import keeps working.
+#
+# Installing the directories side by side instead (`install_bundle` on
+# `<repo>/mesh-stl` and `<repo>/mesh-build`) uses each package's own patch file.
+#
+# Portable defaults live in mesh-build/lib/common.js and mesh-stl/lib/common.js.
+# Machine-specific settings belong to external files:
+#   ~/.config/mesh-build/config.json   (or $MESH_BUILD_CONFIG=...)
+#   ~/.config/mesh-stl/config.json     (or $MESH_STL_CONFIG=...)
+- insert:
+    - id: mesh-build
+      name: mesh-toolkit/build
+      config: {}
+    - id: mesh-stl
+      name: mesh-toolkit/stl
+      config: {}

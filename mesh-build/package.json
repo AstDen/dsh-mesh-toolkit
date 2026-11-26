@@ -49,7 +49,7 @@
     "cfmesh",
     "gmsh",
     "volume-mesh",
-    "chT",
+    "cht",
     "quality-gate",
     "checkmesh",
     "pore-scale",
