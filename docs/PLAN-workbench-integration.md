@@ -356,6 +356,10 @@ What shipped (facts):
   T3 independence (no workbench import).
 - CI runs `--no-mesh` (library tier + independence) on node 20 and 24; a bare runner has no OpenFOAM/DSH.
 - `ROLE_ALIASES` / `normalizeRoles` exported: the contract hands plural role keys to consumers.
+- 3.5 of the release plan is measured by the fourth tier: T7 packages a case with `mesh_deliver`, then their
+  `openfoam_case_scaffold` must make it solvable. It runs on their code and reports `known-gap`, not a red suite —
+  see `PACKAGING.md` § "Known gap in the workbench seam": their `parseBoundaryPatches` truncates hyphenated patch
+  names, so a delivered `a1-cube` becomes `cube` and OpenFOAM stops with `Cannot find patchField entry for a1-cube`.
 
 - `plugins/mesh-build/lib/service.js`: `ctx.provide('meshToolkit', {apiVersion: 1, capabilities, generate,
   mesh, revise, patchTypes, gate, deliver})`, registration in `apply(ctx)`; errors are structured.

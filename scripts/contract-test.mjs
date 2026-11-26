@@ -8,7 +8,9 @@
  *      the advice table, domain/unit suspicion. No DSH, no OpenFOAM, no node_modules.
  *   2. tool tier — runs when the plugin packages can be imported (dev symlink to the DSH checkout):
  *      the real tool handlers on a fake Cordis context.
- *   3. OpenFOAM tier — runs when a bashrc resolves: real snappy builds for T1/T2/T5/T6.
+ *   3. OpenFOAM tier — runs when a bashrc resolves: real snappy builds for T1/T2/T5/T6 and a delivery (T7).
+ *   4. workbench tier — runs when @yakovlev-i-a/dsh-openfoam-workbench is installed: its openfoam_case_scaffold
+ *      takes the delivered case (the M3 seam) and must add system/fvSchemes + 0/ without hand edits.
  *
  * Every skipped tier prints `SKIP` with the reason and does not fail the run, so CI stays green on a
  * machine without OpenFOAM while a developer machine exercises the whole contract.
@@ -18,8 +20,8 @@
  *   node scripts/contract-test.mjs --no-mesh  # skip the OpenFOAM tier explicitly
  *   node scripts/contract-test.mjs --verbose
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -33,6 +35,19 @@ const results = []
 function check(tier, id, name, ok, detail = '') {
   results.push({ tier, id, name, ok: Boolean(ok), detail })
   console.log(`${ok ? 'ok  ' : 'FAIL'} [${tier}/${id}] ${name}${detail ? ' — ' + detail : ''}`)
+  return Boolean(ok)
+}
+/**
+ * A check for work that lives in another repository (the workbench side of the seam). It stays green in the
+ * summary so a red suite keeps meaning "our side broke", and turns into a hard failure with
+ * CONTRACT_TEST_REQUIRE_WORKBENCH=1 once the author has shipped the fix.
+ */
+const REQUIRE_WORKBENCH = process.env.CONTRACT_TEST_REQUIRE_WORKBENCH === '1'
+function known(tier, id, name, ok, detail = '') {
+  const hard = REQUIRE_WORKBENCH
+  results.push({ tier, id, name, ok: Boolean(ok) || !hard, detail, known: true })
+  const tag = ok ? 'ok  ' : hard ? 'FAIL' : 'known-gap'
+  console.log(`${tag} [${tier}/${id}] ${name}${detail ? ' — ' + detail : ''}`)
   return Boolean(ok)
 }
 function skip(tier, reason) {
@@ -265,6 +280,54 @@ if (tools) {
   }
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// tier 4 helpers: mount the workbench plugin the way DSH does, on a fake Cordis context.
+// ---------------------------------------------------------------------------------------------
+function findWorkbench() {
+  const explicit = process.env.CONTRACT_TEST_WORKBENCH
+  if (explicit) return existsSync(explicit) ? explicit : null
+  const root = join(homedir(), '.dsh', 'profiles')
+  if (!existsSync(root)) return null
+  for (const profile of readdirSync(root)) {
+    const candidate = join(root, profile, 'node_modules', '@yakovlev-i-a', 'dsh-openfoam-workbench')
+    if (existsSync(join(candidate, 'lib', 'index.js'))) return candidate
+  }
+  return null
+}
+
+async function mountWorkbench(pkgDir, caseRoot) {
+  const registry = new Map()
+  const services = new Map()
+  const ctx = {
+    tools: { register: (tool) => { registry.set(tool.name, tool); return { dispose: () => {} } }, get: (n) => registry.get(n) ?? null },
+    get: (name) => services.get(name) ?? null,
+    provide: (name, api) => { services.set(name, api); return { dispose: () => {} } },
+    setInterval: () => 0,
+    clearInterval: () => {},
+    on: () => {},
+    effect: () => {},
+    systemPrompt: {
+      mount: () => ({ dispose: () => {} }),
+      section: () => ({ dispose: () => {} }),
+    },
+    skills: { register: () => ({ dispose: () => {} }) },
+  }
+  const mod = await import(pathToFileURL(join(pkgDir, 'lib', 'index.js')).href)
+  mod.apply(ctx, { caseRoots: [caseRoot], responseLanguage: 'en' })
+  return { registry, services }
+}
+
+function listFiles(dir, prefix = '') {
+  const out = []
+  for (const entry of readdirSync(join(dir, prefix), { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) out.push(...listFiles(dir, rel))
+    else out.push(rel)
+  }
+  return out.sort()
+}
+
 // ---------------------------------------------------------------------------------------------
 // tier 3: OpenFOAM (T1/T2/T5/T6 with real meshes)
 // ---------------------------------------------------------------------------------------------
@@ -341,6 +404,66 @@ if (!tools || !bashrc || NO_MESH || !existsSync(stlCube)) {
     const t2Handoff = readHandoff(t2Case)
     check('openfoam', 'T2b', 'T2 the revision rebuilds, records history and reports changes', t2Apply.ok === true && Array.isArray(t2Apply.changes) && t2Apply.changes.length > 0 && (t2Handoff?.history ?? []).some((h) => h.event === 'revision'),
       `verdict ${t2Apply.verdict}, ${t2Apply.changes?.length ?? 0} changes, cells ${t2Apply.rebuilt?.cells}`)
+
+    // T7: the delivery a workbench actually receives — packaged case with its own handoff.json inside.
+    const deliver = await run('mesh_deliver', {
+      caseDir: t1Case, name: 'contract-t1', outDir: join(work, 'deliver'), skipAnsys: true, minVol: 1e-12, gateProfile: 'project',
+    })
+    check('openfoam', 'T7', 'T7 delivery packages the gated case with its own handoff',
+      deliver.ok === true && deliver.verdict === 'DELIVERED' && Boolean(deliver.handoff?.file),
+      `verdict ${deliver.verdict}, handoff ${deliver.handoff?.file ?? deliver.handoff?.error ?? 'n/a'}, rc ${deliver.rc}`)
+    const deliveredCase = deliver.ok && deliver.files?.openfoam ? dirname(deliver.files.openfoam) : null
+
+    // -----------------------------------------------------------------------------------------
+    // tier 4 (M3 seam): the workbench scaffolds the delivered case. This is the block that turns
+    // "mesh + handoff" into "solvable case", and it runs on THEIR code — a red check here is the
+    // earliest signal that the seam broke before anyone notices in a real project.
+    // -----------------------------------------------------------------------------------------
+    console.log('\n== workbench tier (M3 seam) ==')
+    const wbDir = findWorkbench()
+    if (!deliveredCase) {
+      skip('workbench', 'no delivered case (T7 failed)')
+    } else if (!wbDir) {
+      skip('workbench', 'dsh-openfoam-workbench not installed — set CONTRACT_TEST_WORKBENCH=<package dir> to include this tier')
+    } else {
+      try {
+        const wb = await mountWorkbench(wbDir, join(work, 'wb-cases'))
+        const scaffold = wb.registry.get('openfoam_case_scaffold')
+        if (!scaffold) {
+          skip('workbench', `openfoam_case_scaffold not registered by ${wbDir}`)
+        } else {
+          const before = listFiles(deliveredCase)
+          const answer = await scaffold.execute({ casePath: deliveredCase }, { agent: { cwd: deliveredCase } })
+          const after = listFiles(deliveredCase)
+          const added = after.filter((f) => !before.includes(f))
+          // The delivered case already carries controlDict/fvSchemes/fvSolution (our scaffold wrote them), so the
+          // criterion is the state after the call: a complete dictionary set, 0/ fields, and the BCs naming the
+          // case's own patches — i.e. a solvable case without hand edits.
+          const hasDictionaries = ['system/controlDict', 'system/fvSchemes', 'system/fvSolution'].every((f) => after.includes(f))
+          const hasFields = ['0/U', '0/p'].every((f) => after.includes(f))
+          const uText = hasFields ? readFileSync(join(deliveredCase, '0', 'U'), 'utf8') : ''
+          const handoffDoc = readHandoff(deliveredCase)
+          const patchNames = (handoffDoc?.patches ?? []).map((x) => x.name)
+          const bcNames = [...uText.matchAll(/^ {4}([A-Za-z0-9_-]+)\n {4}\{/gm)].map((m) => m[1])
+          const bcUsesPatches = patchNames.length > 0 && patchNames.every((n) => bcNames.includes(n))
+          const missing = patchNames.filter((n) => !bcNames.includes(n))
+          const unexpected = bcNames.filter((n) => !patchNames.includes(n))
+          known('workbench', 'M3',
+            'M3 the workbench scaffolds the delivered case into a solvable case',
+            Boolean(answer?.ok) && hasDictionaries && hasFields && bcUsesPatches,
+            `dictionaries ${hasDictionaries}, fields ${hasFields}, ${added.length} new files; BC patches [${bcNames.join(', ')}] vs mesh [${patchNames.join(', ')}]`
+              + `${missing.length ? `; MISSING ${missing.join(', ')}` : ''}${unexpected.length ? `; unexpected ${unexpected.join(', ')}` : ''}`)
+          // Observation, not a pass/fail: does their scaffold read handoff patch roles yet (Part B / B4)?
+          const handoff = readHandoff(deliveredCase)
+          const roles = (handoff?.patches ?? []).map((p) => `${p.name}:${p.role}`).join(', ')
+          known('workbench', 'M3b', 'M3b the delivered case carries patch roles for the case builder',
+            Boolean(roles) && Boolean(handoff?.next?.length),
+            `handoff roles [${roles}]; next ${handoff?.next?.length ?? 0} suggested call(s)`)
+        }
+      } catch (error) {
+        check('workbench', 'M3', 'M3 the workbench scaffolds the delivered case without hand edits', false, String(error.message).slice(0, 200))
+      }
+    }
   } finally {
     rmSync(work, { recursive: true, force: true })
   }
@@ -367,7 +490,9 @@ console.log('\n== independence (T3) ==')
 // ---------------------------------------------------------------------------------------------
 const failed = results.filter((r) => !r.ok)
 const skipped = results.filter((r) => r.skipped)
+const gaps = results.filter((r) => r.known && !r.ok)
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${skipped.length ? ` (${skipped.length} tier(s) skipped)` : ''}`)
+if (gaps.length) console.log(`known workbench gaps: ${gaps.map((g) => g.id).join(', ')} (set CONTRACT_TEST_REQUIRE_WORKBENCH=1 to make them failures)`)
 if (failed.length) {
   console.log('failed:', failed.map((f) => `${f.tier}/${f.id} ${f.name}`).join(' | '))
   process.exit(1)
