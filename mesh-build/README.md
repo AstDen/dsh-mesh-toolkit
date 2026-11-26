@@ -194,7 +194,8 @@ round-trip ok, 66.6 с; single-region FCC — 27 424 ячейки, 3.5 с.
 - **Знание**: карточка в `data/hints/*.json` (см. формат в mesh-stl/README).
 - **Шаблон кейса**: `lib/scaffold.js` (`writeSnappyCase`) — единственное место, где пишутся словари;
   менять вместе с `node plugins/mesh-build/scripts/smoke.mjs`.
-- После правок — smoke и перезапуск DSH.
+- После правок — smoke и перезагрузка пакета: `plugin_manager set_plugin {target:"include:mesh-build",
+  enabled:false}` → `enabled:true`. Изменённые ESM-модули выгружаются при reload, перезапуск DSH не нужен.
 
 ## Границы
 
