@@ -16,6 +16,9 @@ jobs:
         node: ['20', '24']
     steps:
       - uses: actions/checkout@v4
+        with:
+          # the market-index step confirms the pinned commit is in history
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

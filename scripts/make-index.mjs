@@ -147,10 +147,17 @@ if (CHECK) {
   } else if (!existsSync(join(REPO, '.git'))) {
     problems.push('no .git — cannot confirm the pinned commit is in history')
   } else {
+    // A shallow clone (CI defaults to fetch-depth 1) cannot see older commits, and
+    // reporting that as a broken pin sends people hunting a defect that is not there.
+    const shallow = existsSync(join(REPO, '.git', 'shallow'))
     try {
       execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: REPO, stdio: 'ignore' })
     } catch {
-      problems.push(`pinned commit ${commit} is not in this repository's history — rerun without --check`)
+      if (shallow) {
+        console.log(`pin ${commit.slice(0, 7)} is not in this shallow clone — history check skipped`)
+      } else {
+        problems.push(`pinned commit ${commit} is not in this repository's history — rerun without --check`)
+      }
     }
   }
   if (problems.length > 0) {

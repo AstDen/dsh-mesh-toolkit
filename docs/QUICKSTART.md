@@ -36,6 +36,16 @@ With a checkout, enable each bundle (the installer adds a `link:` dependency and
 in its dependencies, and `plugin_manager list_plugins` shows them enabled. Restart DSH or toggle a bundle
 (`set_plugin` `enabled: false` then `true`) so the modules load.
 
+Before talking to the agent, check the machine from a checkout:
+
+```bash
+node scripts/doctor.mjs   # PASS/WARN/FAIL per area, with the fix for every WARN
+node scripts/demo.mjs     # geometry -> STL QA -> mesh -> gate -> delivery, about 30 s
+```
+
+`demo` writes `.cache/demo/deliver/openfoam_demo/demo.foam`; open it in ParaView to see what the
+pipeline produces before running it on your own geometry (README § 60 seconds has the pictures).
+
 Confirm from the agent side — `mesh_hints()` with no arguments prints the card catalogue and the version block:
 
 ```

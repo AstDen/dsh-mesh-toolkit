@@ -177,3 +177,10 @@ dsh fetches it with redirects disabled, so it must answer 200 directly — raw.g
 Release order: bump the version → commit → `node scripts/make-index.mjs` (pins that commit) → commit
 `market/` → tag. The pinned commit must already contain the root `package.json`, otherwise an install from
 the index gets a tree without the bundle manifest.
+
+
+### Shallow clones
+`node scripts/make-index.mjs --check` validates the committed JSON always, but it can only confirm the
+pinned commit is in history when that object exists locally. In a shallow clone it prints
+`pin <sha> is not in this shallow clone — history check skipped` and still exits 0; the release workflow
+checks out with `fetch-depth: 0`, where the check is real.
