@@ -46,6 +46,13 @@ jobs:
           set -euo pipefail
           tag="${{ github.event.inputs.tag || github.ref_name }}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # A tag carrying a semver prerelease suffix (v1.0.0-rc.1) publishes as a GitHub prerelease,
+          # so "latest" keeps pointing at the last stable release.
+          if [[ "$tag" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
           notes="docs/RELEASE-${tag}.md"
           # Notes are named without the leading "v" (docs/RELEASE-0.7.1.md for tag v0.7.1).
           if [ ! -f "$notes" ] && [ -f "docs/RELEASE-${tag#v}.md" ]; then
@@ -73,10 +80,11 @@ jobs:
           set -euo pipefail
           tag="${{ steps.meta.outputs.tag }}"
           notes="${{ steps.meta.outputs.notes }}"
+          pre="${{ steps.meta.outputs.prerelease }}"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/*.tgz --clobber
-            gh release edit "$tag" --notes-file "$notes"
+            gh release edit "$tag" --notes-file "$notes" --prerelease="$pre"
           else
-            gh release create "$tag" dist/*.tgz --title "${tag#v}" --notes-file "$notes"
+            gh release create "$tag" dist/*.tgz --title "${tag#v}" --notes-file "$notes" --prerelease="$pre"
           fi
           gh release view "$tag" --json tagName,assets --jq '.tagName, (.assets[].name)'
