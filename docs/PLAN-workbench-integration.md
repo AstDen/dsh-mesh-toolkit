@@ -174,14 +174,25 @@ Key principles:
 
 ## 6. Part A — work in dsh-mesh-toolkit
 
-### A1. `handoff.json` in the delivery (C)
+### A1. `handoff.json` in the delivery (C) — ✅ done, 2026-11-26 (0.6.0)
 
-- The writer `plugins/mesh-build/lib/handoff.js`: `buildHandoff({caseDir, request, passport, patches, delivery})`.
-- Written in `mesh_deliver` (next to `delivery_<name>.json`) and in `mesh_check` with `handoff:true`.
-- The fields follow the `mesh-handoff/1` schema (see contract §3.2); patch roles come from `mesh_patch_types` or
-  a heuristic by name (`inlet|outlet|walls|symmetry|interface`), everything unrecognised — `unknown`.
-- Acceptance: on `mesh/a1` the handoff is valid, `quality.verdict == PASS`, `units.scale == 0.001`,
-  `next[]` contains a ready call to `mesh_patch_types` for the single patch `a1-cube`.
+- Writer and readers: `sim-core/lib/handoff.js` — `buildHandoff`, `writeHandoff`, `readHandoff`,
+  `validateHandoff`, plus `scaleFromBlockMeshDict` (snappy `geometry.scale` first, then `blockMeshDict`),
+  `domainFromCase` (bbox from `constant/polyMesh/points`, `hex` cells, `refinementSurfaces` levels,
+  `locationInMesh`), `stlProvenance` (sha256/bytes), `qualityFromGate`, `patchRole`/`roleSummary`.
+- Written by `mesh_check` (`<caseDir>/handoff.json`) and by `mesh_deliver` into the packaged
+  `openfoam_<name>/` case (with `files.delivery` and a `history[]` event); the source case is updated too.
+- Roles come from the patch type first and the name only refines `unknown` (`inlet|outlet|wall|symmetry|
+  cyclic|empty|interface|wedge|unknown`); `next[]` carries the ready `mesh_patch_types` call while inlet/outlet
+  are missing (A2 will execute it).
+- `meshToolkit` service (`apiVersion: 1`, `sim-core/lib/toolkit.js`) registered by both packages:
+  `generate`/`qa`/`hints` from mesh-stl, `mesh`/`gate`/`deliver`/`hints` from mesh-build; absent methods answer
+  `{ok:false, error:'not-provided', available, hint}`.
+- Acceptance measured on `benchmark/runs/20261125-1805/mesh/a1` (fresh node, both plugins applied without DSH):
+  `21/21` checks — handoff valid, `quality.verdict PASS`, `units.scale 0.001` from
+  `system/snappyHexMeshDict`, bbox `[-0.002,-0.002,-0.002]…[0.012,0.012,0.012]`, cells `[20,20,20]`, level
+  `a1-cube (2 2)`, patches `world:symmetry`, `a1-cube:wall`, `next[]` = `mesh_patch_types` with
+  `walls:["a1-cube"]`, STL sha256 present, delivery copies the handoff and records the `delivered` event.
 
 ### A2. `mesh_patch_types` (C)
 

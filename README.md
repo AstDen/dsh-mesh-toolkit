@@ -2,11 +2,13 @@
 
 [![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
 
-> **0.5.4** · packages: mesh-build 0.5.4 · mesh-stl 0.3.6 · sim-core 0.4.4 · Three packages for **DeepSeek Harness**: a shared core plus two
+> **0.6.0** · packages: mesh-build 0.6.0 · mesh-stl 0.4.0 · sim-core 0.5.0 · Three packages for **DeepSeek Harness**: a shared core plus two
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 21–35 searchable knowledge
 > cards per catalog, no build step. Meshing routes adapt to OpenFOAM.com **or** OpenFOAM.org.
+> Every checked case carries a `handoff.json` (schema `mesh-handoff/1`) for a solver-side workbench,
+> and the optional `meshToolkit` service (`apiVersion: 1`) lets one call mesh, gate and deliver.
 
 | Package | Jobs | Tools |
 |---|---|---|

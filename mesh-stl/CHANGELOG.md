@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — 2026-11-26
+
+- **plan A1 (workbench contract)**: contributes `generate`, `qa` and `hints` to the new `meshToolkit`
+  service (`apiVersion: 1`), which the solver-side workbench resolves at call time. The package works
+  exactly as before when the service is never requested, and the geometry half is available even when
+  mesh-build is not installed.
+
 ## 0.3.6 — 2026-11-26
 
 - `files` now includes `generators/`: without it `npm pack` lost the python generators, and the families

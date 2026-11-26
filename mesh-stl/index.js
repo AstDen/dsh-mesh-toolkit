@@ -17,6 +17,7 @@ import {
   catalogFamilies, loadRegistry, qaFile, runFamily,
 } from './lib/generators.js'
 import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
+import { ensureToolkit } from '../sim-core/lib/toolkit.js'
 import { appendRegistryRow, formatBbox, registryFilePath } from './lib/registry.js'
 import { SKILL } from './lib/skill.js'
 
@@ -266,4 +267,10 @@ export function apply(ctx, rawConfig) {
     generate: (args, exec) => handlers.stl_generate(args, exec),
     qa: (args, exec) => handlers.stl_check(args, exec),
   })
+
+  // Contribute the geometry half of meshToolkit; mesh-build adds mesh/gate/deliver to the same object.
+  const toolkit = ensureToolkit(ctx)
+  toolkit.register('generate', (args, exec) => handlers.stl_generate(args, exec), { plugin: name, version, tool: 'stl_generate' })
+  toolkit.register('qa', (args, exec) => handlers.stl_check(args, exec), { plugin: name, version, tool: 'stl_check' })
+  toolkit.register('hints', (args, exec) => handlers.stl_hints(args, exec), { plugin: name, version, tool: 'stl_hints' })
 }

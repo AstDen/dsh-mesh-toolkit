@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0 — 2026-11-26
+
+- **plan A1 (workbench contract)**: `mesh_check` and `mesh_deliver` now write `handoff.json`
+  (`mesh-handoff/1`) into the case. The document carries only facts read from the case: `units.scale` from
+  `snappyHexMeshDict geometry { scale }` (falling back to `blockMeshDict scale`/`convertToMeters`), domain
+  bbox from `constant/polyMesh/points`, background cells and surface levels from the dictionaries, quality
+  from the gate that just ran, every boundary patch with a contract `role`, the STL sha256, and `next[]`
+  with the patch-retyping step while inlet/outlet are missing.
+- `mesh_deliver` copies the handoff into the packaged `openfoam_<name>/` case (with `files.delivery` and a
+  `history[]` event), so a solver-side workbench can read it without our tools.
+- New `meshToolkit` service (`apiVersion: 1`, `plugins/sim-core/lib/toolkit.js`): registers `mesh`, `gate`,
+  `deliver`, `hints`; the consumer resolves it at call time via `ctx.get('meshToolkit')`. Absent methods
+  (`revise`, `patchTypes`) answer with a structured `{ok:false, error:'not-provided', hint}` instead of throwing.
+- `simMesh` capability service also exposes `deliver`.
+
 ## 0.5.4 — 2026-11-26
 
 - `files` now includes `docs/`: the `docs/PORTABLE.md` referenced by the README makes it into `npm pack`

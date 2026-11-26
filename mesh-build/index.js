@@ -23,6 +23,8 @@ import {
   catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
 import { readCasePatches } from './lib/patches.js'
+import { buildHandoff, qualityFromGate, writeHandoff } from '../sim-core/lib/handoff.js'
+import { ensureToolkit } from '../sim-core/lib/toolkit.js'
 import {
   buildCaseManifest, buildMeshPassport, passportFreshness, readMeshPassport,
   writeCaseManifest, writeMeshPassport,
@@ -565,10 +567,51 @@ export function apply(ctx, rawConfig) {
       try {
         patches = readCasePatches(caseDir)
       } catch { /* ignore */ }
+      // File channel for a solver-side workbench (mesh-handoff/1): facts read from the case, no guesses.
+      let handoff = null
+      try {
+        const flatPatches = (patches?.entries ?? []).flatMap((entry) => (entry.patches ?? []).map((p) => ({ ...p, region: entry.region ?? null })))
+        const doc = buildHandoff({
+          caseDir,
+          producer: {
+            plugin: name,
+            version: diskVersion(),
+            openfoam: {
+              distribution: config.foam?.distribution ?? null,
+              version: config.foam?.version ?? null,
+              bashrc: config.openfoamBashrc || null,
+            },
+          },
+          units: config.units === 'm' ? 'm' : 'mm',
+          mesh: {
+            route: passport?.route ?? 'existing-case',
+            cells: passport?.cells ?? null,
+            regions: gate.regions ?? [],
+            layers: gate.layers
+              ? { nLayers: gate.layers.nLayers ?? null, coverage: gate.layers.coverage ?? null }
+              : { nLayers: null, coverage: null },
+          },
+          quality: qualityFromGate({
+            profile: args.profile ?? config.gate?.profile,
+            minVol: args.minVol ?? gate.results?.[0]?.minVol ?? null,
+            verdict: gate.verdict,
+            targets: gate.results ?? [],
+            passport: passport ? { status: freshness?.status ?? null, createdAt: passport.createdAt } : null,
+          }),
+          patches: flatPatches,
+          next: gate.pass ? [] : [{ tool: 'mesh_check', args: { caseDir: '.' } }],
+        })
+        handoff = writeHandoff(caseDir, doc)
+      } catch (error) {
+        handoff = { error: error.message }
+      }
       return {
         configured: true,
         version: versionBlock(),
         caseDir: displayPath(config, caseDir),
+        handoff: handoff && handoff.file
+          ? { file: displayPath(config, handoff.file), bytes: handoff.bytes, verdict: handoff.handoff?.quality?.verdict ?? null, patches: handoff.handoff?.patches?.length ?? 0, next: handoff.handoff?.next ?? [] }
+          : handoff,
         profile: args.profile ?? config.gate?.profile,
         verdict: gate.verdict,
         patches,
@@ -657,9 +700,50 @@ export function apply(ctx, rawConfig) {
         reportMd: `${outDir}/delivery_${result.plan.name}.md`,
         log: `${outDir}/deliver.log`,
       }
+      // The packaged case carries its own handoff so a workbench can read it without our tools.
+      let handoff = null
+      if (!result.dryRun && result.ok) {
+        try {
+          const pkgCase = join(result.plan.outDir, `openfoam_${result.plan.name}`)
+          const pkgPatches = readCasePatches(pkgCase)
+          const flat = (pkgPatches?.entries ?? []).flatMap((entry) => (entry.patches ?? []).map((p) => ({ ...p, region: entry.region ?? null })))
+          const doc = buildHandoff({
+            caseDir: pkgCase,
+            producer: {
+              plugin: name,
+              version: diskVersion(),
+              openfoam: {
+                distribution: config.foam?.distribution ?? null,
+                version: config.foam?.version ?? null,
+                bashrc: config.openfoamBashrc || null,
+              },
+            },
+            units: config.units === 'm' ? 'm' : 'mm',
+            mesh: { route: result.payload?.route ?? null, cells: result.payload?.cells ?? null, regions: result.plan.regions ?? [] },
+            quality: {
+              profile: result.plan.gateProfile,
+              minVol: result.plan.minVol ?? null,
+              verdict: 'PASS',
+              maxNonOrtho: result.payload?.maxNonOrtho ?? null,
+              violations: [],
+              passport: null,
+            },
+            patches: flat,
+            files: { delivery: `deliver/delivery_${result.plan.name}.json` },
+            history: [{ event: 'delivered', at: new Date().toISOString(), name: result.plan.name }],
+          })
+          const written = writeHandoff(pkgCase, doc)
+          handoff = { file: `${outDir}/openfoam_${result.plan.name}/handoff.json`, bytes: written.bytes }
+          // keep the source case in sync: same document, delivery path relative to it
+          try { writeHandoff(result.plan.caseDir, doc) } catch { /* read-only source case */ }
+        } catch (error) {
+          handoff = { error: error.message }
+        }
+      }
       return {
         configured: true,
         tool: 'mesh_deliver',
+        handoff,
         verdict: result.dryRun ? 'PLANNED' : result.ok ? 'DELIVERED' : 'FAILED',
         ok: result.ok === true,
         dryRun: result.dryRun === true,
@@ -695,7 +779,7 @@ export function apply(ctx, rawConfig) {
   provideService(ctx, 'simMesh', {
     version: CAPABILITIES.simMesh,
     owner: name,
-    capabilities: ['hints', 'build', 'check'],
+    capabilities: ['hints', 'build', 'check', 'deliver'],
     invoke: (tool, args, exec) => {
       const handler = handlers[tool]
       if (!handler) throw new Error(`simMesh: unknown tool "${tool}"`)
@@ -704,5 +788,14 @@ export function apply(ctx, rawConfig) {
     hints: (args, exec) => handlers.mesh_hints(args, exec),
     build: (args, exec) => handlers.mesh_build(args, exec),
     check: (args, exec) => handlers.mesh_check(args, exec),
+    deliver: (args, exec) => handlers.mesh_deliver(args, exec),
   })
+
+  // meshToolkit (apiVersion 1): the contract-level facade a solver-side workbench resolves at call
+  // time. mesh-stl contributes generate/qa into the same object; absent methods answer structurally.
+  const toolkit = ensureToolkit(ctx)
+  toolkit.register('mesh', (args, exec) => handlers.mesh_build(args, exec), { plugin: name, version, tool: 'mesh_build' })
+  toolkit.register('gate', (args, exec) => handlers.mesh_check(args, exec), { plugin: name, version, tool: 'mesh_check' })
+  toolkit.register('deliver', (args, exec) => handlers.mesh_deliver(args, exec), { plugin: name, version, tool: 'mesh_deliver' })
+  toolkit.register('hints', (args, exec) => handlers.mesh_hints(args, exec), { plugin: name, version, tool: 'mesh_hints' })
 }

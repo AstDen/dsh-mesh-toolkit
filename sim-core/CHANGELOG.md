@@ -1,5 +1,18 @@
 # Changelog — sim-core
 
+## 0.5.0 — 2026-11-26
+
+- **`lib/handoff.js` — `mesh-handoff/1`** (plan A1, docs/WORKBENCH-CONTRACT.md §3.2): `buildHandoff`,
+  `writeHandoff`, `readHandoff`, `validateHandoff`, plus the readers the document is built from —
+  `scaleFromBlockMeshDict` (snappy `geometry.scale` first, then `blockMeshDict`), `domainFromCase`
+  (bbox from `constant/polyMesh/points`, `hex` cells, `refinementSurfaces` levels, `locationInMesh`),
+  `stlProvenance` (sha256/bytes), `qualityFromGate`, `patchRole`/`roleSummary`.
+- **`lib/toolkit.js` — `meshToolkit` service, apiVersion 1**: `ensureToolkit(ctx)`, lazy per-method
+  registration by whichever package is installed, `capabilities()`/`providers()`, typed shims
+  (`generate`, `mesh`, `revise`, `patchTypes`, `gate`, `deliver`) and `missingToolkitPayload` for
+  consumers that cannot resolve the service. Methods return the tool payload; absent ones return
+  `{ok:false, error:'not-provided', available, hint}`.
+
 ## 0.4.4 — 2026-11-26
 
 - The default quality profile in the no-`sim-project.json` mode is `project` (60° / skew 2 / boundary 4),

@@ -7,9 +7,10 @@ are in [`PLAN-workbench-integration.md`](PLAN-workbench-integration.md).
 Tracked upstream as https://github.com/yakovlev-i-a/dsh-openfoam-workbench/issues/1 — discuss there,
 or open a separate issue for a specific item.
 
-Status of the mesh-toolkit side: the contract is published, the implementation of the provider
-(`handoff.json`, the `meshToolkit` service, `mesh_patch_types`, `mesh_revise`) is in progress and will
-ship as mesh-toolkit `0.6.x`. Workbench can adopt the file contract first — it needs no code from us.
+Status of the mesh-toolkit side (2026-11-26): **`handoff.json` and the `meshToolkit` service ship in
+0.6.0** — `mesh_check`/`mesh_deliver` write the handoff, and the service answers `generate`, `qa`, `mesh`,
+`gate`, `deliver` (`revise` and `patchTypes` still answer `not-provided` until A2/A3). Workbench can adopt the
+file contract today; reading `handoff.json` and its patch roles needs no code from us.
 
 ---
 
