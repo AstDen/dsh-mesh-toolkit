@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-rc.1 — 2026-11-26
+
+First release candidate of the 1.0 line; the three packages are versioned together from here on.
+Bundles everything from 0.7.0–0.7.5: the revision loop (`mesh_revise`), `mesh_first_layer`, domain modes
+and unit suspicion in the scaffold (`domain`, `targetCells`, `assumeUnits`), `mesh_surface_check` (surface
+fidelity from `polyMesh` in JS, clip detection), `mesh_capabilities` (probing the installed dictionaries),
+and the T1–T6 contract suite with a workbench tier.
+
+Packaging and docs for the release: `docs/QUICKSTART.md` (five verified calls, measured numbers),
+`docs/TROUBLESHOOTING.md` (literal strings → cause → fix), the tier table in `docs/PACKAGING.md`.
+No behaviour change relative to 0.7.5.
+
 ## 0.7.5 — 2026-11-26
 
 Plan A9 of the workbench contract: the two-way acceptance suite runs in the repository.

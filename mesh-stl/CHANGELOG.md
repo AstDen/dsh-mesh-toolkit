@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.1 — 2026-11-26
+
+Version aligned with the toolkit 1.0 release candidate (the three packages are versioned together from here on).
+Functional content is 0.4.1: cone/pipe/`parts[]` primitives with analytic volumes, nine generator families
+(python families packaged under `generators/`, JS built-ins `primitive`, `stratified-channel`, `box-array`),
+in-process JS QA with `qa.engine: js|python` and 15/15 parity against the python reference.
+No behaviour change relative to 0.4.1.
+
 ## 0.4.1 — 2026-11-26
 
 - **plan A4 (workbench contract)**: the built-in `primitive` family gained `cone` (with an apex and a truncated

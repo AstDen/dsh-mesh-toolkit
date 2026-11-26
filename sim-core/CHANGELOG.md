@@ -1,5 +1,13 @@
 # Changelog — sim-core
 
+## 1.0.0-rc.1 — 2026-11-26
+
+Version aligned with the toolkit 1.0 release candidate (the three packages are versioned together from here on).
+Functional content is 0.5.1: `handoff.json` (`mesh-handoff/1`) with units, roles and suggested calls, the
+`meshToolkit` service shim, the JS quality gate with `ensureGateDicts` overlays, intent-first hint ranking
+with deduplicated file counts, and portable mode defaults.
+No behaviour change relative to 0.5.1.
+
 ## 0.5.1 — 2026-11-26
 
 - `hints.js`: `registerDir` counts each hint file once, so a long-lived DSH process that re-registers the same

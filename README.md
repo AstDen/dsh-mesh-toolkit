@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
 
-> **0.7.5** · packages: mesh-build 0.7.5 · mesh-stl 0.4.1 · sim-core 0.5.1
+> **1.0.0-rc.1** · packages: mesh-build 1.0.0-rc.1 · mesh-stl 1.0.0-rc.1 · sim-core 1.0.0-rc.1
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Seven tools, 21–35 searchable knowledge
@@ -49,6 +49,9 @@ After editing `index.js`, `lib/*` or `data/*.json`, reload with disable → enab
 a repeated `enabled: true` reports `changed: false` and does not re-import.
 
 Disable with `set_plugin` `enabled: false`; remove with `remove_bundle` (bundle package name).
+
+First run: [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — five calls from nothing to a gated, delivered mesh.
+Error strings: [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
 Smoke tests without a DSH host (need the project, or `MESH_*_PROJECT_ROOT`):
 
@@ -186,6 +189,8 @@ and packings) for a quick evaluation pass.
 README.md                 this file
 benchmark/TESTS.md         universal regression suite (A–V, L)
 benchmark/PROMPT.md       shorter two-task evaluation protocol
+docs/QUICKSTART.md        five calls from nothing to a gated, delivered mesh
+docs/TROUBLESHOOTING.md   literal error strings → cause → fix
 docs/extending.md         data schemas, routes, thresholds, reload rule
 docs/PORTABLE.md          working without sim-project.json
 docs/WORKBENCH-CONTRACT.md  mesh-toolkit ↔ openfoam-workbench contract (schemas, roles, loop)

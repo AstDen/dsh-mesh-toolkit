@@ -13,7 +13,7 @@ degrade to `SKIP` instead of failing:
 | library | always | `meshToolkit` apiVersion/refusals, `mesh-handoff/1` validation, role aliases and refusals, the advice table (y+, escalation, route downgrade), unit suspicion |
 | tools | the packages are importable (`plugins/*/node_modules` linked to a DSH checkout) | the ambiguous-units question through `mesh_build` (T4) |
 | OpenFOAM | a bashrc resolves (`CONTRACT_TEST_BASHRC`, else `/usr/lib/openfoam/openfoam2512/etc/bashrc`) | T1 mesh→gate→handoff, T5 roles with unchanged metrics, T6 rebuild after a broken partial mesh, T2 y+ feedback → revise, T7 delivery with its own `handoff.json` |
-| workbench | `@yakovlev-i-a/dsh-openfoam-workbench` is installed (`CONTRACT_TEST_WORKBENCH=<package dir>`) | M3 — their `openfoam_case_scaffold` turns the delivered case into a solvable case; M3b — the handoff carries patch roles. Failures here are reported as `known-gap` (the seam's other half lives in their repository) and become hard failures with `CONTRACT_TEST_REQUIRE_WORKBENCH=1`. |
+| workbench | `@yakovlev-i-a/dsh-openfoam-workbench` is installed (`CONTRACT_TEST_WORKBENCH=<package dir>`) | M3 — their `openfoam_case_scaffold` turns the delivered case into a solvable case; M3b — the handoff carries patch roles; M3c — a hyphenated patch name survives their boundary parser. Failures here are reported as `known-gap` (the seam's other half lives in their repository) and become hard failures with `CONTRACT_TEST_REQUIRE_WORKBENCH=1`. |
 
 CI runs `node scripts/contract-test.mjs --no-mesh` (library tier + independence), because a bare runner has neither
 DSH nor OpenFOAM. A developer machine runs the full suite:
@@ -127,7 +127,9 @@ line that must be replaced by content), updates the banner in the root README an
 
 ### Known gap in the workbench seam (measured 2026-11-26)
 
-The workbench tier currently reports `known-gap workbench/M3`. Cause, reproduced with a solver run:
+M3 passes on a plain name (`cube`) and M3c reports `known-gap` on a hyphenated one. Both run on their code, and
+M3c needs no solver — it builds a 10 mm box whose STL stem is `a1-cube`, delivers it, runs their scaffold and
+diffs `handoff.patches[]` against the `0/U` `boundaryField`. The cause, first reproduced with a solver run:
 
 `@yakovlev-i-a/dsh-openfoam-workbench` 0.9.22 `lib/of-engine.js:972` `parseBoundaryPatches` matches patch names with
 `/(\w+)\s*\{([^}]*)\}/g`. `\w` excludes `-`, so a legal OpenFOAM patch name `a1-cube` is read as `cube`: their
@@ -140,4 +142,6 @@ Cannot find patchField entry for a1-cube
 
 Any of our deliveries whose patches contain a hyphen (an STL named `a1-cube.stl` produces exactly that) cannot be
 scaffolded by them until this is fixed on their side. Until then a caller should pass `patches` explicitly or use
-underscored surface names.
+underscored surface names. When they ship the fix, `CONTRACT_TEST_REQUIRE_WORKBENCH=1 node
+scripts/contract-test.mjs` starts failing on M3c — that is the signal to flip the check back to a hard one.
+

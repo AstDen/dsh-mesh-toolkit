@@ -22,7 +22,7 @@
  */
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -339,10 +339,18 @@ const BASHRC_CANDIDATES = [
   join(REPO, 'env', 'openfoam', 'com2606', 'usr', 'lib', 'openfoam', 'openfoam2606', 'etc', 'bashrc'),
 ].filter(Boolean)
 const bashrc = BASHRC_CANDIDATES.find((p) => existsSync(p))
-const stlCube = process.env.CONTRACT_TEST_STL || join(REPO, 'benchmark', 'runs', '20261125-1805', 'stl', 'a1', 'a1-cube.stl')
+// Fixture: the benchmark cube when the project tree is at hand, otherwise a 10 mm box written here,
+// so the tier runs in the published clone as well (CONTRACT_TEST_STL overrides both).
+const benchmarkCube = join(REPO, 'benchmark', 'runs', '20261125-1805', 'stl', 'a1', 'a1-cube.stl')
+const fixtureDir = mkdtempSync(join(tmpdir(), 'contract-stl-'))
+const stlCube = process.env.CONTRACT_TEST_STL
+  || (existsSync(benchmarkCube) ? benchmarkCube : join(fixtureDir, 'cube.stl'))
+if (!existsSync(stlCube)) writeFileSync(stlCube, boxStl(-5, -5, -5, 10, 10, 10))
+// snappy names surfaces after the STL stem, so the patch name follows the fixture.
+const surface = basename(stlCube).replace(/\.stl$/i, '')
 
-if (!tools || !bashrc || NO_MESH || !existsSync(stlCube)) {
-  skip('openfoam', !tools ? 'tool tier unavailable' : NO_MESH ? '--no-mesh' : !bashrc ? 'no OpenFOAM bashrc found' : `fixture missing: ${stlCube}`)
+if (!tools || !bashrc || NO_MESH) {
+  skip('openfoam', !tools ? 'tool tier unavailable' : NO_MESH ? '--no-mesh' : 'no OpenFOAM bashrc found')
 } else {
   const work = mkdtempSync(join(tmpdir(), 'contract-mesh-'))
   const run = (name, args) => tools.call(name, { openfoam: bashrc, ...args })
@@ -368,11 +376,11 @@ if (!tools || !bashrc || NO_MESH || !existsSync(stlCube)) {
       `scale ${t1Handoff?.units?.scale}, ${t1Handoff?.patches?.length ?? 0} patches, next ${t1Handoff?.next?.length ?? 0}`)
 
     // T5: patch roles by retyping, and the gate numbers must not move.
-    const t5 = await run('mesh_patch_types', { caseDir: t1Case, roles: { walls: ['a1-cube'], symmetry: ['world'] }, recheck: true, profile: 'project', minVol: 1e-12 })
+    const t5 = await run('mesh_patch_types', { caseDir: t1Case, roles: { walls: [surface], symmetry: ['world'] }, recheck: true, profile: 'project', minVol: 1e-12 })
     const t5Handoff = readHandoff(t1Case)
     check('openfoam', 'T5', 'T5 roles applied and the recheck reproduces the metrics',
       t5.recheck?.verdict === 'PASS' && t5.recheck?.sameAsRecorded === true
-        && (t5Handoff?.roles?.wall ?? []).includes('a1-cube') && (t5Handoff?.roles?.symmetry ?? []).includes('world'),
+        && (t5Handoff?.roles?.wall ?? []).includes(surface) && (t5Handoff?.roles?.symmetry ?? []).includes('world'),
       `error ${t5.error ?? 'none'}, recheck ${t5.recheck?.verdict}, sameAsRecorded ${t5.recheck?.sameAsRecorded}, wall ${JSON.stringify(t5Handoff?.roles?.wall ?? [])}, symmetry ${JSON.stringify(t5Handoff?.roles?.symmetry ?? [])}`)
 
     // T6: an interrupted build must not leave the case unusable — rebuild over the broken state.
@@ -459,6 +467,34 @@ if (!tools || !bashrc || NO_MESH || !existsSync(stlCube)) {
           known('workbench', 'M3b', 'M3b the delivered case carries patch roles for the case builder',
             Boolean(roles) && Boolean(handoff?.next?.length),
             `handoff roles [${roles}]; next ${handoff?.next?.length ?? 0} suggested call(s)`)
+
+          // M3c: a hyphenated patch name, which OpenFOAM allows and their parser truncated (0.9.22,
+          // lib/of-engine.js:972, /(\w+)\s*\{([^}]*)\}/g -> "a1-cube" became "cube"). Kept as a known-gap so
+          // the regression shows up here the day they fix it, without failing our own suite.
+          const hyphenStl = join(work, 'a1-cube.stl')
+          writeFileSync(hyphenStl, boxStl(-5, -5, -5, 10, 10, 10))
+          const hyCase = join(work, 'hyphen')
+          const hyBuild = await run('mesh_build', {
+            route: 'snappy', caseDir: hyCase, scaffold: true, stl: [hyphenStl], np: 1,
+            scaffoldOptions: { domainMin: [-0.004, -0.004, -0.004], domainMax: [0.014, 0.014, 0.014], cells: [14, 14, 14], locationInMesh: [0.006, 0.006, 0.006], minVol: 1e-12 },
+            gate: false,
+          })
+          const hyCheck = hyBuild.ok ? await run('mesh_check', { caseDir: hyCase, profile: 'project', minVol: 1e-12 }) : null
+          const hyDeliver = hyCheck?.verdict === 'PASS'
+            ? await run('mesh_deliver', { caseDir: hyCase, name: 'contract-hy', outDir: join(work, 'hy-deliver'), skipAnsys: true, minVol: 1e-12, gateProfile: 'project' })
+            : null
+          const hyPkg = hyDeliver?.files?.openfoam ? dirname(hyDeliver.files.openfoam) : null
+          if (!hyPkg) {
+            skip('workbench', 'M3c needs a delivered hyphenated case (build/deliver failed)')
+          } else {
+            const hyAnswer = await scaffold.execute({ casePath: hyPkg }, { agent: { cwd: hyPkg } })
+            const hyU = existsSync(join(hyPkg, '0', 'U')) ? readFileSync(join(hyPkg, '0', 'U'), 'utf8') : ''
+            const hyNames = (readHandoff(hyPkg)?.patches ?? []).map((x) => x.name)
+            const hyBc = [...hyU.matchAll(/^ {4}([A-Za-z0-9_-]+)\n {4}\{/gm)].map((m) => m[1])
+            known('workbench', 'M3c', 'M3c a hyphenated patch name survives their boundary parser',
+              Boolean(hyAnswer?.ok) && hyNames.every((n) => hyBc.includes(n)),
+              `mesh patches [${hyNames.join(', ')}] vs 0/U patches [${hyBc.join(', ')}]`)
+          }
         }
       } catch (error) {
         check('workbench', 'M3', 'M3 the workbench scaffolds the delivered case without hand edits', false, String(error.message).slice(0, 200))

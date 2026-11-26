@@ -187,11 +187,11 @@ a check of `0/`, `system/fvSchemes`, `openfoam_check` with no errors. In CI — 
 
 | Milestone | Content | Outcome |
 |---|---|---|
-| M1 (days 1–4) | 1.1–1.4 | the toolkit installs into an empty directory, 3 families + snappy work |
-| M2 (days 5–6) | 2.1–2.4 | CI green, versions/CHANGELOG automated, the installation channel chosen |
-| M3 (days 7–9) | 3.1–3.5 | "mesh → solvable case" in 2 tool calls per the contract |
-| 1.0.0-rc.1 | M1+M2 + QUICKSTART/TROUBLESHOOTING | public pre-release |
-| 1.0.0 | + M3 + acceptance on someone else's machine | GA |
+| M1 (days 1–4) | 1.1–1.4 | the toolkit installs into an empty directory, 3 families + snappy work — ✅ 2026-11-26 |
+| M2 (days 5–6) | 2.1–2.4 | CI green, versions/CHANGELOG automated, the installation channel chosen — ✅ 2026-11-26 |
+| M3 (days 7–9) | 3.1–3.5 | "mesh → solvable case" in 2 tool calls per the contract — 🟡 our half done (handoff, roles, revise, contract tier); the workbench half (Part B) is theirs |
+| 1.0.0-rc.1 | M1+M2 + QUICKSTART/TROUBLESHOOTING | public pre-release — ✅ tagged 2026-11-26 |
+| 1.0.0 | + M3 + acceptance on someone else's machine | GA — pending: second-machine acceptance, Part B merge |
 
 ## Risks
 

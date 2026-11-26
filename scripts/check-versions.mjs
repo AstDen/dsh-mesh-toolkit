@@ -17,6 +17,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PACKAGES = ['mesh-build', 'mesh-stl', 'sim-core']
 const PLUGINS = new Set(['mesh-build', 'mesh-stl'])
 const README_BANNER = /^> \*\*([^*]+)\*\* · packages: mesh-build (\S+) · mesh-stl (\S+) · sim-core (\S+)/m
+// X.Y.Z, or a semver prerelease such as 1.0.0-rc.1
+const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/
 
 const problems = []
 const versions = new Map()
@@ -29,15 +31,15 @@ for (const pkg of PACKAGES) {
   const manifest = readJson(join(ROOT, pkg, 'package.json'))
   const version = manifest.version
   versions.set(pkg, version)
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) {
-    problems.push(`${pkg}: package.json version ${JSON.stringify(version)} is not X.Y.Z`)
+  if (typeof version !== 'string' || !SEMVER.test(version)) {
+    problems.push(`${pkg}: package.json version ${JSON.stringify(version)} is not X.Y.Z or X.Y.Z-prerelease`)
   }
 
   const changelog = join(ROOT, pkg, 'CHANGELOG.md')
   if (!existsSync(changelog)) {
     problems.push(`${pkg}: CHANGELOG.md is missing`)
   } else {
-    const heading = readFileSync(changelog, 'utf8').match(/^## (\d+\.\d+\.\d+)/m)
+    const heading = readFileSync(changelog, 'utf8').match(/^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?)/m)
     if (!heading) problems.push(`${pkg}: CHANGELOG.md has no "## X.Y.Z" heading`)
     else if (heading[1] !== version) problems.push(`${pkg}: CHANGELOG says ${heading[1]}, package.json says ${version}`)
   }
