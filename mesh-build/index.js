@@ -6,7 +6,7 @@
  * data/hints/*.json, so the toolset can be grown or trimmed by editing data, not code.
  * @module mesh-build
  */
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -24,6 +24,7 @@ import {
 } from './lib/routes.js'
 import { readCasePatches } from './lib/patches.js'
 import { applyRoleAssignments, applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
+import { loadAdvice, planRevision } from './lib/revise.js'
 import { buildHandoff, qualityFromGate, readHandoff, writeHandoff } from '../sim-core/lib/handoff.js'
 import { ensureToolkit } from '../sim-core/lib/toolkit.js'
 import {
@@ -63,7 +64,7 @@ const jsonOutput = { schema: { type: 'json' }, render: (_args, value) => text(va
 const SCAFFOLD_KEYS = [
   'domainMin', 'domainMax', 'cells', 'cellSize', 'locationInMesh', 'locationsInMesh',
   'refinementLevels', 'defaultLevel', 'layerSurfaces', 'nLayers', 'layerThickness',
-  'minThickness', 'symmetryDomain', 'minVol', 'maxNonOrtho', 'resolveFeatureAngle',
+  'minThickness', 'symmetryDomain', 'minVol', 'maxNonOrtho', 'resolveFeatureAngle', 'expansionRatio', 'minTwist',
 ]
 
 /** Last "Added N out of M cells (P%)" line from a snappy log. */
@@ -654,6 +655,209 @@ export function apply(ctx, rawConfig) {
   })
 
   register({
+    name: 'mesh_revise',
+    description: 'Plan A3: turn a mesh-feedback/1 document into the NEXT revision of the mesh. The reaction table is data '
+      + '(data/advice.json): category -> ladder of ops -> ceiling, and the rung is counted from the revisions recorded in '
+      + 'handoff.json. apply:false (default) returns the plan; apply:true rebuilds with mesh_build (scaffold, same STL and '
+      + 'domain from the handoff), re-runs mesh_check, appends the revision to history[]. Category patch-roles calls '
+      + 'mesh_patch_types instead of rebuilding; stl-quality stops and asks for stl_check + cleanup. After the ceiling the '
+      + 'tool returns {ok:false, escalated:true, options:[...]} instead of repeating parameters.',
+    parameters: {
+      caseDir: { type: 'string', description: 'Case directory (relative to the project root or absolute inside it).' },
+      feedback: { type: 'object', additionalProperties: true, description: 'mesh-feedback/1 document: {schemaVersion, requestId, attempt, category, severity, evidence{metrics}, expected, changes, note}.' },
+      feedbackFile: { type: 'string', description: 'Alternative to feedback: path to a mesh-feedback/1 JSON file.' },
+      attempt: { type: 'number', description: 'Attempt number (default: feedback.attempt, else the number of earlier revisions of this category + 1).' },
+      apply: { type: 'boolean', description: 'false (default) = plan only; true = rebuild now.' },
+      profile: { type: 'string', description: 'Gate profile for the re-check: project (default), gate or relaxed.' },
+      minVol: { type: 'number', description: 'Absolute minVol for the re-check; default: the value recorded in handoff.json.' },
+      np: { type: 'number', description: 'Parallel subdomains for the rebuild (default from config).' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id or an absolute bashrc path.' },
+    },
+    async execute(args, config) {
+      const caseDir = resolveCase(config, args, { mustExist: true, hint: 'mesh_revise needs an existing case with handoff.json' })
+      let feedback = args.feedback ?? null
+      if (!feedback && args.feedbackFile) {
+        const file = resolveProjectPath(config, args.feedbackFile)
+        if (!existsSync(file)) return { error: `feedback file not found: ${displayPath(config, file)}` }
+        try {
+          feedback = JSON.parse(readFileSync(file, 'utf8'))
+        } catch (error) {
+          return { error: `feedback file is not valid JSON (${displayPath(config, file)}): ${error.message}` }
+        }
+      }
+      if (!feedback) return { error: 'feedback is required (a mesh-feedback/1 object) — or pass feedbackFile' }
+
+      const handoff = readHandoff(caseDir)
+      if (!handoff) {
+        return {
+          error: `no handoff.json in ${displayPath(config, caseDir)}: run mesh_check first — the revision needs the baseline (route, domain, levels, minVol) it is judged against`,
+        }
+      }
+      const loaded = loadAdvice(join(config.packageRoot, 'data'))
+      if (loaded.error) return { error: loaded.error }
+
+      const plan = planRevision({ feedback, handoff: { ...handoff, caseDir }, advice: loaded.advice, attempt: args.attempt })
+      const base = {
+        caseDir: displayPath(config, caseDir),
+        category: plan.category ?? feedback.category ?? null,
+        attempt: plan.attempt ?? null,
+      }
+      if (!plan.ok) {
+        return {
+          ...base,
+          ok: false,
+          escalated: plan.escalated === true,
+          plan,
+          options: plan.options ?? null,
+          problems: plan.problems,
+          next: plan.escalated
+            ? ['show options to the user (contract §3.4) and start a new attempt with the chosen variant']
+            : ['fix the feedback document (or add the missing evidence) and call mesh_revise again'],
+        }
+      }
+      if (!args.apply) {
+        return {
+          ...base,
+          ok: true,
+          dryRun: true,
+          plan,
+          next: [`apply:true rebuilds with: ${plan.actions.map((a) => a.action).join('; ')}`],
+        }
+      }
+      if (plan.stop === 'stl-quality') {
+        return {
+          ...base,
+          ok: false,
+          verdict: 'BLOCKED',
+          plan,
+          next: ['run stl_check({ stl, cleanup: true }) on the geometry, then rebuild from the cleaned file (mesh_build) and mesh_revise again'],
+        }
+      }
+
+      // patch-roles: retype the boundary, no rebuild
+      if (plan.request?.patchRoles) {
+        const summary = await handlers.mesh_patch_types({
+          caseDir,
+          roles: plan.request.patchRoles,
+          recheck: true,
+          profile: args.profile ?? config.gate?.profile,
+          minVol: args.minVol,
+        })
+        return { ...base, ok: summary?.verdict === 'PASS' || summary?.ok === true, action: 'patch-types', summary, plan }
+      }
+
+      const selection = handoff.mesh?.selection ?? {}
+      const domain = handoff.domain?.bbox_m ?? handoff.geometry?.bbox_m ?? null
+      const location = handoff.domain?.locationInMesh ?? null
+      const stls = (handoff.geometry?.stls ?? []).map((s) => s.file).filter(Boolean)
+      if (!domain || !location || !stls.length) {
+        return {
+          ...base,
+          ok: false,
+          verdict: 'BLOCKED',
+          problems: ['handoff.json has no domain.bbox_m/locationInMesh/geometry.stls: cannot rebuild automatically — rebuild manually with mesh_build and pass the same request'],
+          plan,
+        }
+      }
+
+      // Stage the STL inside the case so scaffold can copy it over constant/triSurface.
+      const staging = join(caseDir, 'revise-input')
+      rmSync(staging, { recursive: true, force: true })
+      const staged = []
+      for (const rel of stls) {
+        const abs = join(caseDir, rel)
+        if (!existsSync(abs)) continue
+        const dirname = join(staging)
+        if (!existsSync(dirname)) mkdirSync(dirname, { recursive: true })
+        const dest = join(staging, rel.split('/').pop())
+        copyFileSync(abs, dest)
+        staged.push(dest)
+      }
+      if (!staged.length) return { ...base, ok: false, verdict: 'BLOCKED', problems: [`no STL found under ${displayPath(config, caseDir)}/constant/triSurface`], plan }
+
+      const so = plan.request?.scaffoldOptions ?? {}
+      const buildArgs = {
+        route: plan.request?.route ?? handoff.mesh?.route ?? 'snappy',
+        caseDir,
+        stl: staged,
+        scaffold: true,
+        overwrite: true,
+        gate: false,
+        np: args.np ?? config.np ?? 1,
+        scaffoldOptions: {
+          domainMin: so.domainMin ?? domain.min,
+          domainMax: so.domainMax ?? domain.max,
+          cells: so.cells ?? selection.cells ?? undefined,
+          cellSize: so.cells ? undefined : selection.cellSize_m ?? undefined,
+          locationInMesh: location,
+          refinementLevels: so.refinementLevels ?? selection.levels ?? undefined,
+          defaultLevel: selection.defaultLevel ?? undefined,
+          nLayers: so.nLayers,
+          layerSurfaces: so.layerSurfaces,
+          layerThickness: so.layerThickness,
+          expansionRatio: so.expansionRatio,
+          minTwist: so.minTwist,
+          resolveFeatureAngle: so.resolveFeatureAngle,
+          minVol: so.minVol ?? args.minVol ?? handoff.quality?.minVol ?? undefined,
+        },
+      }
+      const built = await handlers.mesh_build(buildArgs)
+      rmSync(staging, { recursive: true, force: true })
+      if (built?.ok === false || built?.error) {
+        return {
+          ...base,
+          ok: false,
+          verdict: 'BUILD-FAILED',
+          plan,
+          build: { ok: false, phase: built?.phase ?? null, error: built?.error ?? null, problems: built?.problems ?? null, failedStep: built?.failedStep ?? null },
+          next: ['read build.problems/failedStep; the advice ladder already moved one rung — call mesh_revise again with the same feedback for the next rung'],
+        }
+      }
+
+      const checked = await handlers.mesh_check({
+        caseDir,
+        profile: args.profile ?? config.gate?.profile,
+        minVol: args.minVol ?? plan.request?.gateMinVol ?? handoff.quality?.minVol ?? undefined,
+      })
+      const verdict = checked?.verdict ?? 'FAIL'
+      const metrics = checked?.results?.[0]?.metrics ?? {}
+      const stored = readHandoff(caseDir)
+      const record = {
+        event: 'revision',
+        at: new Date().toISOString(),
+        attempt: plan.attempt,
+        category: plan.category,
+        strategy: plan.strategy,
+        changes: plan.actions.map((a) => a.action),
+        verdict,
+      }
+      let handoffFile = stored?.file ?? null
+      if (stored) {
+        const doc = { ...stored, history: [...(stored.history ?? []), record] }
+        writeHandoff(caseDir, doc)
+        handoffFile = join(caseDir, 'handoff.json')
+      }
+      return {
+        ...base,
+        ok: verdict === 'PASS',
+        verdict,
+        plan,
+        changes: plan.actions.map((a) => a.action),
+        rebuilt: {
+          cells: metrics.cells ?? null,
+          maxNonOrtho: metrics.maxNonOrtho ?? null,
+          maxSkewness: metrics.maxSkewness ?? null,
+          minVolume: metrics.minVolume ?? null,
+        },
+        handoff: { file: displayPath(config, handoffFile ?? ''), verdict, flowReady: stored?.flowReady ?? null },
+        next: verdict === 'PASS'
+          ? ['deliver with mesh_deliver, or send the handoff to the workbench']
+          : ['read rebuilt + gate violations; call mesh_revise again with the same feedback (the next rung) or escalate after the ceiling'],
+      }
+    },
+  })
+
+  register({
     name: 'mesh_check',
     description: 'Quality verdict for an existing mesh: the sim-core JS gate (checkMesh -meshQuality with a complete '
       + 'meshQualityDict) for every region, verdict from the log text (checkMesh exits 0 even on failures). '
@@ -945,7 +1149,7 @@ export function apply(ctx, rawConfig) {
   provideService(ctx, 'simMesh', {
     version: CAPABILITIES.simMesh,
     owner: name,
-    capabilities: ['hints', 'build', 'check', 'deliver', 'patchTypes'],
+    capabilities: ['hints', 'build', 'check', 'deliver', 'patchTypes', 'revise'],
     invoke: (tool, args, exec) => {
       const handler = handlers[tool]
       if (!handler) throw new Error(`simMesh: unknown tool "${tool}"`)
@@ -956,6 +1160,7 @@ export function apply(ctx, rawConfig) {
     check: (args, exec) => handlers.mesh_check(args, exec),
     deliver: (args, exec) => handlers.mesh_deliver(args, exec),
     patchTypes: (args, exec) => handlers.mesh_patch_types(args, exec),
+    revise: (args, exec) => handlers.mesh_revise({ apply: true, ...args }, exec),
   })
 
   // meshToolkit (apiVersion 1): the contract-level facade a solver-side workbench resolves at call
@@ -965,5 +1170,6 @@ export function apply(ctx, rawConfig) {
   toolkit.register('gate', (args, exec) => handlers.mesh_check(args, exec), { plugin: name, version, tool: 'mesh_check' })
   toolkit.register('deliver', (args, exec) => handlers.mesh_deliver(args, exec), { plugin: name, version, tool: 'mesh_deliver' })
   toolkit.register('patchTypes', (args, exec) => handlers.mesh_patch_types(args, exec), { plugin: name, version, tool: 'mesh_patch_types' })
+  toolkit.register('revise', (args, exec) => handlers.mesh_revise({ apply: true, ...args }, exec), { plugin: name, version, tool: 'mesh_revise' })
   toolkit.register('hints', (args, exec) => handlers.mesh_hints(args, exec), { plugin: name, version, tool: 'mesh_hints' })
 }

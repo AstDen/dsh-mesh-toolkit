@@ -1,103 +1,138 @@
 [
- {
-  "id": "plugin-mesh-build",
-  "title": "mesh-build plugin: what it does and when to call it",
-  "topics": [
-   "plugin",
-   "mesh-build",
-   "description",
-   "routing",
-   "mesh",
-   "snappy",
-   "cfmesh",
-   "gmsh",
-   "quality-gate"
-  ],
-  "status": "verified",
-  "when": "the STL is ready and must become a usable OpenFOAM volume mesh",
-  "statement": "mesh-build is a DSH bundle for volume meshes: routes snappy (hex-dominant, layers, multi-region CHT), cfMesh cartesianMesh, gmsh OCC route D, plus a checkMesh-based quality gate for each region. Three tools: mesh_hints (these cards), mesh_build (scaffold a case from an STL, or build an existing case along a route), mesh_check (after meshing: metrics + gate rc; minVol is passed separately and is absolute).",
-  "recipe": [
-   "start with mesh_hints({query}) — traps and quality-improvement recipes",
-   "new case: mesh_build({route:'snappy', scaffold:true, caseDir, stl, scaffoldOptions:{domainMin,domainMax,cellSize,locationInMesh}})",
-   "existing case: mesh_build({route:'snappy', scaffold:false, caseDir, np:6})",
-   "after the build: mesh_check({caseDir, profile:'project', minVol:<h_min³/6>}) — look for PASS in verdict, not in “it built without errors”"
-  ],
-  "evidence": [
-   "plugins/mesh-build/index.js: mesh_hints, mesh_build, mesh_check; data/engine.json — routes, steps, profiles; lib/skill.js — the agent instruction",
-   "verified by a live run: v13_best → PASS at minVol 1e-16 (fluid 331 792 / 18.71°, solid 243 965 / 26.54°); e2e snappy 19.6 s → PASS 27 424 cells / 41.34°"
-  ],
-  "improves": [
-   "mesh usability",
-   "meshing reproducibility",
-   "route and threshold selection"
-  ],
-  "appliesTo": [
-   "mesh_hints",
-   "mesh_build",
-   "mesh_check"
-  ]
- },
- {
-  "id": "portable-mesh-build",
-  "title": "Meshing and delivery without sim-project.json",
-  "topics": [
-   "portable",
-   "without project",
-   "sim-project.json",
-   "empty directory",
-   "portability",
-   "defaults",
-   "caseRoots",
-   "delivery"
-  ],
-  "status": "verified",
-  "when": "mesh_build/mesh_check/mesh_deliver run in a clean directory without a project profile",
-  "statement": "mesh-build works without a profile: project:\"defaults\", cases default to ./cases, the gate profile is project, and if the case has no system/fvSchemes|fvSolution the gate synthesises minimal copies in an overlay (it does not affect the metrics, an advisory says so). mesh_deliver no longer requires tools/deliver/make_delivery.sh: when the project script is absent a packaged copy <bundle>/scripts/deliver/make_delivery.sh is used (+ scripts/qa/mesh_gate.sh, region_layout.py), and the gate writes its overlay to MESH_GATE_CACHE_DIR=<outDir>/.gate. Verified in /tmp: 2584 cells, gate PASS, DELIVERED, 1.8 MB of artefacts.",
-  "recipe": [
-   "mesh_build({route:'snappy', scaffold:true, caseDir:'cases/cube', stl:['…/cube.stl'], scaffoldOptions:{domainMin,domainMax,cells,locationInMesh,minVol}})",
-   "mesh_check({caseDir:'cases/cube', minVol:<h_min³/6>, profile:'project'}) — look for the verdict in gate.verdict",
-   "mesh_deliver({caseDir:'cases/cube', name:'cube', minVol:<same>}) — the signature path: passport → gate → openfoam_<name>/ + .tar.gz + ansys_<name>/ + .zip",
-   "OpenFOAM not in PATH: pass openfoam:'/usr/lib/openfoam/openfoam2512/etc/bashrc' (installation ids live in sim-project.json)",
-   "need your own caseRoots/thresholds/layers — create sim-project.json: gate.profiles, caseRoots, foam.installations"
-  ],
-  "evidence": [
-   "plugins/mesh-build/lib/deliver.js: scriptOrigin project|package, env MESH_GATE_CACHE_DIR",
-   "plugins/mesh-build/scripts/deliver/make_delivery.sh and scripts/qa/mesh_gate.sh — packaged copies with QA_ROOT from MESH_GATE_CACHE_DIR",
-   "plugins/mesh-build/index.js: withPortable() instead of the requireProject gate",
-   "run of 2026-11-26 in /tmp: gate PASS 18.29°, DELIVERED, roundtrip ok"
-  ]
- },
- {
-  "id": "patch-roles",
-  "title": "Patch roles after meshing: retype, never split, then re-check",
-  "topics": [
-   "patch",
-   "boundary",
-   "inlet",
-   "outlet",
-   "wall",
-   "symmetry",
-   "bc",
-   "post-step",
-   "mesh_patch_types",
-   "handoff"
-  ],
-  "status": "verified",
-  "when": "the mesh is built and a solver needs inlet/outlet/walls instead of one snappy wall patch plus a symmetry domain box",
-  "statement": "snappy on a scaffolded case leaves the obstacle faces and the domain box in two patches: one `wall` and one `symmetry` (`world`). A solver needs flow roles, so the types are retyped in `constant/<region>/polyMesh/boundary` — a documented post-step (in a regional case `changeDictionary` does not work, exp-006/D-013). Retyping changes the type of an existing patch; it cannot split one patch into inlet+outlet, because faces are not re-grouped. For a split, build face sets (`topoSet`) and `createPatch`, or give the geometry named patches before meshing (generator `fluid_patches.stl`, hint channel-named-patches). After any retype the passport is stale: `mesh_check` must run again before delivery.",
-  "recipe": [
-   "mesh_patch_types({ caseDir, dryRun:true, roles:{ inlet:['world'], outlet:['a1-cube'], walls:['obstacle'] } }) — see the diff first",
-   "drop dryRun: the tool writes a .bak, edits only the `type` line inside each patch, and updates handoff.json",
-   "refusals are deliberate: a missing patch name lists what exists; one patch in two roles; type empty/cyclic cannot become a flow boundary; cyclic/wedge need manual neighbourPatch or wedge geometry; multi-region needs region",
-   "recheck:true re-runs the gate and reports sameAsRecorded — patch types cannot change mesh metrics",
-   "mesh_check({ caseDir, minVol }) afterwards: the boundary hash changed, so the old passport is stale and mesh_deliver will refuse it",
-   "appendix C of the benchmark protocol uses foamDictionary for the same edit — mesh_patch_types is the tool that does it with a diff and the refusals"
-  ],
-  "evidence": [
-   "plugins/mesh-build/lib/patchtypes.js: planRetype/applyRetype, ROLE_TYPE, STICKY_TYPES",
-   "plugins/mesh-build/index.js: mesh_patch_types (roles, dryRun, recheck), handoff roles carry-over",
-   "experiments/_scratch/verify-a2.mjs: 18/18 — retype, refusals, multi-region, recheck sameAsRecorded (66 241 cells, 24.2346°)",
-   "AGENTS.md §13 / experiments/exp-006: physical patch type is set after meshing by editing boundary"
-  ]
- }
+  {
+    "id": "plugin-mesh-build",
+    "title": "mesh-build plugin: what it does and when to call it",
+    "topics": [
+      "plugin",
+      "mesh-build",
+      "description",
+      "routing",
+      "mesh",
+      "snappy",
+      "cfmesh",
+      "gmsh",
+      "quality-gate"
+    ],
+    "status": "verified",
+    "when": "the STL is ready and must become a usable OpenFOAM volume mesh",
+    "statement": "mesh-build is a DSH bundle for volume meshes: routes snappy (hex-dominant, layers, multi-region CHT), cfMesh cartesianMesh, gmsh OCC route D, plus a checkMesh-based quality gate for each region. Three tools: mesh_hints (these cards), mesh_build (scaffold a case from an STL, or build an existing case along a route), mesh_check (after meshing: metrics + gate rc; minVol is passed separately and is absolute).",
+    "recipe": [
+      "start with mesh_hints({query}) — traps and quality-improvement recipes",
+      "new case: mesh_build({route:'snappy', scaffold:true, caseDir, stl, scaffoldOptions:{domainMin,domainMax,cellSize,locationInMesh}})",
+      "existing case: mesh_build({route:'snappy', scaffold:false, caseDir, np:6})",
+      "after the build: mesh_check({caseDir, profile:'project', minVol:<h_min³/6>}) — look for PASS in verdict, not in “it built without errors”"
+    ],
+    "evidence": [
+      "plugins/mesh-build/index.js: mesh_hints, mesh_build, mesh_check; data/engine.json — routes, steps, profiles; lib/skill.js — the agent instruction",
+      "verified by a live run: v13_best → PASS at minVol 1e-16 (fluid 331 792 / 18.71°, solid 243 965 / 26.54°); e2e snappy 19.6 s → PASS 27 424 cells / 41.34°"
+    ],
+    "improves": [
+      "mesh usability",
+      "meshing reproducibility",
+      "route and threshold selection"
+    ],
+    "appliesTo": [
+      "mesh_hints",
+      "mesh_build",
+      "mesh_check"
+    ]
+  },
+  {
+    "id": "portable-mesh-build",
+    "title": "Meshing and delivery without sim-project.json",
+    "topics": [
+      "portable",
+      "without project",
+      "sim-project.json",
+      "empty directory",
+      "portability",
+      "defaults",
+      "caseRoots",
+      "delivery"
+    ],
+    "status": "verified",
+    "when": "mesh_build/mesh_check/mesh_deliver run in a clean directory without a project profile",
+    "statement": "mesh-build works without a profile: project:\"defaults\", cases default to ./cases, the gate profile is project, and if the case has no system/fvSchemes|fvSolution the gate synthesises minimal copies in an overlay (it does not affect the metrics, an advisory says so). mesh_deliver no longer requires tools/deliver/make_delivery.sh: when the project script is absent a packaged copy <bundle>/scripts/deliver/make_delivery.sh is used (+ scripts/qa/mesh_gate.sh, region_layout.py), and the gate writes its overlay to MESH_GATE_CACHE_DIR=<outDir>/.gate. Verified in /tmp: 2584 cells, gate PASS, DELIVERED, 1.8 MB of artefacts.",
+    "recipe": [
+      "mesh_build({route:'snappy', scaffold:true, caseDir:'cases/cube', stl:['…/cube.stl'], scaffoldOptions:{domainMin,domainMax,cells,locationInMesh,minVol}})",
+      "mesh_check({caseDir:'cases/cube', minVol:<h_min³/6>, profile:'project'}) — look for the verdict in gate.verdict",
+      "mesh_deliver({caseDir:'cases/cube', name:'cube', minVol:<same>}) — the signature path: passport → gate → openfoam_<name>/ + .tar.gz + ansys_<name>/ + .zip",
+      "OpenFOAM not in PATH: pass openfoam:'/usr/lib/openfoam/openfoam2512/etc/bashrc' (installation ids live in sim-project.json)",
+      "need your own caseRoots/thresholds/layers — create sim-project.json: gate.profiles, caseRoots, foam.installations"
+    ],
+    "evidence": [
+      "plugins/mesh-build/lib/deliver.js: scriptOrigin project|package, env MESH_GATE_CACHE_DIR",
+      "plugins/mesh-build/scripts/deliver/make_delivery.sh and scripts/qa/mesh_gate.sh — packaged copies with QA_ROOT from MESH_GATE_CACHE_DIR",
+      "plugins/mesh-build/index.js: withPortable() instead of the requireProject gate",
+      "run of 2026-11-26 in /tmp: gate PASS 18.29°, DELIVERED, roundtrip ok"
+    ]
+  },
+  {
+    "id": "patch-roles",
+    "title": "Patch roles after meshing: retype, never split, then re-check",
+    "topics": [
+      "patch",
+      "boundary",
+      "inlet",
+      "outlet",
+      "wall",
+      "symmetry",
+      "bc",
+      "post-step",
+      "mesh_patch_types",
+      "handoff"
+    ],
+    "status": "verified",
+    "when": "the mesh is built and a solver needs inlet/outlet/walls instead of one snappy wall patch plus a symmetry domain box",
+    "statement": "snappy on a scaffolded case leaves the obstacle faces and the domain box in two patches: one `wall` and one `symmetry` (`world`). A solver needs flow roles, so the types are retyped in `constant/<region>/polyMesh/boundary` — a documented post-step (in a regional case `changeDictionary` does not work, exp-006/D-013). Retyping changes the type of an existing patch; it cannot split one patch into inlet+outlet, because faces are not re-grouped. For a split, build face sets (`topoSet`) and `createPatch`, or give the geometry named patches before meshing (generator `fluid_patches.stl`, hint channel-named-patches). After any retype the passport is stale: `mesh_check` must run again before delivery.",
+    "recipe": [
+      "mesh_patch_types({ caseDir, dryRun:true, roles:{ inlet:['world'], outlet:['a1-cube'], walls:['obstacle'] } }) — see the diff first",
+      "drop dryRun: the tool writes a .bak, edits only the `type` line inside each patch, and updates handoff.json",
+      "refusals are deliberate: a missing patch name lists what exists; one patch in two roles; type empty/cyclic cannot become a flow boundary; cyclic/wedge need manual neighbourPatch or wedge geometry; multi-region needs region",
+      "recheck:true re-runs the gate and reports sameAsRecorded — patch types cannot change mesh metrics",
+      "mesh_check({ caseDir, minVol }) afterwards: the boundary hash changed, so the old passport is stale and mesh_deliver will refuse it",
+      "appendix C of the benchmark protocol uses foamDictionary for the same edit — mesh_patch_types is the tool that does it with a diff and the refusals"
+    ],
+    "evidence": [
+      "plugins/mesh-build/lib/patchtypes.js: planRetype/applyRetype, ROLE_TYPE, STICKY_TYPES",
+      "plugins/mesh-build/index.js: mesh_patch_types (roles, dryRun, recheck), handoff roles carry-over",
+      "experiments/_scratch/verify-a2.mjs: 18/18 — retype, refusals, multi-region, recheck sameAsRecorded (66 241 cells, 24.2346°)",
+      "AGENTS.md §13 / experiments/exp-006: physical patch type is set after meshing by editing boundary"
+    ]
+  },
+  {
+    "id": "revise-loop",
+    "title": "mesh_revise: the reaction table is data, the ladder rung is counted from history",
+    "topics": [
+      "revise",
+      "feedback",
+      "yplus",
+      "layers",
+      "nonortho",
+      "skewness",
+      "route",
+      "cfmesh",
+      "loop",
+      "mesh-feedback",
+      "advice"
+    ],
+    "status": "verified",
+    "when": "a solver run produced feedback (y+ overshoot, non-orthogonality, skewness, missing roles, resolution, domain, units, cell budget, STL quality) and the mesh must be rebuilt, not hand-tuned",
+    "statement": "`mesh_revise` reads a `mesh-feedback/1` document, looks up the category in `data/advice.json`, and applies the NEXT rung of that category's ladder — the rung index is the number of earlier `revision` entries with the same category in `handoff.json`. `apply:false` (default) returns the plan; `apply:true` rebuilds with `mesh_build` (same STL, domain, levels and minVol from the handoff), re-gates, and appends `{attempt, category, changes, verdict}` to history. Two rules are load-bearing: after three consecutive failures of `nonortho`/`skewness` the tool switches the strategy (snappy -> cfmesh, one downgrade per request) instead of repeating parameters; and at the ceiling it returns `{ok:false, escalated:true, options[...]}` instead of another guess.",
+    "recipe": [
+      "mesh_revise({ caseDir, feedback: { schemaVersion: 'mesh-feedback/1', category: 'yplus', expected: { yPlusMax: 1 }, changes: { uRef: 10, lRef: 0.01, nu: 1.5e-5 } } })  // plan",
+      "mesh_revise({ caseDir, feedback, apply: true })  // rebuild + gate + history",
+      "the yplus rung needs uRef/lRef (uTau) and derives nLayers from the target first layer and the local cell size"
+    ],
+    "evidence": [
+      "plugins/mesh-build/lib/revise.js: planRevision, firstLayerFromYPlus, attemptState",
+      "plugins/mesh-build/data/advice.json: categories, ceilings, routeDowngrade",
+      "experiments/_scratch/verify-a3.mjs: 21/21 — y+ feedback rebuilt a layered mesh (66 241 -> 122 977 cells, 9 600/9 600 faces extruded) and passed the gate at the lowered layer-scale minVol"
+    ],
+    "pitfalls": [
+      "snappy judges its own mesh against minVol: a gate minVol sized for the background cells removes every layer (benchmark DEF-10). The yplus rung lowers the snappy threshold to firstLayer^3/6 and the gate threshold with it",
+      "layers need room: on a 10 mm cube with a 2 mm gap the medial-axis limit removes the extrusion; the same request on a case with a wider domain grows all 9 600 faces",
+      "cfMesh needs system/meshDict in metres before a route downgrade can run"
+    ]
+  }
 ]

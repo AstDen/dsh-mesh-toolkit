@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.0 — 2026-11-26
+
+- **plan A3 (workbench contract)**: new tool `mesh_revise` turns a `mesh-feedback/1` document into the next
+  revision of the mesh. The reaction table is data (`data/advice.json`): category → ladder of ops → ceiling,
+  and the rung is counted from the `revision` entries in `handoff.json`. `apply:false` returns the plan,
+  `apply:true` rebuilds with `mesh_build`, re-gates with `mesh_check`, and appends
+  `{attempt, category, strategy, changes, verdict}` to history.
+- Categories with real logic: `yplus` (firstLayer = yPlus·ν/uTau, layer count from the local cell size, and
+  snappy's `minVol` lowered to `firstLayer³/6` — a gate-sized threshold silently removes every layer, DEF-10),
+  `nonortho`/`skewness` (refine → fewer layers → one route downgrade snappy→cfmesh after three consecutive
+  failures), `patch-roles` (delegates to `mesh_patch_types`), `resolution`, `domain`, `units`, `layers`,
+  `cells-budget`, `stl-quality` (stops and asks for `stl_check` + cleanup). At the ceiling the tool returns
+  `{ok:false, escalated:true, options:[...]}`.
+- The snappy scaffold now accepts `expansionRatio` (default 1.5) and forwards it to `addLayersControls`.
+- **Bug fix**: the layer block wrote `minMedianAxisAngle`; OpenFOAM v2512 reads `minMedialAxisAngle`, so any
+  case with layers died at `addLayers` with `Entry 'minMedialAxisAngle' not found`. Layers now extrude
+  (verified: 9 600/9 600 faces on a cube-in-box case, 66 241 → 122 977 cells).
+- New knowledge card `revise-loop`; the bundled skill documents the tool and the feedback step.
+
 ## 0.6.1 — 2026-11-26
 
 - **plan A2 (workbench contract)**: new tool `mesh_patch_types` assigns contract roles

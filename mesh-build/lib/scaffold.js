@@ -157,7 +157,7 @@ function snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureA
   const layerBlock = layers.length
     ? `
     relativeSizes true;
-    expansionRatio 1.5;
+    expansionRatio ${fmt(layers[0].expansionRatio ?? 1.5)};
     finalLayerThickness ${fmt(layers[0].thickness)};
     minThickness ${fmt(layers[0].minThickness)};
     nGrow 0;
@@ -168,7 +168,7 @@ function snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureA
     nSmoothThickness 2;
     maxFaceThicknessRatio 0.5;
     maxThicknessToMedialRatio 0.3;
-    minMedianAxisAngle 90;
+    minMedialAxisAngle 90; // v2512 requires minMedialAxisAngle; minMedianAxisAngle is not read and kills addLayers
     nBufferCellsNoExtrude 0;
     nLayerIter 50;
     layers
@@ -433,7 +433,13 @@ export function writeSnappyCase(config, caseDir, options) {
   const layers = layerSurfaces.map((surface) => {
     const name = String(surface)
     if (!surfaces.some((s) => s.name === name)) throw new Error(`layerSurfaces entry "${name}" does not match any STL surface (have: ${surfaces.map((s) => s.name).join(', ')})`)
-    return { surface: name, nLayers, thickness: Number(options.layerThickness ?? 0.8), minThickness: Number(options.minThickness ?? 0.075) }
+    return {
+      surface: name,
+      nLayers,
+      thickness: Number(options.layerThickness ?? 0.8),
+      minThickness: Number(options.minThickness ?? 0.075),
+      expansionRatio: Number(options.expansionRatio ?? 1.5),
+    }
   })
 
   const np = Math.max(1, Math.floor(Number(options.np) || config.np || 1))

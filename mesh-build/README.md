@@ -14,6 +14,7 @@ OpenFOAM/cfMesh command on this machine, the logs stay on disk, and a short summ
 | `mesh_check` | JS gate per region; writes `mesh-passport.json`, leaves the mesh untouched | `caseDir`, `regions`, `profile`, `minVol` |
 | `mesh_deliver` | delivery of a gate-passing mesh: OF case + `.tar.gz`, Fluent `.msh` + `.zip`, a report with the checks | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
 | `mesh_patch_types` | solver roles for existing patches (retype `boundary`, `.bak` + diff, updates `handoff.json`) | `caseDir`, `roles`, `region`, `dryRun`, `recheck`, `profile`, `minVol` |
+| `mesh_revise` | plan A3: a `mesh-feedback/1` document becomes the next revision (advice table as data, rebuild + re-gate + history) | `caseDir`, `feedback`, `feedbackFile`, `attempt`, `apply`, `profile`, `minVol`, `np` |
 
 
 ## Description and topics
@@ -141,6 +142,25 @@ geometry). Inlet and outlet end up as type `patch`, so the semantic role is stor
 forward by `mesh_check`. `recheck:true` re-runs the gate and reports `sameAsRecorded` — patch types change what a
 solver reads, never the mesh metrics. After a retype the passport is stale: run `mesh_check` again before
 `mesh_deliver`.
+
+## Revision loop (`mesh_revise`)
+
+A solver run sends back a `mesh-feedback/1` document (category, evidence, expected values). `mesh_revise`
+does not guess: the reaction table is **data** in `data/advice.json` — every category has a ladder of ops and a
+ceiling, and the tool applies the NEXT rung, counted from the `revision` entries already in `handoff.json`.
+
+- `apply:false` (default) returns the plan: which op, why, and the parameters that would change.
+- `apply:true` rebuilds with `mesh_build` (same STL, domain, levels and minVol from the handoff), re-runs
+  `mesh_check`, and appends `{attempt, category, changes, verdict}` to `history[]`.
+- `patch-roles` goes through `mesh_patch_types` (no rebuild). `stl-quality` stops and asks for `stl_check` +
+  cleanup. `units` refuses without an explicit `scale`.
+- After three consecutive `nonortho`/`skewness` failures the table switches the strategy once
+  (snappy → cfmesh) instead of repeating parameters; at the ceiling the tool returns
+  `{ok:false, escalated:true, options:[...]}` for the user to choose.
+
+The `yplus` rung computes `firstLayer = yPlus·ν/uTau` (the same correlation as `compute_first_layer`), derives the
+layer count from the target first layer and the local cell size, and lowers snappy's own `minVol` threshold to
+`firstLayer³/6` — otherwise snappy removes every layer before the gate ever sees it (benchmark DEF-10).
 
 ## OpenFOAM versions
 

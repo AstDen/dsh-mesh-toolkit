@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "schema": "mesh-advice/1",
+  "comment": "Deterministic reaction table from docs/WORKBENCH-CONTRACT.md §3.3. mesh_revise reads this file and applies the NEXT rung of the ladder; the rung index is the number of earlier revisions with the same category recorded in handoff.json history. Every rung names what it changes, so the workbench can show it before the rebuild.",
+  "escalation": {
+    "maxAttempts": 3,
+    "maxAttemptsCap": 8,
+    "note": "attempt >= maxAttempts returns {ok:false, escalated:true, options:[...]} with 2-4 mutually exclusive variants (cells/time/effect)."
+  },
+  "routeDowngrade": {
+    "categories": ["nonortho", "skewness"],
+    "afterConsecutive": 3,
+    "from": ["snappy"],
+    "to": "cfmesh",
+    "reason": "Three consecutive failures of the same metric mean the parameters are not the problem: switch to a more robust assembly strategy instead of repeating them."
+  },
+  "categories": {
+    "yplus": {
+      "ceiling": 3,
+      "blurb": "Recompute the wall layers for the target y+ (firstLayer = y+ * nu / uTau, same correlation as compute_first_layer) and enable layers on every wall surface.",
+      "ladder": [
+        {
+          "op": "layers.yplus",
+          "requires": ["uRef", "lRef", "nu"],
+          "defaults": { "yPlusTarget": 1, "nLayers": 5, "expansionRatio": 1.2 },
+          "reason": "layer thickness is set by uTau, not by the cell count"
+        }
+      ]
+    },
+    "nonortho": {
+      "ceiling": 3,
+      "blurb": "Add a refinement level on the surface/interface, then reduce the layer count, then leave snappy for a Voronoi/hex-dominant cartesian assembly.",
+      "ladder": [
+        { "op": "refine.level", "step": 1, "reason": "snap errors shrink when the surface cells are smaller" },
+        { "op": "layers.reduceLayers", "step": 1, "reason": "fewer extruded layers mean fewer badly shaped prisms" },
+        { "op": "route.switch", "to": "cfmesh", "requires": ["system/meshDict"], "reason": "cfMesh does not snap and tolerates convex ridges better" }
+      ]
+    },
+    "skewness": {
+      "ceiling": 2,
+      "blurb": "Refine locally and tighten the feature angle so snappy snaps fewer edges.",
+      "ladder": [
+        { "op": "skewness.refine", "levelStep": 1, "resolveFeatureAngle": 20, "reason": "skew cells come from snapped features" }
+      ]
+    },
+    "patch-roles": {
+      "ceiling": 1,
+      "blurb": "Assign the semantic roles from the feedback (or from handoff.next) by retyping the boundary; the mesh itself does not change.",
+      "ladder": [
+        { "op": "patches.retype", "reason": "solver breakage is often just a missing role, not a bad mesh" }
+      ]
+    },
+    "resolution": {
+      "ceiling": 2,
+      "blurb": "Make the background finer by the feedback factor (default 0.7 of the cell size) and re-check the cell budget.",
+      "ladder": [
+        { "op": "sizing.scale", "cellSizeFactor": 0.7, "maxCells": 5000000, "reason": "the field feature is not resolved by the current cells" }
+      ]
+    },
+    "domain": {
+      "ceiling": 1,
+      "blurb": "Grow the domain by 25 % (blockage) in the requested direction and rebuild.",
+      "ladder": [
+        { "op": "domain.grow", "factor": 1.25, "reason": "the blockage ratio is too high for the far field" }
+      ]
+    },
+    "units": {
+      "ceiling": 1,
+      "blurb": "Rebuild only with an explicit scale confirmation: a silent mm/m mix is worse than a failure.",
+      "ladder": [
+        { "op": "units.confirm", "requires": ["scale"], "reason": "the geometry may be 1000x off" }
+      ]
+    },
+    "layers": {
+      "ceiling": 2,
+      "blurb": "Fewer layers or a smaller expansion ratio; minTwist stays from the gate profile.",
+      "ladder": [
+        { "op": "layers.reduceRatio", "ratioFactor": 0.8, "minTwist": 0.02, "reason": "the extruded layers collapse on this geometry" }
+      ]
+    },
+    "cells-budget": {
+      "ceiling": 1,
+      "blurb": "Coarsen to the stated cell budget; when the budget still cannot be met, switch to cfmesh.",
+      "ladder": [
+        { "op": "sizing.coarsen", "maxCells": 3000000, "reason": "the mesh must fit the run budget" }
+      ]
+    },
+    "stl-quality": {
+      "ceiling": 1,
+      "blurb": "Geometry, not meshing: inspect the STL and clean it before rebuilding.",
+      "ladder": [
+        { "op": "geometry.inspect", "reason": "a broken shell cannot be fixed by meshing parameters" }
+      ]
+    }
+  }
+}

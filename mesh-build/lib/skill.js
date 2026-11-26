@@ -11,7 +11,7 @@ export const SKILL = {
     + 'whether an existing mesh passes the project quality gate.',
   content: `# mesh-build — volume meshes and the quality gate
 
-## Tools (5)
+## Tools (6)
 - **mesh_hints** — knowledge cards: snappy, cfMesh/pMesh, gmsh route D, the gate, delivery, rejected routes.
   Without arguments — the catalogue; \`query\` — search; \`id\` — one card.
 - **mesh_build** — routes from \`data/engine.json\`:
@@ -25,6 +25,11 @@ export const SKILL = {
 - **mesh_patch_types** — assign solver roles (inlet/outlet/wall/symmetry/empty/interface) to existing patches by
   retyping \`constant/<region>/polyMesh/boundary\` (a \`.bak\`, a diff, no face splitting); updates \`handoff.json\`,
   \`recheck:true\` proves the gate metrics did not change. Splitting one patch into inlet+outlet needs topoSet+createPatch.
+- **mesh_revise** — Plan A3: a \`mesh-feedback/1\` document (yplus, nonortho, skewness, patch-roles, resolution, domain,
+  units, layers, cells-budget, stl-quality) becomes the NEXT revision of the mesh. The reaction table is data
+  (\`data/advice.json\`), the rung is counted from \`handoff.json\` history: \`apply:false\` returns the plan,
+  \`apply:true\` rebuilds, re-gates and records \`{attempt, category, changes, verdict}\`. After three consecutive
+  \`nonortho\`/\`skewness\` failures it switches the route once (snappy → cfmesh); at the ceiling it escalates with options.
 
 ## Workflow
 1. \`mesh_hints({ query: "snappy non-ortho layers" })\` — read the rules.
@@ -38,6 +43,8 @@ export const SKILL = {
    the tool itself checks the round-trip, the interface and the gate inside the packaged case.
 7. Solver boundary conditions: \`mesh_patch_types({ caseDir, roles:{ inlet:[...], outlet:[...], walls:[...] } })\`
    then \`mesh_check\` again — the boundary file changed, so the passport is stale until it is refreshed.
+8. A solver run sent back feedback (y+ too high, non-ortho, skewness): \`mesh_revise({ caseDir, feedback, apply:true })\`,
+   read \`changes[]\`, repeat at most to the ceiling — the advice table decides the next rung, not the operator.
 
 ## Hard rules
 - Threshold quality — only \`mesh_check\` (the JS gate, profile project); "Mesh OK" without -meshQuality is not a verdict.

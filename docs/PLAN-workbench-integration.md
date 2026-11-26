@@ -221,7 +221,7 @@ New knowledge card `patch-roles`; the bundled skill lists the tool. Acceptance f
 patch) follows the same path — the case is meshed, not yet retyped in the benchmark run (Appendix C was the manual
 step this tool replaces).
 
-### A3. `mesh_revise` (C)
+### A3. `mesh_revise` (C) — ✅ done, 2026-11-26 (mesh-build 0.7.0)
 
 - Input: `mesh-feedback/1`; output: `{ok, attempt, changes[], handoff, caseDir}`.
 - The revision table is **data** (`plugins/mesh-build/data/advice.json`), not code: category → parameter →
@@ -230,6 +230,18 @@ step this tool replaces).
   domain/route/patches) and calls `mesh_build` + `mesh_check` (+ `mesh_patch_types` if the category is
   `patch-roles`).
 - Acceptance: a deliberately spoiled y+ (layers disabled) → feedback(`yplus`) → T2 passes in ≤2 attempts.
+**Сделано (факты).** `plugins/mesh-build/data/advice.json` — таблица как данные: 10 категорий, лестницы, потолки,
+`routeDowngrade` (3 подряд `nonortho`/`skewness` → один snappy→cfmesh). `plugins/mesh-build/lib/revise.js` —
+валидация `mesh-feedback/1`, `firstLayerFromYPlus` (Cf=0.026·Re^(-1/7)), `attemptState` по истории, `planRevision`
+(rung = число прошлых ревизий категории; при потолке — `{ok:false, escalated:true, options[]}`).
+Инструмент `mesh_revise`: `apply:false` план, `apply:true` пересборка `mesh_build` → `mesh_check` → запись
+`{attempt, category, strategy, changes, verdict}` в `history[]`; `patch-roles` идёт через `mesh_patch_types`,
+`stl-quality` останавливается на `stl_check`+cleanup. Приёмка `experiments/_scratch/verify-a3.mjs` — **21/21**:
+y+ фидбек (y+=1 при U=10 м/с, L=0.01 м) пересобрал слойную сетку 66 241 → 122 977 ячеек, **9 600/9 600** граней
+экструдировано, гейт PASS на minVol уровня первого слоя; три подряд `nonortho` переключают маршрут на cfmesh;
+все отказы (units без scale, yplus без uRef/lRef, схема, потолок) ведут себя как описано. Попутно исправлен
+`minMedianAxisAngle` → `minMedialAxisAngle` (слои в v2512 вообще не работали) и в словарь проброшен `expansionRatio`.
+
 - A separate rule: after 3 consecutive failed builds with `nonortho`/`skewness` the table switches
   the route to a more robust one (snappy → cfmesh) instead of repeating the same parameters: this is a cheap
   insurance against an "infinite" loop, and it is also fixed in their skill.
