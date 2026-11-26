@@ -1,7 +1,7 @@
 {
   "name": "plate_spheres_8",
   "kind": "lattice_spheres",
-  "comment": "Базовый кейс exp-002: плита 10x10x4 мм, простая кубическая упаковка 8 сфер R=1.2 мм, шаг 2.5 мм по x, 5 мм по y, 4 мм по z (укладка 4x2x1 — единственная раскладка 8 сфер R=1.2, при которой все сферы целиком внутри плиты толщиной 4 мм и не пересекаются: 2R=2.4 < 2.5). Вычитание = домен жидкости (замкнутые поры, на грани домена не открыты).",
+  "comment": "exp-002 base case: 10x10x4 mm plate, simple cubic packing of 8 spheres R=1.2 mm, pitch 2.5 mm in x, 5 mm in y, 4 mm in z (the 4x2x1 layout is the only arrangement of 8 spheres with R=1.2 where every sphere lies fully inside the 4 mm plate and none intersect: 2R=2.4 < 2.5). The subtraction is the fluid domain (closed pores, not open at the domain faces).",
   "seed": 0,
   "units": "mm",
   "domain_mm": [
@@ -15,6 +15,6 @@
     2,
     1
   ],
-  "expected_volume_formula": "V = Lx*Ly*Lz - n*(4/3)*pi*R^3 = 400 - 8*7.238229474 = 342.094164209 мм3",
-  "expected_area_formula": "A = 2*(Lx*Ly+Ly*Lz+Lz*Lx) + n*4*pi*R^2 = 360 + 144.764589477 = 504.764589477 мм2"
+  "expected_volume_formula": "V = Lx*Ly*Lz - n*(4/3)*pi*R^3 = 400 - 8*7.238229474 = 342.094164209 mm3",
+  "expected_area_formula": "A = 2*(Lx*Ly+Ly*Lz+Lz*Lx) + n*4*pi*R^2 = 360 + 144.764589477 = 504.764589477 mm2"
 }

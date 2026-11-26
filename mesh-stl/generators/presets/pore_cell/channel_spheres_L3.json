@@ -1,6 +1,6 @@
 {
   "name": "channel_spheres_L3",
-  "comment": "Малая геометрия для параметрического исследования: 3 уровня (6 шаров), вход 2 d = 10 мм",
+  "comment": "Small geometry for a parametric study: 3 levels (6 spheres), 2 d = 10 mm inlet",
   "r_mm": 2.5,
   "W_mm": "auto",
   "levels": 3,

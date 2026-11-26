@@ -348,8 +348,8 @@ surface patch is present in `boundary`. This is the cheapest way to catch a scaf
 
 `stl a1-cube.stl`; domain `[-0.010,-0.008,-0.008] … [0.030,0.008,0.008]`, cells `[40,16,16]`,
 location `[0.020,0,0]`, level 2, minVol `2.5e-12`. Acceptance: gate PASS; edges are resolved
-(в v2512 строки `uncovered faces` нет — вместо неё проверьте, что все грани домена
-распределены по патчам: `checkMesh`/`constant/polyMesh/boundary`).
+(v2512 has no `uncovered faces` line — instead check that every domain face is
+assigned to a patch: `checkMesh`/`constant/polyMesh/boundary`).
 
 ### C3. Cylinder d6 h10 in cross-flow
 
@@ -362,8 +362,8 @@ Acceptance: gate PASS; the cylinder surface patch has > 0 faces; record `maxNonO
 ```json
 stl_generate({ "family": "cad-porous", "preset": "channel_crossing_cylinders",
                "name": "c4-junction", "outDir": "benchmark/runs/<RUN>/stl/c4" })
-stl_check({ "stl": "…/c4-junction.raw.stl" })   // на этом пресете raw может уже быть watertight
-                                                // → PASS; смотрите warning про degenerate faces
+stl_check({ "stl": "…/c4-junction.raw.stl" })   // on this preset the raw STL may already be watertight
+                                                // → PASS; watch the warning about degenerate faces
 stl_check({ "stl": "…/c4-junction.raw.stl", "cleanup": true,
             "cleanOut": "benchmark/runs/<RUN>/stl/c4/c4-junction.clean.stl",
             "expectVolume": 367.809705, "expectBodies": 1, "maxVolumeErr": 0.5 })  // expected PASS
@@ -371,9 +371,9 @@ stl_check({ "stl": "…/c4-junction.raw.stl", "cleanup": true,
 
 Geometry: block 12 × 6 × 6 mm minus six through-cylinders R = 0.8 mm (three along Y, three along Z
 at x = 3, 6, 9), volume `432 − 6πR²·6 + 3·(16/3)R³ = 367.809705 mm³`.
-cad-porous emits a raw OCC STL; на пресете `channel_crossing_cylinders` он уже watertight
-(0 вырожденных граней, cleanup удаляет 0 треугольников) — «сырой обязан падать» не гарантировано.
-Мешить чистый STL:
+cad-porous emits a raw OCC STL; on the `channel_crossing_cylinders` preset it is already watertight
+(0 degenerate faces, cleanup removes 0 triangles) — "the raw one must fail" is not guaranteed.
+Mesh the clean STL:
 
 ```json
 mesh_build({ "route": "snappy", "caseDir": "benchmark/runs/<RUN>/mesh/c4",
@@ -384,7 +384,7 @@ mesh_build({ "route": "snappy", "caseDir": "benchmark/runs/<RUN>/mesh/c4",
     "refinementLevels": { "c4-junction.clean": 2 }, "defaultLevel": 1, "minVol": 2.5e-12 } })
 ```
 
-Acceptance: gate PASS; все грани домена в патчах (в v2512 строки `uncovered faces` нет);
+Acceptance: gate PASS; every domain face is assigned to a patch (v2512 has no `uncovered faces` line);
 record cells and `maxNonOrtho`.
 A second variant, optional: `scaffoldOptions.refinementLevels` level 3 — cells must grow ≥ 1.5 ×.
 
@@ -426,8 +426,8 @@ stl_generate({ "family": "packing", "preset": "cylinder_d150_h500_balls_d10",
 
 Let `N` = number of data rows in `d1-susp.balls.csv`. Expected:
 
-* solid: volume `N·(4/3)π mm³`, error ≤ 1 % (gap 0.05 is negligible); `bodies` = число кластеров
-  (N = 400 → 51), не N — генератор сливает касающиеся сферы;
+* solid: volume `N·(4/3)π mm³`, error ≤ 1 % (gap 0.05 is negligible); `bodies` = number of clusters
+  (N = 400 → 51), not N — the generator merges touching spheres;
 * fluid: `bodies = 1`, volume `π·10²·20 − N·(4/3)π mm³` (±1 %);
 * both watertight.
 
@@ -529,9 +529,9 @@ stl_generate({ "family": "packing", "preset": "box_mono_d1", "name": "e2-pack",
 ```
 
 `N` = rows in `e2-pack.balls.csv`. Expected solid volume `N·4.18879 mm³` (±1 %); fluid volume
-`2000 − N·4.18879` (±1 %). **Не** проверяйте `bodies = N`: генератор объединяет касающиеся сферы
-в кластеры (N = 210 → 15 тел, 195 контактов), поэтому ожидание по телам — `bodies = clusters` из
-`<name>.packing.json`, а fluid = clusters + 1.
+`2000 − N·4.18879` (±1 %). **Do not** check `bodies = N`: the generator merges touching spheres
+into clusters (N = 210 → 15 bodies, 195 contacts), so the expectation for bodies is `bodies = clusters` from
+`<name>.packing.json`, and fluid = clusters + 1.
 
 Mesh `e2-pack.fluid.stl`: domain `[-0.001,-0.001,-0.001] … [0.021,0.021,0.021]` m, cells
 `[40,40,80]` (0.55 mm), level 2, minVol `9.9e-15`, location from Appendix A.
@@ -615,7 +615,7 @@ F13–F16 are the real test of "tools + hints": the card text says the rule, the
 | G5 | `stl_check({ stl: "nope.stl" })` | `{ error: "STL not found: …" }`, no stack trace, no file created |
 | G6 | `mesh_check({ caseDir: "<empty dir>" })` | `{ error: "no constant/ directory …" }` |
 | G7 | `mesh_check` on A1m case | writes `mesh-passport.json` with `status fresh`, `cells = fluid cells`, `gate.verdict PASS`; passport contains `environment.id` |
-| G8 | touch `constant/polyMesh/points`, rerun `mesh_check` | с 2026-11-25 `mesh_check` считает freshness ДО перезаписи паспорта: `status: "stale"`, `changed` называет `constant/polyMesh/points (content changed)` |
+| G8 | touch `constant/polyMesh/points`, rerun `mesh_check` | since 2026-11-25 `mesh_check` computes freshness BEFORE overwriting the passport: `status: "stale"`, `changed` names `constant/polyMesh/points (content changed)` |
 | G9 | `stl_check({ ..., register: true })` twice with different `geom_id`-relevant names | exactly one row appended per call; header unchanged; a wrong-header CSV is refused with a message |
 | G10 | same `mesh_build` twice into different `caseDir`s | identical `cells` and gate verdict (snappiness determinism); wall time recorded |
 
@@ -628,15 +628,15 @@ Acceptance: all ten pass. G4 is the honesty test for `dryRun`; G7/G8 are the pas
 
 | ID | Scenario | Expected |
 |---|---|---|
-| H1 | `stl_check` on `stl/e1/e1-fcc.raw.stl` (11 356 tri, 8 вырожденных — raw не watertight) | `verdict: FAIL` (с 2026-11-25 `stl_qa.py` считает «raw не watertight при отсутствии `--clean-out`» проблемой, а не warning); `cleanup: true` → `verdict: PASS`, 11 348 tri, 1 тело. Прежний пример `c4-junction.raw.stl` на этом пресете уже PASS |
-| H2 | `mesh_build` with `locationInMesh` центр замкнутого solid-а (A2-сфера, `[0,0,0]`) | `ok: false`, `phase: "sanity"`, сообщение про отсутствующий патч домена (`world`) — «locationInMesh most likely landed inside the solid body»; вне домена ловится preflight-ом `is outside the domain`. Для A1-куба интерьер И ЕСТЬ жидкость, поэтому A1 этот тест не показывает |
+| H1 | `stl_check` on `stl/e1/e1-fcc.raw.stl` (11 356 tri, 8 degenerate — the raw file is not watertight) | `verdict: FAIL` (since 2026-11-25 `stl_qa.py` treats "raw not watertight with no `--clean-out`" as a problem rather than a warning); `cleanup: true` → `verdict: PASS`, 11 348 tri, 1 body. The former example `c4-junction.raw.stl` is already PASS on this preset |
+| H2 | `mesh_build` with `locationInMesh` at the centre of a closed solid (A2 sphere, `[0,0,0]`) | `ok: false`, `phase: "sanity"`, a message about the missing domain patch (`world`) — "locationInMesh most likely landed inside the solid body"; a point outside the domain is caught by the preflight `is outside the domain`. For the A1 cube the interior IS the fluid, so A1 does not exercise this test |
 | H3 | `mesh_build({ route: "cfmesh", openfoam: "org14" })` | refused by preflight (same as F15); no `cartesianMesh` invocation in `steps` |
 | H4 | `mesh_build` cfmesh on a case without `system/meshDict` | preflight refusal naming `meshDict` |
 | H5 | `mesh_build({ route: "gmsh" })` without `gmshScript`/`msh` | preflight refusal naming both |
 | H6 | `mesh_deliver` on a case without a passport | `verdict: BLOCKED`, reason `passport-missing`; `force: true` proceeds with a `passport-missing-forced` warning |
 | H7 | `mesh_deliver` after touching `points` | `BLOCKED`, reason `passport-stale` |
 | H8 | `mesh_check` on a gate-FAIL mesh with a different `minVol` | verdict flips when the threshold crosses `minVolume`; both answers show the numbers that justify the flip |
-| H9 | `mesh_build` with an absurd `cellSize` (5e-5 m on a 14 mm domain) | с 2026-11-25 scaffold пишет `cellBudgetWarning` и возвращает `ok: false` с `maxCells`/`maxGlobalCells`-сообщением (default `maxCells` 5e6) — не OOM и не обрезанный успех |
+| H9 | `mesh_build` with an absurd `cellSize` (5e-5 m on a 14 mm domain) | since 2026-11-25 the scaffold writes `cellBudgetWarning` and returns `ok: false` with a `maxCells`/`maxGlobalCells` message (default `maxCells` 5e6) — not an OOM and not a truncated success |
 
 Acceptance: every failure is **actionable**: names the file/field, suggests the fix, leaves no
 half-written case that the next tool would accept. H1 is the STL-contract lesson; H2 and H3 are the
@@ -864,7 +864,7 @@ is a smoke case, not a version regression (use V1–V3 for that).
 ```bash
 .venv/bin/python benchmark/scripts/fluid_point.py \
   benchmark/runs/<RUN>/stl/b1/fluid.stl --clearance 0.2 --seed 1
-# канонический скрипт теперь в пакете: plugins/mesh-build/scripts/fluid-point.py (здесь — тонкий шим)
+# the canonical script now ships in the package: plugins/mesh-build/scripts/fluid-point.py (a thin shim here)
 # -> {"ok": true, "point_mm": [0.044194, 0.044194, -2.114369], "clearance_mm": 0.38, ...}
 ```
 
@@ -895,8 +895,8 @@ surfaceFile "constant/triSurface/fluid_patches.stl";
 maxCellSize 0.2;
 boundaryCellSize 0.2;
 minCellSize 0.1;
-// ВНИМАНИЕ: cfMesh не масштабирует вход — эти размеры в МЕТРАХ.
-// Для STL в мм (или переведённого surfaceTransformPoints) 0.2 м = 200 мм.
+// WARNING: cfMesh does not scale its input — these sizes are in METRES.
+// For an STL in mm (or one converted with surfaceTransformPoints) 0.2 m = 200 mm.
 renameBoundary {
   defaultName "unmatched"; defaultType wall;
   newPatchNames {
@@ -967,32 +967,32 @@ honest `BLOCKED` is more useful than a polished false PASS.*
 
 ---
 
-## 18. Правки протокола после прогона 2026-11-25
+## 18. Protocol amendments after the 2026-11-25 run
 
-Все пункты ниже — следствие прогона `benchmark/runs/20261125-1805/` (см. `REPORT.md`, дефекты
-DEF-01…DEF-18) и внесены вместе с правками плагинов в тот же день. Значения параметров кейсов
-(A1–A4, B1, C1–C5, D1–D3, E1–E3) не менялись, кроме `minVol`, которые оказались строже реального
-минимума объёма сетки, и очевидных опечаток.
+Every item below follows from the `benchmark/runs/20261125-1805/` run (see `REPORT.md`, defects
+DEF-01…DEF-18) and was applied together with the plugin fixes on the same day. The parameter values of the cases
+(A1–A4, B1, C1–C5, D1–D3, E1–E3) did not change, except for `minVol`, which turned out to be stricter than the real
+minimum cell volume, and obvious typos.
 
-| Что | Было | Стало | Почему |
+| What | Before | After | Why |
 |---|---|---|---|
-| E1 `domainMax` z | `0.0035355339` | `0.0070710678` | STL FCC-ячейки 7.0711 мм высотой; прежний домен обрезал половину геометрии, а шлюз всё равно давал PASS (DEF-11) |
-| E1 `refinementLevels` | `{ "e1-fcc": 2 }` | `{ "e1-fcc": [1, 2] }` | scalar уровень писал `level (2 2)`; пара `[1,2]` — конвенция exp-003 (27 424 ячейки), иначе 75 024 (+174 %) (DEF-12) |
-| C5 `minVol` | `1.5e-13` | `7.5e-14` | шаблонное значение даёт 5 «пирамидных» нарушений на здоровой сетке (DEF-10) |
-| D1 `minVol` | `3e-13` | `1.5e-13` | то же, 12 нарушений (DEF-10) |
-| D2 `minVol` | `8e-15` | `4.1e-15` | то же, 3 нарушения (DEF-10) |
-| E2 `minVol` | `4e-13` | `9.9e-15` | то же, 2 350 384 нарушения (DEF-10) |
-| E3 `minVol` | `3e-14` | `1.5e-14` | то же, 117 нарушений (DEF-10) |
-| D1/E2 «bodies = N» | `bodies = N` | `bodies = clusters` | генератор сливает касающиеся сферы: D1 400 → 51, E2 210 → 15, E3 93 → 9 (DEF-06/DEF-14) |
-| C4/H1 «сырой STL обязан падать» | «raw OCC STL is not watertight» | «на этом пресете raw может уже быть watertight» | фактический PASS с 0 вырожденных граней (DEF-05); неводонепроницаемый пример для H1 — `stl/e1/e1-fcc.raw.stl` |
-| `uncovered faces` | «snap log reports no uncovered faces» | «в v2512 такой строки нет, проверяйте распределение граней по патчам» | строки нет ни в логах, ни в исходниках v2512 |
-| L1 `cells` | `2584` | `32718` | A1m (20³ фон) реально даёт 32 718 ячеек; 2584 — это V1 (16³) |
-| Appendix B `meshDict` | `maxCellSize 2e-4`, `boundaryCellSize 2e-4`, `minCellSize 1e-4` | `0.2`, `0.2`, `0.1` (метры) | cfMesh не масштабирует вход: с мм-STL октодерево уходит на уровень 18 и шаг падает по таймауту (DEF-03) |
-| H2 | точка внутри solid-а | центр замкнутого solid (A2) | A1-куб: интерьер и есть жидкость; новый sanity-guard ловит отсутствующий патч домена (DEF-17) |
-| H9 | «ждём budget-сообщение» | guard реализован (`maxCells`, default 5e6) | прогон создал 21.95 млн фоновых ячеек и 476 МБ без предупреждения (DEF-18) |
-| G8 | «passport status stale» | freshness считается ДО перезаписи паспорта | `mesh_check` перезаписывал паспорт и всегда рапортовал `fresh` (DEF-09) |
-| G7 / V2 `environment` | `environment.id` / `environment.version = v2606` | требуют перезапуска DSH | живой процесс держит `mesh-build@0.2.0` в ESM-кэше и не пишет `environment` (DEF-08/ENV-1) |
-| D3 | стратифицированной геометрии нет | семейство `stratified-channel` (`geometry/stratified/`, пресет `channel_10x10x20_h8`) | GAP закрыт: lower/upper STL по плоскости `interface_z_mm` (DEF-07) |
-| F3/F4/F5/F7 (подсказки) | один каталог mesh-build | `mesh_hints` регистрирует и `mesh-stl/data/hints` — 33 карточки | `openfoam-versions` и STL-карточки теперь находятся с первого запроса (DEF-15/DEF-16) |
+| E1 `domainMax` z | `0.0035355339` | `0.0070710678` | the FCC-cell STL is 7.0711 mm high; the previous domain cut off half the geometry, and the gate still returned PASS (DEF-11) |
+| E1 `refinementLevels` | `{ "e1-fcc": 2 }` | `{ "e1-fcc": [1, 2] }` | a scalar level wrote `level (2 2)`; the pair `[1,2]` is the exp-003 convention (27 424 cells), otherwise 75 024 (+174 %) (DEF-12) |
+| C5 `minVol` | `1.5e-13` | `7.5e-14` | the template value yields 5 "pyramid" violations on a healthy mesh (DEF-10) |
+| D1 `minVol` | `3e-13` | `1.5e-13` | same, 12 violations (DEF-10) |
+| D2 `minVol` | `8e-15` | `4.1e-15` | same, 3 violations (DEF-10) |
+| E2 `minVol` | `4e-13` | `9.9e-15` | same, 2 350 384 violations (DEF-10) |
+| E3 `minVol` | `3e-14` | `1.5e-14` | same, 117 violations (DEF-10) |
+| D1/E2 "bodies = N" | `bodies = N` | `bodies = clusters` | the generator merges touching spheres: D1 400 → 51, E2 210 → 15, E3 93 → 9 (DEF-06/DEF-14) |
+| C4/H1 "the raw STL must fail" | "raw OCC STL is not watertight" | "on this preset the raw STL may already be watertight" | the actual result is PASS with 0 degenerate faces (DEF-05); the non-watertight example for H1 is `stl/e1/e1-fcc.raw.stl` |
+| `uncovered faces` | "snap log reports no uncovered faces" | "v2512 has no such line, check how the faces are distributed over the patches" | the line appears neither in the logs nor in the v2512 sources |
+| L1 `cells` | `2584` | `32718` | A1m (20³ background) actually gives 32 718 cells; 2584 is V1 (16³) |
+| Appendix B `meshDict` | `maxCellSize 2e-4`, `boundaryCellSize 2e-4`, `minCellSize 1e-4` | `0.2`, `0.2`, `0.1` (metres) | cfMesh does not scale its input: with a mm-STL the octree goes to level 18 and the step times out (DEF-03) |
+| H2 | a point inside the solid | the centre of a closed solid (A2) | A1 cube: the interior IS the fluid; the new sanity guard catches a missing domain patch (DEF-17) |
+| H9 | "wait for the budget message" | the guard is implemented (`maxCells`, default 5e6) | the run created 21.95 million background cells and 476 MB with no warning (DEF-18) |
+| G8 | "passport status stale" | freshness is computed BEFORE the passport is overwritten | `mesh_check` overwrote the passport and always reported `fresh` (DEF-09) |
+| G7 / V2 `environment` | `environment.id` / `environment.version = v2606` | these require a DSH restart | the live process keeps `mesh-build@0.2.0` in the ESM cache and does not write `environment` (DEF-08/ENV-1) |
+| D3 | no stratified geometry | the `stratified-channel` family (`geometry/stratified/`, preset `channel_10x10x20_h8`) | the GAP is closed: lower/upper STL split by the plane `interface_z_mm` (DEF-07) |
+| F3/F4/F5/F7 (hints) | a single mesh-build directory | `mesh_hints` also registers `mesh-stl/data/hints` — 33 cards | `openfoam-versions` and the STL cards are now found on the first query (DEF-15/DEF-16) |
 
-Проверка правок: `benchmark/runs/20261125-1805/REPORT.md` §10 (раздел «Перепроверка после правок»).
+Verification of the amendments: `benchmark/runs/20261125-1805/REPORT.md` §10 (the "Re-check after the amendments" section).

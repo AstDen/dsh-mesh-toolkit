@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "comment": "Семейства генераторов. По умолчанию (generators.root = \"package\") script и preset.dir берутся из этого пакета; generators.root = \"project\" переключает python-семейства на projectScript/projectPreset (исследовательское дерево geometry/). built-in engine \"primitive\"/\"js\" — без Python.",
+  "comment": "Generator families. By default (generators.root = \"package\") script and preset.dir come from this package; generators.root = \"project\" switches python families to projectScript/projectPreset (the research tree geometry/). The built-in engine \"primitive\"/\"js\" needs no Python.",
   "families": [
     {
       "id": "fcc-cell",
-      "title": "FCC-ячейка (сфера + шейки)",
-      "description": "Параметрическая FCC-ячейка поровой среды: сферы в узлах + шейки; сырой STL от CAD/CSG чистится и проверяется автоматически.",
+      "title": "FCC cell (sphere + necks)",
+      "description": "Parametric FCC cell of a porous medium: spheres at the nodes + necks; the raw STL from CAD/CSG is cleaned and checked automatically.",
       "script": "@package/generators/pore_cell/gen_fcc_cell.py",
       "preset": {
         "dir": "@package/generators/presets/pore_cell",
@@ -17,7 +17,7 @@
       },
       "steps": [
         {
-          "description": "генерация сырого STL + чистка",
+          "description": "generate the raw STL + cleanup",
           "args": [
             "--params-file",
             "{paramsFile}",
@@ -42,7 +42,7 @@
           "qa": false
         }
       ],
-      "notes": "Чистый STL пишется в stl_qa --clean-out. Для мешинга используйте {cleanOut}: сырой STL может содержать вырожденные грани.",
+      "notes": "The clean STL is written by stl_qa --clean-out. For meshing use {cleanOut}: the raw STL may contain degenerate faces.",
       "hints": [
         "stl-contract",
         "gap-rule",
@@ -60,8 +60,8 @@
     },
     {
       "id": "channel-spheres",
-      "title": "Канал с упаковкой сфер (fluid + solid + именованные патчи)",
-      "description": "Двухобластная геометрия: канал с набивкой сфер, отдельные STL для fluid/solid и именованных границ (inlet, outlet, walls, interface).",
+      "title": "Channel with sphere packing (fluid + solid + named patches)",
+      "description": "Two-region geometry: a channel filled with spheres, separate STLs for fluid/solid and named boundaries (inlet, outlet, walls, interface).",
       "script": "@package/generators/pore_cell/gen_channel_spheres.py",
       "preset": {
         "dir": "@package/generators/presets/pore_cell",
@@ -73,7 +73,7 @@
       },
       "steps": [
         {
-          "description": "генерация fluid_patches/solid/fluid + патчи",
+          "description": "generate fluid_patches/solid/fluid + patches",
           "args": [
             "--params",
             "{paramsFile}",
@@ -102,7 +102,7 @@
           "qa": true
         }
       ],
-      "notes": "fluid_patches.stl идёт в snappyHexMesh как поверхность с уже готовыми именами патчей (inlet/outlet/walls/interface); для cfMesh имена переносятся через renameBoundary в meshDict (см. эксперимент exp-017).",
+      "notes": "fluid_patches.stl goes into snappyHexMesh as a surface whose patch names are already set (inlet/outlet/walls/interface); for cfMesh the names are carried over through renameBoundary in meshDict (see experiment exp-017).",
       "hints": [
         "channel-named-patches",
         "snappy-two-region",
@@ -119,8 +119,8 @@
     },
     {
       "id": "double-layer-burner",
-      "title": "Двухслойная горелка (solid + fluid)",
-      "description": "Две области: твёрдый каркас и проточная часть; на выходе 4 файла — сырые и чистые STL для каждой области.",
+      "title": "Double-layer burner (solid + fluid)",
+      "description": "Two regions: a solid frame and a flow passage; the output is 4 files — raw and clean STL for each region.",
       "script": "@package/generators/pore_cell/gen_double_layer_burner.py",
       "preset": {
         "dir": "@package/generators/presets/pore_cell",
@@ -132,7 +132,7 @@
       },
       "steps": [
         {
-          "description": "генерация solid/fluid + чистка",
+          "description": "generate solid/fluid + cleanup",
           "args": [
             "--params-file",
             "{paramsFile}",
@@ -171,7 +171,7 @@
           "qa": false
         }
       ],
-      "notes": "Сырые *_raw.stl не мешить: используйте *_solid.stl и *_fluid.stl.",
+      "notes": "Do not mesh the raw *_raw.stl files: use *_solid.stl and *_fluid.stl.",
       "hints": [
         "stl-contract",
         "snappy-two-region",
@@ -189,8 +189,8 @@
     },
     {
       "id": "packing",
-      "title": "Упаковка сфер (таблица → STL)",
-      "description": "Двухшаговый генератор: сначала таблица шаров/контактов, затем STL твёрдого каркаса и проточной части с шейками.",
+      "title": "Sphere packing (table → STL)",
+      "description": "Two-step generator: first a table of balls/contacts, then STLs of the solid frame and the flow passage with necks.",
       "script": "@package/generators/packings/gen_packing_stl.py",
       "preset": {
         "dir": "@package/generators/presets/packings",
@@ -202,7 +202,7 @@
       },
       "steps": [
         {
-          "description": "таблица шаров и контактов",
+          "description": "table of balls and contacts",
           "script": "geometry/packings/gen_packing_table.py",
           "args": [
             "--params-file",
@@ -216,7 +216,7 @@
           ]
         },
         {
-          "description": "STL solid + fluid (шейки)",
+          "description": "STL solid + fluid (necks)",
           "script": "geometry/packings/gen_packing_stl.py",
           "args": [
             "--params-file",
@@ -246,7 +246,7 @@
           "qa": true
         }
       ],
-      "notes": "Число шаров задаётся в params (или --max-spheres в CLI таблицы); при больших упаковках генерация STL может идти минуты.",
+      "notes": "The number of balls is set in params (or --max-spheres in the table CLI); for large packings STL generation may take minutes.",
       "hints": [
         "packing-pipeline",
         "gap-rule",
@@ -263,8 +263,8 @@
     },
     {
       "id": "cad-porous",
-      "title": "CAD-геометрия (CadQuery): блок/канал/плита со сферами",
-      "description": "CAD-генератор для сложных составных форм; сырой STL OCC почти всегда не watertight — обязательна чистка.",
+      "title": "CAD geometry (CadQuery): block/channel/plate with spheres",
+      "description": "CAD generator for complex composite shapes; a raw OCC STL is almost never watertight — cleanup is mandatory.",
       "script": "@package/generators/cad/gen_cq_porous.py",
       "preset": {
         "dir": "@package/generators/presets/cad",
@@ -276,7 +276,7 @@
       },
       "steps": [
         {
-          "description": "генерация CAD-геометрии в STL",
+          "description": "generate CAD geometry into STL",
           "args": [
             "--params-file",
             "{paramsFile}",
@@ -294,7 +294,7 @@
           "qa": true
         }
       ],
-      "notes": "Тесселяцию задаёт angularTolerance в params (0.1 — точный объём, 0.2–0.3 — для мешинга); после генерации чистите: stl_check({ stl, cleanup: true }).",
+      "notes": "Tessellation is controlled by angularTolerance in params (0.1 — accurate volume, 0.2–0.3 — for meshing); after generation clean up: stl_check({ stl, cleanup: true }).",
       "hints": [
         "cadquery-tessellation",
         "stl-cleanup",
@@ -312,8 +312,8 @@
     },
     {
       "id": "primitive",
-      "title": "Портируемые примитивы (куб, сфера, цилиндр)",
-      "description": "STL из встроенного генератора в JS: без Python, без CAD, без данных проекта. Нужен, чтобы проверить маршрут мешинга на чужой машине и в бенчмарке.",
+      "title": "Portable primitives (box, sphere, cylinder)",
+      "description": "STL from the built-in JS generator: no Python, no CAD, no project data. Needed to test a meshing route on another machine and in the benchmark.",
       "engine": "primitive",
       "script": "mesh-stl/lib/primitives.js",
       "preset": {
@@ -332,7 +332,7 @@
           "qa": true
         }
       ],
-      "notes": "Единицы — мм, одна замкнутая оболочка, нормали наружу. Параметры: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Работает без python и без проекта: генерация и QA — на JS.",
+      "notes": "Units are mm, a single closed shell, outward normals. Parameters: shape (box|sphere|cylinder), size_mm / radius_mm+height_mm, center_mm, segments/rings/sections. Works without python and without a project: generation and QA run in JS.",
       "hints": [
         "stl-contract",
         "units-mm"
@@ -340,8 +340,8 @@
     },
     {
       "id": "stratified-channel",
-      "title": "Стратифицированный канал (две жидкости, горизонтальный интерфейс)",
-      "description": "Прямоугольный канал, разрезанный плоскостью z = interface_z: lower.stl (низ) и upper.stl (верх), по 12 треугольников, единицы мм. Встроенный генератор на JS: без Python, без CAD, без данных проекта.",
+      "title": "Stratified channel (two liquids, horizontal interface)",
+      "description": "A rectangular channel cut by the plane z = interface_z: lower.stl (bottom) and upper.stl (top), 12 triangles each, units mm. A built-in JS generator: no Python, no CAD, no project data.",
       "script": "lib/generators/stratified.js",
       "preset": {
         "dir": "@package/generators/presets/stratified",
@@ -364,7 +364,7 @@
           "qa": true
         }
       ],
-      "notes": "Плоскость горизонтальная, без наклона; пористой начинки нет — это чистый стратифицированный слой. Выходы: {outDir}/{name}.lower.stl и {outDir}/{name}.upper.stl (роль fluid у обоих). Для двухфазной/CHT-задачи интерфейс лучше сшивать conform-мешером (gmsh route D).",
+      "notes": "The plane is horizontal with no tilt; there is no porous filling — this is a clean stratified layer. Outputs: {outDir}/{name}.lower.stl and {outDir}/{name}.upper.stl (role fluid for both). For a two-phase/CHT problem the interface is better stitched by a conformal mesher (gmsh route D).",
       "hints": [
         "stl-contract",
         "units-mm",
@@ -375,8 +375,8 @@
     },
     {
       "id": "blob-foam",
-      "title": "Блочная пена (метаболы → изоповерхность)",
-      "description": "Пористая пена из перекрывающихся «блобов»: поле метаболов на сетке, изопорог (или подбор под целевую пористость бисекцией), обрезка аналитическим доменом через SDF, marching cubes. Повторяет Blender-подход «метаболы + voxel remesh + Boolean Intersect» без Blender и без CAD; в отчёте — пористость, связность твёрдого/порового пространства и распределения толщин.",
+      "title": "Blob foam (metaballs → isosurface)",
+      "description": "Porous foam from overlapping “blobs”: a metaball field on a grid, an isolevel (or a bisection search for a target porosity), trimming by an analytic domain via SDF, marching cubes. It reproduces the Blender approach “metaballs + voxel remesh + Boolean Intersect” without Blender and without CAD; the report gives porosity, solid/pore-space connectivity and thickness distributions.",
       "script": "@package/generators/pore_cell/gen_blob_foam.py",
       "preset": {
         "dir": "@package/generators/presets/pore_cell",
@@ -388,7 +388,7 @@
       },
       "steps": [
         {
-          "description": "поле → изоповерхность → STL + чистка + QA",
+          "description": "field → isosurface → STL + cleanup + QA",
           "args": [
             "--params-file",
             "{paramsFile}",
@@ -414,7 +414,7 @@
           "qa": false
         }
       ],
-      "notes": "Мешить {cleanOut}. Пористость задаётся target_porosity (бисекция по изопорогу) либо фиксированным threshold. voxel_mm — разрешение поля: шаг ≤ 0.1·r_min, иначе теряются шейки. Домен — цилиндр вдоль z или куб.",
+      "notes": "Mesh {cleanOut}. Porosity is set by target_porosity (bisection on the isolevel) or by a fixed threshold. voxel_mm is the field resolution: step ≤ 0.1·r_min, otherwise the necks are lost. The domain is a cylinder along z or a box.",
       "hints": [
         "stl-contract",
         "gap-rule",
@@ -433,8 +433,8 @@
     },
     {
       "id": "box-array",
-      "title": "Решётка сфер/цилиндров (box-array)",
-      "description": "Регулярная решётка nx×ny×nz сфер или цилиндров в коробке: solid.stl (N замкнутых оболочек) и container.stl (сама коробка). Встроенный генератор на JS, единицы мм — годится для проверки мешинга вне проекта.",
+      "title": "Lattice of spheres/cylinders (box-array)",
+      "description": "A regular nx×ny×nz lattice of spheres or cylinders in a box: solid.stl (N closed shells) and container.stl (the box itself). A built-in JS generator, units mm — suitable for testing meshing outside the project.",
       "engine": "js",
       "runner": "lib/generators/box-array.js",
       "script": "lib/generators/box-array.js",
@@ -459,7 +459,7 @@
           "qa": false
         }
       ],
-      "notes": "Параметры: container_mm, lattice [nx,ny,nz], shape (sphere|cylinder), radius_mm, height_mm (цилиндр), margin_mm, segments/rings/sections. Если шаг решётки меньше размера тела, в JSON пишется предупреждение: snappy прочитает пересекающиеся оболочки как одно тело.",
+      "notes": "Parameters: container_mm, lattice [nx,ny,nz], shape (sphere|cylinder), radius_mm, height_mm (cylinder), margin_mm, segments/rings/sections. If the lattice spacing is smaller than the body size, a warning is written to the JSON: snappy will read the intersecting shells as one body.",
       "hints": [
         "stl-contract",
         "units-mm"

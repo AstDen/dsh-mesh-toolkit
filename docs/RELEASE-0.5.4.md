@@ -1,55 +1,55 @@
-# 0.5.4 — упаковка, CI и релиз без ручных шагов
+# 0.5.4 — packaging, CI and a release with no manual steps
 
-Три пакета: **mesh-build 0.5.4** · **mesh-stl 0.3.6** · **sim-core 0.4.4**.
-Это релиз блокера 2 плана `PLAN-release-1.0.md`: код не менял физику, но упаковка теперь
-проверяется автоматически и релиз собирается тегом.
+Three packages: **mesh-build 0.5.4** · **mesh-stl 0.3.6** · **sim-core 0.4.4**.
+This is the release for blocker 2 of the plan `PLAN-release-1.0.md`: the code did not change
+the physics, but packaging is now checked automatically and the release is built from a tag.
 
-## Что нового по пакетам
+## What is new, per package
 
 ### mesh-stl 0.3.6
-- `files` включает `generators/` — раньше `npm pack` терял python-генераторы, и семейства
-  `fcc-cell`, `channel-spheres`, `packing`, `cad-porous`, `blob-foam` падали бы в установленном
-  пакете на `@package/generators/...`.
-- `scripts/qa-parity.mjs` сам находит python-эталон (`tools/qa/stl_qa.py` → пакетная копия
-  `generators/cad/py_qa.py` → `MESH_STL_QA_SCRIPT`) и требует graph engine (см. ниже), поэтому
-  паритет проверяется и в отдельно взятом пакете, и в CI.
-- `scripts/smoke.mjs` проходит без `sim-project.json`: в портативном режиме проверяются дефолты
-  (`project: "defaults"`, `registry: stl/registry.csv`, QA-движок `js`), а dry-run якорится на cwd.
+- `files` includes `generators/` — previously `npm pack` dropped the python generators, and the
+  `fcc-cell`, `channel-spheres`, `packing`, `cad-porous`, `blob-foam` families would have failed
+  in the installed package on `@package/generators/...`.
+- `scripts/qa-parity.mjs` finds the python reference itself (`tools/qa/stl_qa.py` → the packaged
+  copy `generators/cad/py_qa.py` → `MESH_STL_QA_SCRIPT`) and requires a graph engine (see below),
+  so parity is checked both in the standalone package and in CI.
+- `scripts/smoke.mjs` passes without `sim-project.json`: in portable mode it checks the defaults
+  (`project: "defaults"`, `registry: stl/registry.csv`, QA engine `js`), and the dry run is anchored to cwd.
 
 ### mesh-build 0.5.4
-- `files` включает `docs/`: `docs/PORTABLE.md`, на который ссылается README, теперь есть в пакете.
-- `scripts/smoke.mjs` проходит без профиля (`project: "defaults"`, `caseRoot: "cases"`,
-  профиль шлюза `project`).
+- `files` includes `docs/`: `docs/PORTABLE.md`, which the README links to, is now in the package.
+- `scripts/smoke.mjs` passes without a profile (`project: "defaults"`, `caseRoot: "cases"`,
+  gate profile `project`).
 
 ### sim-core 0.4.4
-- Профиль качества по умолчанию в режиме без `sim-project.json` — `project` (60° / skew 2 /
-  boundary 4), как обещают `docs/PORTABLE.md` и карточка `portable-mesh-build`. Раньше молча
-  брался `gate` (65°) — расхождение кода и документации. Явный `gate.profile` в профиле по-прежнему
-  главнее.
-- Добавлено `engines.dsh`.
+- The default quality profile in the mode without `sim-project.json` is `project` (60° / skew 2 /
+  boundary 4), as `docs/PORTABLE.md` and the `portable-mesh-build` card promise. Previously it
+  silently took `gate` (65°) — a discrepancy between code and documentation. An explicit
+  `gate.profile` in the profile still wins.
+- Added `engines.dsh`.
 
-### Общее
-- `engines.dsh: ">=0.2.2-rc.1 <0.3.0"` во всех трёх пакетах (было `>=0.2.1-rc.5 <0.3.0`),
-  peer-диапазоны `@deepseek-ai/dsh-*` выровнены так же. Верхняя граница сохранена намеренно:
-  мажор DSH может менять API.
-- Заполнено `repository` с `directory` каждого пакета.
-- Python-семействам mesh-stl теперь явно нужен `networkx`: без graph engine trimesh падает с
-  `ImportError: no graph engines available!` (ловилось только в чистом окружении CI).
+### Common
+- `engines.dsh: ">=0.2.2-rc.1 <0.3.0"` in all three packages (it was `>=0.2.1-rc.5 <0.3.0`),
+  and the `@deepseek-ai/dsh-*` peer ranges are aligned the same way. The upper bound is kept on
+  purpose: a DSH major may change the API.
+- Filled in `repository` with each package's `directory`.
+- The mesh-stl python families now explicitly require `networkx`: without a graph engine trimesh
+  fails with `ImportError: no graph engines available!` (only caught in a clean CI environment).
 
-## Автоматизация
+## Automation
 
-- **CI** (`.github/workflows/ci.yml`, node 20 и 24): синтаксис JS/Python/shell, каталог карточек
-  (35 уникальных, 10 общих — отчёт, не ошибка), согласованность версий (package.json == CHANGELOG ==
-  баннер README), оба smoke, паритет JS-QA против python-эталона, полнота tarball'ов.
-- **Release** (`.github/workflows/release.yml`): на тег `v*` прогоняет проверки, собирает три
-  `.tgz` и создаёт/обновляет Release с описанием из `docs/RELEASE-<тег>.md`.
-- **`scripts/bump.mjs`**: одна команда на три версии + заголовки CHANGELOG + баннер README +
+- **CI** (`.github/workflows/ci.yml`, node 20 and 24): JS/Python/shell syntax, the card catalogue
+  (35 unique, 10 shared — a report, not an error), version consistency (package.json == CHANGELOG ==
+  README banner), both smokes, JS-QA parity against the python reference, tarball completeness.
+- **Release** (`.github/workflows/release.yml`): on a `v*` tag it runs the checks, packs three
+  `.tgz` files and creates/updates a Release with the description from `docs/RELEASE-<tag>.md`.
+- **`scripts/bump.mjs`**: one command for three versions + CHANGELOG headings + README banner +
   `check-versions`.
-- Решение по каналу публикации и команды установки — `docs/PACKAGING.md` (git + `install_bundle`,
-  tarball'ы как оффлайн-вариант; npm отложен: относительный импорт `../sim-core/lib/...` и занятые
-  имена без scope).
+- The publication-channel decision and install commands are in `docs/PACKAGING.md` (git + `install_bundle`,
+  tarballs as the offline option; npm is deferred: the relative import `../sim-core/lib/...` and the
+  unscoped names are taken).
 
-## Установка
+## Installation
 
 ```bash
 git clone https://github.com/AstDen/dsh-mesh-toolkit.git
@@ -59,15 +59,15 @@ dsh plugin install_bundle "$(pwd)/mesh-stl"
 dsh plugin install_bundle "$(pwd)/mesh-build"
 ```
 
-Или из ассетов этого релиза: распаковать `.tgz` и `dsh plugin install_bundle "$(pwd)/package"`.
+Or from this release's assets: unpack the `.tgz` and run `dsh plugin install_bundle "$(pwd)/package"`.
 
-После правок кода перезагрузка без перезапуска DSH: `plugin_manager set_plugin
-{target:"include:mesh-stl", enabled:false}` → `enabled:true` (модули перечитываются, если файлы
-изменились).
+To reload after code changes without restarting DSH: `plugin_manager set_plugin
+{target:"include:mesh-stl", enabled:false}` → `enabled:true` (modules are re-read if the files
+have changed).
 
-## Проверено
+## Verified
 
-- CI зелёный на node 20 и 24 (все шаги, включая паритет 9/9 и полноту tarball'ов).
-- Релиз собран workflow'ом: tag `v0.5.4`, три ассета `mesh-build-0.5.4.tgz`,
+- CI is green on node 20 and 24 (every step, including parity 9/9 and tarball completeness).
+- The release was built by the workflow: tag `v0.5.4`, three assets `mesh-build-0.5.4.tgz`,
   `mesh-stl-0.3.6.tgz`, `sim-core-0.4.4.tgz`.
-- `node scripts/check-catalogue.mjs` → 35 карточек; `node scripts/check-versions.mjs` → versions OK.
+- `node scripts/check-catalogue.mjs` → 35 cards; `node scripts/check-versions.mjs` → versions OK.

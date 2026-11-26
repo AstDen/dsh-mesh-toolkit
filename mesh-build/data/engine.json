@@ -27,7 +27,7 @@
     {
       "id": "snappy",
       "title": "snappyHexMesh (hex-dominant, layers, multi-region CHT)",
-      "when": "основной путь для поровых STL и двухобластных CHT-кейсов; сетка с пристенными слоями",
+      "when": "primary path for pore STLs and two-region CHT cases; mesh with near-wall layers",
       "software": "OpenFOAM v2512",
       "evidence": [
         "exp-003",
@@ -87,16 +87,16 @@
         }
       ],
       "failures": [
-        "`Point (...) is not inside the mesh or on a face or edge` — locationInMesh не в метрах или STL без scale 0.001",
-        "0 выращенных слоёв при minVol из шаблона — абсолютный minVol слишком большой (hint snappy-minvol)",
-        "`Entry 'solver' not found` для castellatedBufferLayer — нет блока _meshMotionSolver (hint snappy-buffer-layer-solver)",
-        "односторонний interface после splitMeshRegions — пятна геометрии на плоскостях домена (hint snappy-domain-plane-spots)"
+        "`Point (...) is not inside the mesh or on a face or edge` — locationInMesh is not in metres or the STL lacks scale 0.001",
+        "0 layers extruded with the template minVol — the absolute minVol is too large (hint snappy-minvol)",
+        "`Entry 'solver' not found` for castellatedBufferLayer — the _meshMotionSolver block is missing (hint snappy-buffer-layer-solver)",
+        "one-sided interface after splitMeshRegions — geometry spots on the domain planes (hint snappy-domain-plane-spots)"
       ]
     },
     {
       "id": "cfmesh",
-      "title": "cfMesh cartesianMesh (робастная hex-сетка)",
-      "when": "сложная геометрия, где snap нестабилен; нужна hex-сетка без слоёв",
+      "title": "cfMesh cartesianMesh (robust hex mesh)",
+      "when": "complex geometry where snap is unstable; a hex mesh without layers is needed",
       "software": "cfMesh 1.2.0, OpenFOAM v2512",
       "evidence": [
         "exp-007",
@@ -145,15 +145,15 @@
         }
       ],
       "failures": [
-        "cfMesh берётся из установки OpenFOAM (каталог platforms/*/bin после source etc/bashrc), не из отдельной сборки env/cfmesh-*",
-        "слои поверх тетра ломают согласованность (D-018) — cartesianMesh только для hex-сетки",
-        "pMesh не работает в параллели (argList::noParallel())"
+        "cfMesh comes from the OpenFOAM installation (platforms/*/bin after source etc/bashrc), not from a separate env/cfmesh-* build",
+        "layers on top of tetra break conformity (D-018) — cartesianMesh is for hex meshes only",
+        "pMesh does not run in parallel (argList::noParallel())"
       ]
     },
     {
       "id": "gmsh",
       "title": "gmsh OCC → conformal CHT (route D)",
-      "when": "нужен согласованный conformal-интерфейс двух областей из STEP/OCC, а не snappy",
+      "when": "a conformal interface between two regions from STEP/OCC is needed instead of snappy",
       "software": "gmsh 4.15.2 (Python API) + gmshToFoam",
       "evidence": [
         "exp-014",
@@ -183,21 +183,21 @@
         }
       ],
       "failures": [
-        "полиэдры после foamMeshToFluent не читаются fluentMeshToFoam (unrecognised 3-D cell shape: 7) — только fluent3DMeshToFoam",
-        "changeDictionary не работает в региональном режиме: тип патча ставить правкой constant/<region>/polyMesh/boundary",
-        "GmshReader в ParaView 6.2.1 нет: смотреть через gmshToFoam → polyMesh"
+        "polyhedra written by foamMeshToFluent are not read by fluentMeshToFoam (unrecognised 3-D cell shape: 7) — use fluent3DMeshToFoam only",
+        "changeDictionary does not work in region mode: set the patch type by editing constant/<region>/polyMesh/boundary",
+        "ParaView 6.2.1 has no GmshReader: view via gmshToFoam → polyMesh"
       ]
     },
     {
       "id": "check",
-      "title": "Только проверка готового кейса",
-      "when": "сетка уже есть, нужно checkMesh + шлюз качества по регионам",
+      "title": "Check an existing case only",
+      "when": "the mesh already exists; checkMesh + a quality gate per region are needed",
       "software": "OpenFOAM v2512",
       "evidence": [
         "AGENTS.md §6"
       ],
       "requires": [
-        "constant/polyMesh или constant/<region>/polyMesh"
+        "constant/polyMesh or constant/<region>/polyMesh"
       ],
       "steps": []
     }

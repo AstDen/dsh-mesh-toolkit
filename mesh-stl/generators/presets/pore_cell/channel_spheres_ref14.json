@@ -1,6 +1,6 @@
 {
   "name": "channel_spheres_ref14",
-  "comment": "Сверка с эталоном 17_3D-channel/task-04/meshing/good_mesing: r=2.5 мм, 14 уровней, вход 0.2 d",
+  "comment": "Comparison against the 17_3D-channel/task-04/meshing/good_mesing reference: r=2.5 mm, 14 levels, 0.2 d inlet",
   "r_mm": 2.5,
   "W_mm": "auto",
   "levels": 14,

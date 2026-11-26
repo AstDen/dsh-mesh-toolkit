@@ -2,42 +2,42 @@
 
 ## 0.4.4 — 2026-11-26
 
-- Профиль качества по умолчанию в режиме без `sim-project.json` — `project` (60° / skew 2 / boundary 4),
-  как обещают `docs/PORTABLE.md` и карточка `portable-mesh-build`; раньше молча брался `gate` (65°).
-  Явный `gate.profile` в профиле по-прежнему главнее.
-- Добавлено `engines.dsh: ">=0.2.2-rc.1 <0.3.0"` (ядро тоже проверяет совместимость с рантаймом).
-- Заполнено поле `repository` (`directory: sim-core`); версия участвует в `scripts/check-versions.mjs`
-  (package.json == CHANGELOG == баннер README).
+- The default quality profile in the no-`sim-project.json` mode is `project` (60° / skew 2 / boundary 4),
+  as `docs/PORTABLE.md` and the `portable-mesh-build` card promise; previously `gate` (65°) was taken silently.
+  An explicit `gate.profile` in the profile still takes priority.
+- Added `engines.dsh: ">=0.2.2-rc.1 <0.3.0"` (the core also checks compatibility with the runtime).
+- Filled in the `repository` field (`directory: sim-core`); the version participates in `scripts/check-versions.mjs`
+  (package.json == CHANGELOG == README banner).
 
 ## 0.4.3 — 2026-11-26
 
-### Добавлено
-- `resolveConfig` возвращает метку `project`: имя проекта из профиля или `"defaults"` в
-  case-local режиме (план 1.4, портативность). Плагины показывают её в ответах инструментов.
+### Added
+- `resolveConfig` returns the `project` label: the project name from the profile, or `"defaults"` in
+  case-local mode (plan 1.4, portability). Plugins show it in tool responses.
 
 ## 0.4.2 — 2026-11-26
 
-- **`project.js`: case-local по умолчанию `caseRoots: ["./cases"]`** (было `['experiments','cases']`).
-  Профиль по-прежнему переопределяет корни; смысл — в голом каталоге без `sim-project.json` кейсы
-  лежат в `./cases`, а не в исследовательских `experiments/` (план 1.3).
+- **`project.js`: case-local default `caseRoots: ["./cases"]`** (was `['experiments','cases']`).
+  The profile still overrides the roots; the point is that in a bare directory without `sim-project.json` cases
+  live in `./cases`, not in the research `experiments/` (plan 1.3).
 
 ## 0.4.1 — 2026-11-26
 
-- **`lib/gate.js`: `ensureGateDicts(overlay)`** — если в кейсе нет `system/fvSchemes` или
-  `system/fvSolution`, в overlay пишутся минимальные копии (mesh-метрики от них не зависят);
-  результат гейта получает поле `synthesized` и advisory. Раньше `checkMesh -meshQuality`
-  падал с `cannot find file …/system/fvSchemes`, и гейт отдавал `ERROR` с пустыми метриками
-  (бенчмарк: cfMesh-кейс без решательских словарей, DEF-04).
+- **`lib/gate.js`: `ensureGateDicts(overlay)`** — if the case has no `system/fvSchemes` or
+  `system/fvSolution`, minimal copies are written into the overlay (mesh metrics do not depend on them);
+  the gate result receives a `synthesized` field and an advisory. Previously `checkMesh -meshQuality`
+  failed with `cannot find file …/system/fvSchemes`, and the gate returned `ERROR` with empty metrics
+  (benchmark: a cfMesh case without solver dictionaries, DEF-04).
 
 ## 0.4.0 — 2026-11-25
 
-- `lib/foam.js`: реестр установок OpenFOAM (`normalizeInstallations`, `resolveFoam`, `withFoam`):
-  выбор по id из профиля или по абсолютному пути к `etc/bashrc`, ошибка со списком доступных.
+- `lib/foam.js`: the OpenFOAM installation registry (`normalizeInstallations`, `resolveFoam`, `withFoam`):
+  selection by id from the profile or by an absolute path to `etc/bashrc`, an error listing the available ones.
 - `lib/config.js`: `foamInstallations`, `foamDefault`, `foamSelected`, `openfoamBashrcExists`;
-  bashrc по умолчанию берётся из профиля, затем из конвенциональных каталогов.
-- `lib/passport.js`: необязательное поле `environment {id, distribution, version, bashrc}`.
+  the default bashrc is taken from the profile, then from the conventional directories.
+- `lib/passport.js`: the optional `environment {id, distribution, version, bashrc}` field.
 
 ## 0.3.0 — 2026-11-25
 
-- Первый выпуск: профиль `sim-project.json`, пути с `resolvedFrom`, JS-гейт (`checkMesh` + профили),
-  паспорт сетки и манифест кейса, `simHints`, `simGeometry`/`simMesh`, общие утилиты и процессы.
+- First release: the `sim-project.json` profile, paths with `resolvedFrom`, the JS gate (`checkMesh` + profiles),
+  the mesh passport and case manifest, `simHints`, `simGeometry`/`simMesh`, shared utilities and processes.

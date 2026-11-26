@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-"""gen_cq_porous.py — параметрический генератор пористой геометрии на CadQuery.
+"""gen_cq_porous.py — parametric generator of porous geometry on CadQuery.
 
-Строит домен жидкости = блок МИНУС полости (сферы/цилиндры), экспортирует бинарный STL
-в мм и (по флагу --check) прогоняет QA через trimesh.
+Builds a fluid domain = block MINUS cavities (spheres/cylinders), exports a binary STL
+in mm and (with the --check flag) runs QA through trimesh.
 
-Аналитика (формула продублирована в geometry/cad/README.md и в cq_common.py):
+Analytics (the formula is duplicated in geometry/cad/README.md and in cq_common.py):
 
     V_fluid = V_domain − Σ V_holes + Σ V_overlaps
     V_domain  = Lx · Ly · Lz
     V_sphere  = 4/3 · π · R³
-    V_cyl     = π · R² · h            (h — длина цилиндра внутри домена)
-    V_overlap = 16/3 · R³             (пересечение двух перпендикулярных цилиндров равного R)
-    A_fluid   = 2(Lx·Ly + Ly·Lz + Lz·Lx) + Σ A_holes_inside   (сферы целиком внутри блока)
-    A_cyl     = A_box − Σ 2πR² + Σ 2πR·h   (цилиндр пробивает две противоположные грани)
+    V_cyl     = π · R² · h            (h — cylinder length inside the domain)
+    V_overlap = 16/3 · R³             (intersection of two perpendicular cylinders of equal R)
+    A_fluid   = 2(Lx·Ly + Ly·Lz + Lz·Lx) + Σ A_holes_inside   (spheres fully inside the block)
+    A_cyl     = A_box − Σ 2πR² + Σ 2πR·h   (the cylinder pierces two opposite faces)
 
-Фасетный STL всегда даёт объём МЕНЬШЕ аналитики (вписанный многогранник) — это дискретизация,
-а не ошибка геометрии (env/ENV_REPORT.md §5 п.9).
+A faceted STL always gives a volume SMALLER than the analytics (inscribed polyhedron) — this is discretisation,
+not a geometry error (env/ENV_REPORT.md §5 item 9).
 
-Примеры:
-  # плита 10×10×4 мм минус 8 сфер R=1.2 мм, допуск 0.05
+Examples:
+  # plate 10×10×4 mm minus 8 spheres R=1.2 mm, tolerance 0.05
   .venv/bin/python geometry/cad/gen_cq_porous.py \
       --params-file geometry/cad/params/plate_spheres_8.json \
       --out experiments/exp-002-cadquery-stl/stl/case2_tol0.05.stl \
       --tolerance 0.05 --check --json experiments/exp-002-cadquery-stl/logs/case2.json
 
-  # канал с пересекающимися цилиндрами
+  # channel with intersecting cylinders
   .venv/bin/python geometry/cad/gen_cq_porous.py \
       --params-file geometry/cad/params/channel_cylinders.json \
       --out experiments/exp-002-cadquery-stl/stl/case6.stl --check
 
-Коды возврата: 0 — успех (и QA пройден, если --check), 1 — QA не пройден, 2 — ошибка входа.
+Return codes: 0 — success (and QA passed, if --check), 1 — QA failed, 2 — input error.
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def build_lattice_spheres(params: dict) -> tuple[cq.Workplane, list[cq.Solid], c
         n_holes=n,
         expected_volume=cc.box_volume(lx, ly, lz) - n * cc.sphere_volume(r),
         expected_area=cc.box_area(lx, ly, lz) + n * cc.sphere_area(r),
-        expected_bodies=1 + n,  # внешняя оболочка + по одной на каждую замкнутую сферу
+        expected_bodies=1 + n,  # outer shell + one per closed sphere
         details={
             "sphere_radius_mm": r,
             "lattice": [nx, ny, nz],
@@ -106,14 +106,14 @@ def build_cylinders(params: dict) -> tuple[cq.Workplane, list[cq.Solid], cc.Case
         extend = float(cyl.get("extend_mm", 1.0))
         p1, p2 = perp_of[axis]
         if p1 not in cyl or p2 not in cyl:
-            raise ValueError(f"цилиндр #{idx}: для оси {axis} нужны координаты {p1} и {p2}")
+            raise ValueError(f"cylinder #{idx}: axis {axis} needs the coordinates {p1} and {p2}")
         a, b = float(cyl[p1]), float(cyl[p2])
-        # проверка, что сам цилиндр внутри домена по поперечным осям
+        # check that the cylinder itself is inside the domain along the transverse axes
         for val, name in ((a, p1), (b, p2)):
             if val - r < -1e-6 or val + r > sizes[name] + 1e-6:
                 raise ValueError(
-                    f"цилиндр #{idx} выходит за грань {name}: центр {val}, R={r}, "
-                    f"домен {sizes[name]}"
+                    f"cylinder #{idx} goes beyond the face {name}: center {val}, R={r}, "
+                    f"domain {sizes[name]}"
                 )
         solid = cc.make_cylinder(r, axis, a, b, axis_len[axis], extend=extend)
         tools.append(solid)
@@ -133,7 +133,7 @@ def build_cylinders(params: dict) -> tuple[cq.Workplane, list[cq.Solid], cc.Case
     overlap = cc.check_crossing_cylinders(cyl_meta, domain)
     holes = sum(cc.cylinder_volume(c["radius"], c["length"]) for c in cyl_meta)
 
-    # площадь аналитически считается только когда цилиндры не пересекаются друг с другом
+    # the area is computed analytically only when the cylinders do not intersect each other
     area = None
     if overlap == 0.0:
         area = cc.box_area(lx, ly, lz)
@@ -149,7 +149,7 @@ def build_cylinders(params: dict) -> tuple[cq.Workplane, list[cq.Solid], cc.Case
         n_holes=len(tools),
         expected_volume=cc.box_volume(lx, ly, lz) - holes + overlap,
         expected_area=area,
-        expected_bodies=1,  # сквозные цилиндры открывают полости на грани -> одна оболочка
+        expected_bodies=1,  # through cylinders open cavities on the faces -> one shell
         details={
             "cylinders": [{k: v for k, v in c.items() if k not in ("a", "b")} for c in cyl_meta],
             "cyl_holes_volume": holes,
@@ -168,55 +168,55 @@ BUILDERS = {
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Генератор пористой геометрии на CadQuery: блок минус сферы/цилиндры → STL (мм).",
+        description="Porous geometry generator on CadQuery: block minus spheres/cylinders → STL (mm).",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    ap.add_argument("--params-file", required=True, help="JSON с параметрами геометрии")
-    ap.add_argument("--out", required=True, help="куда писать STL")
-    ap.add_argument("--tolerance", type=float, default=0.05, help="tolerance экспорта STL, мм")
+    ap.add_argument("--params-file", required=True, help="JSON with the geometry parameters")
+    ap.add_argument("--out", required=True, help="where to write the STL")
+    ap.add_argument("--tolerance", type=float, default=0.05, help="STL export tolerance, mm")
     ap.add_argument(
         "--angular-tolerance",
         type=float,
         default=0.1,
-        help="angularTolerance экспорта STL, рад",
+        help="STL export angularTolerance, rad",
     )
     ap.add_argument(
         "--strategy",
         choices=["single", "sequential", "fused", "both"],
         default="sequential",
-        help="стратегия булева вычитания: sequential (по умолчанию, верна для пересекающихся "
-        "полостей), single = одна операция с компаундом (теряет объём пересечения), "
-        "fused = фьюз полостей + один cut, both = сверка single и sequential по объёму",
+        help="boolean subtraction strategy: sequential (default, correct for intersecting "
+        "cavities), single = one operation with a compound (loses the intersection volume), "
+        "fused = fuse the cavities + one cut, both = compare single and sequential by volume",
     )
     ap.add_argument(
         "--lattice",
         default=None,
-        help="переопределить упаковку сфер 'nx,ny,nz' (только для kind=lattice_spheres)",
+        help="override the sphere lattice 'nx,ny,nz' (only for kind=lattice_spheres)",
     )
-    ap.add_argument("--seed", type=int, default=None, help="seed (для этих кейсов роли не играет)")
-    ap.add_argument("--check", action="store_true", help="выполнить QA STL через trimesh")
-    ap.add_argument("--json", dest="json_out", default=None, help="куда записать отчёт JSON")
+    ap.add_argument("--seed", type=int, default=None, help="seed (irrelevant for these cases)")
+    ap.add_argument("--check", action="store_true", help="run STL QA through trimesh")
+    ap.add_argument("--json", dest="json_out", default=None, help="where to write the JSON report")
     ap.add_argument(
-        "--max-volume-err", type=float, default=2.0, help="допуск |ΔV| к аналитике, %%"
+        "--max-volume-err", type=float, default=2.0, help="tolerance |ΔV| to the analytics, %%"
     )
     ap.add_argument(
         "--export-api",
         choices=["exporters", "exportStl"],
         default="exporters",
-        help="exporters = cq.exporters.export (всегда relative tolerance); "
-        "exportStl = прямой Shape.exportStl (умеет absolute tolerance)",
+        help="exporters = cq.exporters.export (always relative tolerance); "
+        "exportStl = direct Shape.exportStl (supports absolute tolerance)",
     )
     ap.add_argument(
         "--relative-tolerance",
         choices=["default", "abs"],
         default="default",
-        help="для --export-api exportStl: default = relative=True (как у exporters), "
-        "abs = relative=False (абсолютный допуск в мм)",
+        help="for --export-api exportStl: default = relative=True (like exporters), "
+        "abs = relative=False (absolute tolerance in mm)",
     )
     ap.add_argument(
         "--clean-stl",
         action="store_true",
-        help="записать рядом очищенный STL <имя>_clean.stl (без вырожденных граней OCC)",
+        help="write a cleaned STL <name>_clean.stl alongside (without OCC degenerate faces)",
     )
     args = ap.parse_args(argv)
 
@@ -224,12 +224,12 @@ def main(argv: list[str] | None = None) -> int:
         with open(args.params_file, encoding="utf-8") as fh:
             params = json.load(fh)
     except Exception as exc:  # noqa: BLE001
-        print(f"ОШИБКА чтения {args.params_file}: {exc}", file=sys.stderr)
+        print(f"ERROR reading {args.params_file}: {exc}", file=sys.stderr)
         return 2
 
     kind = params.get("kind")
     if kind not in BUILDERS:
-        print(f"ОШИБКА: неизвестный kind={kind!r}, есть {sorted(BUILDERS)}", file=sys.stderr)
+        print(f"ERROR: unknown kind={kind!r}, available {sorted(BUILDERS)}", file=sys.stderr)
         return 2
 
     if args.lattice:
@@ -237,10 +237,10 @@ def main(argv: list[str] | None = None) -> int:
             lat = [int(v) for v in args.lattice.replace("x", ",").split(",")]
             assert len(lat) == 3 and all(v > 0 for v in lat)
         except Exception:  # noqa: BLE001
-            print(f"ОШИБКА: --lattice={args.lattice!r}, нужно 'nx,ny,nz'", file=sys.stderr)
+            print(f"ERROR: --lattice={args.lattice!r}, 'nx,ny,nz' required", file=sys.stderr)
             return 2
         if kind != "lattice_spheres":
-            print("ОШИБКА: --lattice применим только к kind=lattice_spheres", file=sys.stderr)
+            print("ERROR: --lattice applies only to kind=lattice_spheres", file=sys.stderr)
             return 2
         params["lattice"] = lat
         params["lattice_override"] = args.lattice
@@ -250,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
     log("=" * 70)
     log(f"gen_cq_porous.py: {params.get('name', os.path.basename(args.params_file))}")
     log(f"  cadquery {cq.__version__}, OCP {ocp_version()}, python {sys.version.split()[0]}")
-    log(f"  kind={kind}, tolerance={args.tolerance} мм, angularTolerance={args.angular_tolerance} рад")
+    log(f"  kind={kind}, tolerance={args.tolerance} mm, angularTolerance={args.angular_tolerance} rad")
     log(f"  strategy={args.strategy}, out={args.out}")
     log("=" * 70)
 
@@ -280,15 +280,15 @@ def main(argv: list[str] | None = None) -> int:
             abs(v_single - v_seq) / max(abs(v_single), 1e-12) * 100.0
         )
         if strategy_volume_rel_diff_pct > 1e-6:
-            # Найдено в exp-002 на case6: если ПОЛОСТИ ПЕРЕСЕКАЮТСЯ между собой,
-            # один Cut с компаундом вычитает общие области дважды и теряет объём
-            # (single=359.6177 vs sequential=367.8097 мм3 при аналитике 367.8097).
-            # Поэтому при расхождении экспортируем результат sequential.
+            # Found in exp-002 on case6: if the CAVITIES INTERSECT each other,
+            # one Cut with a compound subtracts the common regions twice and loses volume
+            # (single=359.6177 vs sequential=367.8097 mm3 with analytics 367.8097).
+            # Therefore, on a mismatch we export the sequential result.
             log(
-                "ВНИМАНИЕ: стратегии дали разный объём OCC: "
+                "WARNING: the strategies gave a different OCC volume: "
                 f"single={v_single:.9f}, sequential={v_seq:.9f} "
-                f"({strategy_volume_rel_diff_pct:.3e} %) — берём sequential "
-                "(пересекающиеся полости: компаундный Cut теряет объём)"
+                f"({strategy_volume_rel_diff_pct:.3e} %) — taking sequential "
+                "(intersecting cavities: the compound Cut loses volume)"
             )
             strategy_used = "sequential"
             shape = shape_seq
@@ -297,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
             strategy_used = "single"
             build_time = t_single
         log(
-            f"стратегия single: {t_single:.3f} с, sequential: {t_seq:.3f} с, "
+            f"strategy single: {t_single:.3f} s, sequential: {t_seq:.3f} s, "
             f"ΔV(strategies)={strategy_volume_rel_diff_pct:.3e} %"
         )
     else:
@@ -305,8 +305,8 @@ def main(argv: list[str] | None = None) -> int:
             shape, build_time = _cut(args.strategy)
         except Exception as exc:  # noqa: BLE001
             log(
-                f"ВНИМАНИЕ: стратегия {args.strategy} упала "
-                f"({type(exc).__name__}: {exc}); откат на sequential"
+                f"WARNING: strategy {args.strategy} failed "
+                f"({type(exc).__name__}: {exc}); falling back to sequential"
             )
             shape, build_time = _cut("sequential")
             strategy_used = "sequential"
@@ -315,22 +315,22 @@ def main(argv: list[str] | None = None) -> int:
     occ_volume = float(shape.Volume())
     occ_volume_err_pct = (occ_volume - geo.expected_volume) / geo.expected_volume * 100.0
     log(
-        f"геометрия: {geometry_build_time:.3f} с; булевы операции ({strategy_used}): "
-        f"{build_time:.3f} с; тел: {n_solids}"
+        f"geometry: {geometry_build_time:.3f} s; boolean operations ({strategy_used}): "
+        f"{build_time:.3f} s; solids: {n_solids}"
     )
     log(
-        f"объём OCC (точный): {occ_volume:.9f} мм3; аналитика {geo.expected_volume:.9f} мм3; "
+        f"OCC volume (exact): {occ_volume:.9f} mm3; analytics {geo.expected_volume:.9f} mm3; "
         f"ΔV_occ={occ_volume_err_pct:+.6f} %"
     )
-    # Ошибка булевых операций видна ТОЛЬКО здесь (тесселяция даёт <0.1 %): гейт всегда,
-    # независимо от --check, иначе генератор отдаёт битую геометрию с rc=0.
+    # A boolean operation error is visible ONLY here (tessellation gives <0.1 %): the gate always runs,
+    # regardless of --check, otherwise the generator returns broken geometry with rc=0.
     volume_tol_pct = 0.5
     volume_ok = abs(occ_volume_err_pct) <= volume_tol_pct
     if not volume_ok:
         log(
-            f"ОШИБКА: объём OCC расходится с аналитикой на {occ_volume_err_pct:+.6f} % "
-            f"(допуск {volume_tol_pct} %) — это ошибка булевых операций, а не тесселяции; "
-            "STL не годится (проверь --strategy: single теряет объём пересечения полостей)"
+            f"ERROR: the OCC volume deviates from the analytics by {occ_volume_err_pct:+.6f} % "
+            f"(tolerance {volume_tol_pct} %) — this is a boolean operation error, not tessellation; "
+            "STL is unusable (check --strategy: single loses the intersection volume of cavities)"
         )
 
     export_time = cc.export_stl(
@@ -341,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
         api=args.export_api,
         relative=(args.relative_tolerance != "abs"),
     )
-    log(f"экспорт STL: {export_time:.3f} с, размер {os.path.getsize(args.out)} Б")
+    log(f"STL export: {export_time:.3f} s, size {os.path.getsize(args.out)} B")
 
     result = {
         "name": params.get("name"),
@@ -384,8 +384,8 @@ def main(argv: list[str] | None = None) -> int:
         result["stl_clean"] = os.path.abspath(stl_clean_path)
         result["clean_info"] = clean_info
         log(
-            f"чистка STL: {clean_info['triangles_before']} -> {clean_info['triangles_after']} "
-            f"треугольников, watertight={clean_info['is_watertight']} -> {stl_clean_path}"
+            f"STL cleanup: {clean_info['triangles_before']} -> {clean_info['triangles_after']} "
+            f"triangles, watertight={clean_info['is_watertight']} -> {stl_clean_path}"
         )
 
     rc = 0
@@ -408,52 +408,52 @@ def main(argv: list[str] | None = None) -> int:
         problems = []
         if abs(occ_volume_err_pct) > 1e-6:
             problems.append(
-                f"ОБЪЁМ OCC не совпал с аналитикой: {occ_volume_err_pct:+.6f} % "
-                "(ошибка булевых операций, а не дискретизации)"
+                f"OCC VOLUME did not match the analytics: {occ_volume_err_pct:+.6f} % "
+                "(a boolean operation error, not discretisation)"
             )
         if not cl["is_watertight"]:
-            problems.append("НЕ watertight (даже после удаления вырожденных граней)")
+            problems.append("NOT watertight (even after removing degenerate faces)")
         if not cl["is_winding_consistent"]:
-            problems.append("нормали несогласованы")
+            problems.append("the winding is inconsistent")
         if cl["bodies"] != geo.expected_bodies:
             problems.append(
-                f"оболочек: {cl['bodies']} (ожидалось {geo.expected_bodies} = "
-                "1 + число замкнутых полостей)"
+                f"shells: {cl['bodies']} (expected {geo.expected_bodies} = "
+                "1 + the number of closed cavities)"
             )
         result["degenerate_faces_occ"] = qa["degenerate_faces"]
-        # Вырожденные грани — свойство тесселяции OCC (полюса/швы сфер), а не ошибка
-        # булевых операций: объём они не искажают, но ломают is_watertight «сырого» файла.
-        # Это предупреждение, а не провал: R9 закрывается либо --clean-stl, либо мешером.
+        # Degenerate faces are a property of OCC tessellation (sphere poles/seams), not a
+        # boolean operation error: they do not distort the volume but break is_watertight of the «raw» file.
+        # This is a warning, not a failure: R9 is closed either by --clean-stl or by the mesher.
         if qa["degenerate_faces"]:
             result.setdefault("notes", []).append(
-                f"вырожденных граней OCC: {qa['degenerate_faces']}; "
-                f"is_watertight сырого файла = {qa['is_watertight']} "
-                "(для R9 нужен --clean-stl или толерантный мешер)"
+                f"OCC degenerate faces: {qa['degenerate_faces']}; "
+                f"is_watertight of the raw file = {qa['is_watertight']} "
+                "(R9 needs --clean-stl or a tolerant mesher)"
             )
         if abs(vol_err) > args.max_volume_err:
             problems.append(
                 f"|ΔV|={abs(vol_err):.3f}% > {args.max_volume_err}% "
-                f"(V={cl['volume']:.4f}, аналитика={geo.expected_volume:.4f})"
+                f"(V={cl['volume']:.4f}, analytics={geo.expected_volume:.4f})"
             )
         result["qa_problems"] = problems
         result["qa_verdict"] = "PASS" if not problems else "FAIL"
         log("")
         log("--- QA STL (trimesh) ---")
-        log(f"  triangles          : {qa['triangles']} (после чистки {cl['triangles']})")
-        log(f"  watertight         : {cl['is_watertight']} (сырой файл: {qa['is_watertight']})")
+        log(f"  triangles          : {qa['triangles']} (after cleanup {cl['triangles']})")
+        log(f"  watertight         : {cl['is_watertight']} (raw file: {qa['is_watertight']})")
         log(f"  winding consistent : {cl['is_winding_consistent']}")
         log(f"  euler number       : {cl['euler_number']}")
-        log(f"  bodies             : {cl['bodies']} (ожидалось {geo.expected_bodies})")
-        log(f"  volume             : {cl['volume']:.6f} мм3")
-        log(f"  analytic volume    : {geo.expected_volume:.6f} мм3")
+        log(f"  bodies             : {cl['bodies']} (expected {geo.expected_bodies})")
+        log(f"  volume             : {cl['volume']:.6f} mm3")
+        log(f"  analytic volume    : {geo.expected_volume:.6f} mm3")
         log(f"  ΔV                 : {vol_err:+.4f} %")
-        log(f"  area               : {cl['area']:.6f} мм2")
+        log(f"  area               : {cl['area']:.6f} mm2")
         if geo.expected_area:
-            log(f"  analytic area      : {geo.expected_area:.6f} мм2")
+            log(f"  analytic area      : {geo.expected_area:.6f} mm2")
             log(f"  ΔA                 : {result['area_err_pct']:+.4f} %")
         else:
-            log("  analytic area      : — (пересекающиеся цилиндры, аналитика не считалась)")
-        log(f"  bbox size          : {[round(v, 6) for v in qa['bbox_size']]} мм")
+            log("  analytic area      : — (intersecting cylinders, the analytics was not computed)")
+        log(f"  bbox size          : {[round(v, 6) for v in qa['bbox_size']]} mm")
         log(f"  degenerate faces   : {qa['degenerate_faces']}")
         log(f"  QA VERDICT         : {result['qa_verdict']}")
         for p in problems:
@@ -464,7 +464,7 @@ def main(argv: list[str] | None = None) -> int:
     log("")
     verdict = result.get("qa_verdict") if args.check else ("volume-ok" if volume_ok else "volume-FAIL")
     log(
-        f"ИТОГ: {verdict}; build {build_time:.3f} с + export {export_time:.3f} с"
+        f"RESULT: {verdict}; build {build_time:.3f} s + export {export_time:.3f} s"
     )
 
     if args.json_out:

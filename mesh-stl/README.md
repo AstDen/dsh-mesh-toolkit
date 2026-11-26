@@ -1,75 +1,75 @@
-# mesh-stl — DSH-плагин генерации STL
+# mesh-stl — DSH plugin for STL generation
 
-Набор из трёх инструментов для проекта `Mesh_3D_pore_scale`: параметрическая генерация геометрии,
-проверка STL по контракту и паспорт в `stl/registry.csv`. Работает на реальных скриптах проекта
-(`geometry/`), ничего не выдумывает: все метрики считает собственный QA на JS (`lib/qa/`), а
-`tools/qa/stl_qa.py` остаётся эталоном паритета и доступен как `engine: "python"`.
+A set of three tools for the `Mesh_3D_pore_scale` project: parametric geometry generation, STL contract
+checking and a passport row in `stl/registry.csv`. It runs on the project's real scripts
+(`geometry/`) and invents nothing: every metric is computed by its own JS QA (`lib/qa/`), while
+`tools/qa/stl_qa.py` remains the parity reference and is available as `engine: "python"`.
 
-## Инструменты
+## Tools
 
-| Инструмент | Зачем | Аргументы |
+| Tool | What it does | Arguments |
 |---|---|---|
-| `stl_hints` | карточки знаний: контракт STL, чистка, тесселяция, зазоры, snappy-ловушки | `query`, `id`, `limit` |
-| `stl_generate` | запуск генератора из реестра семейств | `family`, `preset`, `name`, `outDir`, `params`, `dryRun` |
-| `stl_check` | QA STL + чистка + запись паспорта | `stl`, `cleanup`, `cleanOut`, `expectVolume`, `expectArea`, `expectBodies`, `maxVolumeErr`, `maxAreaErr`, `register`, `family`, `generator`, `paramsFile`, `fluidOrSolid`, `notes` |
+| `stl_hints` | knowledge cards: the STL contract, cleanup, tessellation, gaps, snappy traps | `query`, `id`, `limit` |
+| `stl_generate` | run a generator from the family registry | `family`, `preset`, `name`, `outDir`, `params`, `dryRun` |
+| `stl_check` | STL QA + cleanup + passport row | `stl`, `cleanup`, `cleanOut`, `expectVolume`, `expectArea`, `expectBodies`, `maxVolumeErr`, `maxAreaErr`, `register`, `family`, `generator`, `paramsFile`, `fluidOrSolid`, `notes` |
 
 
-## Description и Topics
+## Description and topics
 
-**Description** (паспорт бандла, `package.json` → `description`): генерация STL из проверенных семейств
-(FCC-ячейка, канал с упаковкой сфер, двухслойная горелка, упаковки, CadQuery CAD), контракт QA
-(watertight, winding, мм), чистка и паспорт в `stl/registry.csv`.
+**Description** (the bundle passport, `package.json` → `description`): STL generation from verified families
+(FCC cell, channel with sphere packing, double-layer burner, packings, CadQuery CAD), contract QA
+(watertight, winding, mm), cleanup and a passport in `stl/registry.csv`.
 
-**Topics** (`package.json` → `keywords`, для поиска/маркетплейса): `stl`, `geometry`, `pore-scale`,
+**Topics** (`package.json` → `keywords`, for search/marketplace): `stl`, `geometry`, `pore-scale`,
 `cadquery`, `trimesh`, `watertight`, `mesh-preparation`, `qa`, `passport`, `generator-presets`.
 
-**Для чата** (то, что реально видит модель): `description` инструментов в `index.js`, `description` +
-`whenToUse` в `lib/skill.js`, карточка `plugin-mesh-stl` в `data/hints/plugin.json` (`topics` этой карточки
-совпадают с `keywords`). Маршрутизация идёт по этим текстам — меняешь состав инструментов, обновляй их.
+**For the chat** (what the model actually sees): the tool `description`s in `index.js`, `description` +
+`whenToUse` in `lib/skill.js`, the `plugin-mesh-stl` card in `data/hints/plugin.json` (this card's `topics`
+match `keywords`). Routing goes by these texts — when you change the tool set, update them.
 
-Без аргументов `stl_generate` показывает семейства и пресеты, `stl_hints` — каталог карточек.
+With no arguments `stl_generate` lists families and presets, `stl_hints` lists the card catalog.
 
-## Установка
+## Installation
 
-Единственный поддерживаемый путь — инструмент DSH `plugin_manager` (нужно подтверждение пользователя):
+The only supported path is the DSH `plugin_manager` tool (it needs user confirmation):
 
 ```json
-{ "action": "install_bundle", "target": "<абсолютный путь к репозиторию>/plugins/mesh-stl" }
+{ "action": "install_bundle", "target": "<absolute path to the repository>/plugins/mesh-stl" }
 ```
 
-Подставьте свой путь — DSH принимает только абсолютный (`$(pwd)/plugins/mesh-stl` из корня проекта).
+Substitute your own path — DSH accepts only an absolute one (`$(pwd)/plugins/mesh-stl` from the project root).
 
-Он добавляет в профиль `link:` на каталог плагина и включает запись в `dsh.profile.bundles`.
-Живая сессия перечитывает изменённый код без перезапуска DSH: при reload пересобирается граф плагинов,
-а ESM-модули выгружаются у тех файлов, что изменились с прошлого чтения (сравнение с диском в
-`@deepseek-ai/dsh-hmr`). Поэтому после правки: `plugin_manager` → `set_plugin {target:"include:mesh-stl",
-enabled:false}`, затем `enabled:true`. Голое disable→enable при неизменённых файлах оставляет старые
-модули в памяти — это не ошибка конфигурации.
-Проверка:
+It adds a `link:` to the plugin directory in the profile and enables the entry in `dsh.profile.bundles`.
+The live session re-reads changed code without a DSH restart: on reload the plugin graph is rebuilt,
+and ESM modules are unloaded for those files that changed since the previous read (comparison against disk in
+`@deepseek-ai/dsh-hmr`). So after an edit: `plugin_manager` → `set_plugin {target:"include:mesh-stl",
+enabled:false}`, then `enabled:true`. A bare disable→enable with unchanged files keeps the old
+modules in memory — that is not a configuration error.
+A check:
 
 ```bash
-node plugins/mesh-stl/scripts/smoke.mjs        # без DSH: конфиг, карточки, каталог, dry-run
-node plugins/mesh-stl/scripts/smoke.mjs --full # + реальная генерация FCC в .cache/mesh-smoke
+node plugins/mesh-stl/scripts/smoke.mjs        # without DSH: config, cards, catalog, dry-run
+node plugins/mesh-stl/scripts/smoke.mjs --full # + a real FCC generation into .cache/mesh-smoke
 ```
 
-После установки в каталоге скиллов появляются `mesh-stl`, а в инструментах —
-`stl_hints`, `stl_generate`, `stl_check`. Если плагин активируется с ошибкой схемы, DSH укажет
-точный путь параметра — правьте `index.js`, затем повторите `set_plugin` с `"target": "include:mesh-stl"`.
+After installation `mesh-stl` appears in the skill catalog, and `stl_hints`, `stl_generate`, `stl_check`
+among the tools. If the plugin activates with a schema error, DSH points to the exact parameter path — fix
+`index.js`, then repeat `set_plugin` with `"target": "include:mesh-stl"`.
 
-Требования: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`. Встроенные семейства (`primitive`,
-`stratified-channel`, `box-array`) и QA STL работают без python и без данных проекта. Python-семейства
-(`fcc-cell`, `channel-spheres`, `double-layer-burner`, `blob-foam`, `packing`, `cad-porous`) запускают
-скрипты из `generators/` этого пакета и требуют `trimesh`, `numpy` и `networkx` (trimesh без graph
-engine падает с `ImportError: no graph engines available!`; для части семейств — `cadquery`,
-`scipy`, `skimage`). Перед запуском плагин проверяет импорт и возвращает `python-bridge-missing`
-с командой установки вместо traceback.
+Requirements: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`. The built-in families (`primitive`,
+`stratified-channel`, `box-array`) and STL QA work without python and without project data. The python families
+(`fcc-cell`, `channel-spheres`, `double-layer-burner`, `blob-foam`, `packing`, `cad-porous`) run
+scripts from this package's `generators/` and require `trimesh`, `numpy` and `networkx` (trimesh without a graph
+engine fails with `ImportError: no graph engines available!`; for some families — `cadquery`,
+`scipy`, `skimage`). Before a run the plugin checks the imports and returns `python-bridge-missing`
+with the install command instead of a traceback.
 
-## Конфигурация
+## Configuration
 
-Приоритет: `config` строки плагина → внешний JSON → переменные окружения.
+Precedence: the plugin entry's `config` → external JSON → environment variables.
 
 ```json
-// ~/.config/mesh-stl/config.json   (или $MESH_STL_CONFIG=/path/config.json)
+// ~/.config/mesh-stl/config.json   (or $MESH_STL_CONFIG=/path/config.json)
 {
   "projectRoot": "/path/to/Mesh_3D_pore_scale",
   "python": "/path/to/Mesh_3D_pore_scale/.venv/bin/python",
@@ -79,42 +79,42 @@ engine падает с `ImportError: no graph engines available!`; для час
 }
 ```
 
-`projectRoot` и `python` можно не задавать: корень ищется вверх от рабочего каталога агента по
-`sim-project.json`, интерпретатор — `<projectRoot>/.venv/bin/python`.
-`workRoot`/`registry` — пути **относительно** корня проекта, а без профиля — **относительно текущего
-каталога**; `registry` может быть абсолютным. Таблица паспорта создаётся по требованию (заголовок пишется
-сама). Если файл нельзя записать (read-only каталог, чужой заголовок), QA всё равно считается: результат
-несёт `registered: {ok: false, error, row}` и строку-предупреждение в `next`, вердикт не ломается.
+`projectRoot` and `python` can be omitted: the root is searched upwards from the agent's working directory for
+`sim-project.json`, and the interpreter defaults to `<projectRoot>/.venv/bin/python`.
+`workRoot`/`registry` are paths **relative** to the project root, and without a profile — **relative to the current
+directory**; `registry` may be absolute. The passport table is created on demand (it writes the header
+itself). If the file cannot be written (read-only directory, a foreign header), QA is still computed: the result
+carries `registered: {ok: false, error, row}` and a warning line in `next`, and the verdict is not broken.
 
-Переменные: `MESH_STL_PROJECT_ROOT`, `MESH_STL_PYTHON`, `MESH_STL_WORK_ROOT`, `MESH_STL_REGISTRY`,
-`MESH_STL_TIMEOUT_MS`, `MESH_STL_CONFIG`, а также `MESH_STL_OPENFOAM_BASHRC` (явный `etc/bashrc`) и
-`MESH_STL_OPENFOAM_ROOTS` (доп. каталоги установок через `:`, помимо стандартных `/usr/lib/openfoam`,
-`/opt/openfoam`, `~/openfoam`).
+Variables: `MESH_STL_PROJECT_ROOT`, `MESH_STL_PYTHON`, `MESH_STL_WORK_ROOT`, `MESH_STL_REGISTRY`,
+`MESH_STL_TIMEOUT_MS`, `MESH_STL_CONFIG`, plus `MESH_STL_OPENFOAM_BASHRC` (an explicit `etc/bashrc`) and
+`MESH_STL_OPENFOAM_ROOTS` (extra installation directories, colon-separated, in addition to the standard
+`/usr/lib/openfoam`, `/opt/openfoam`, `~/openfoam`).
 
-Если проект не найден, инструменты не падают, а возвращают `configured: false` и что именно указать.
+If the project is not found, the tools do not fail; they return `configured: false` and say what to provide.
 
-## Общее ядро и встроенные генераторы
+## Shared core and built-in generators
 
-Механика (конфиг, профиль `sim-project.json`, резолвер путей, процесс-раннер, карточки, QA) живёт в
-`../sim-core` (пакет `sim-core`, 0.4.x); `lib/common.js` — тонкий фасад. Плагин регистрирует сервис
-`simGeometry` (`hints`/`generate`/`qa`) и складывает свои карточки в общий `simHints`.
+The mechanics (config, the `sim-project.json` profile, path resolver, process runner, cards, QA) live in
+`../sim-core` (package `sim-core`, 0.4.x); `lib/common.js` is a thin facade. The plugin registers the
+`simGeometry` service (`hints`/`generate`/`qa`) and contributes its cards to the shared `simHints`.
 
-Три семейства пишут STL на чистом JS и работают **без проекта** и без python: `primitive`
-(`lib/primitives.js`; `shape` = `box` | `sphere` | `cylinder`, параметры `size_mm` /
+Three families write STL in plain JS and work **without a project** and without python: `primitive`
+(`lib/primitives.js`; `shape` = `box` | `sphere` | `cylinder`, parameters `size_mm` /
 `radius_mm`+`height_mm` / `center_mm` / `segments`/`rings`/`sections`), `stratified-channel`
-(`lib/generators/stratified.js`; две коробки по 12 треугольников) и `box-array`
-(`lib/generators/box-array.js`; решётка сфер/цилиндров + контейнер). Общие эмиттеры треугольников —
-`lib/shapes.js`. QA каждого выхода — встроенный JS (`lib/qa/`).
+(`lib/generators/stratified.js`; two boxes of 12 triangles each) and `box-array`
+(`lib/generators/box-array.js`; a lattice of spheres/cylinders plus a container). The shared triangle emitters are
+`lib/shapes.js`. QA of every output is the built-in JS (`lib/qa/`).
 
-`generators.root` (`sim-project.json` → `generators.root`, либо `MESH_STL_GENERATORS_ROOT`) выбирает
-дерево скриптов: `package` (по умолчанию — `generators/` внутри этого пакета) или `project`
-(исследовательское `geometry/` через `projectScript`/`projectPreset`). Пресеты — `generators/presets/<family>/`.
-Дополнительные деревья скриптов задаются в `sim-project.json.geometry.scriptRoots` (абсолютные пути):
-резолвер вернёт `resolvedFrom`; project-relative путь ищется в проекте первым.
+`generators.root` (`sim-project.json` → `generators.root`, or `MESH_STL_GENERATORS_ROOT`) selects the
+script tree: `package` (by default `generators/` inside this package) or `project`
+(the research `geometry/` through `projectScript`/`projectPreset`). Presets live in `generators/presets/<family>/`.
+Extra script trees are set in `sim-project.json.geometry.scriptRoots` (absolute paths):
+the resolver returns `resolvedFrom`; a project-relative path is looked up in the project first.
 
-## Семейства генераторов (`data/generators.json`)
+## Generator families (`data/generators.json`)
 
-| id | скрипт (`generators.root = package`) | пресеты |
+| id | script (`generators.root = package`) | presets |
 |---|---|---|
 | `fcc-cell` | `generators/pore_cell/gen_fcc_cell.py` | `generators/presets/pore_cell/fcc_cell_d5*.json` |
 | `channel-spheres` | `generators/pore_cell/gen_channel_spheres.py` | `generators/presets/pore_cell/channel_spheres_*.json` |
@@ -126,44 +126,44 @@ engine падает с `ImportError: no graph engines available!`; для час
 | `stratified-channel` | JS `lib/generators/stratified.js` | `generators/presets/stratified/*.json` |
 | `box-array` | JS `lib/generators/box-array.js` | `generators/presets/box-array/*.json` |
 
-При `generators.root = "project"` python-семейства берут `projectScript`/`projectPreset` из
-исследовательского дерева (`geometry/pore_cell/...`), то есть старый режим сохраняется.
+With `generators.root = "project"` the python families take `projectScript`/`projectPreset` from
+the research tree (`geometry/pore_cell/...`), so the old mode is preserved.
 
-Каждый запуск: копия/мердж `params.json` → шаги генератора → лог на шаг в `<outDir>/logs/` →
-QA каждого объявленного выхода (JS по умолчанию) → возврат `{ok, files[{path, qa}], commands, next}`.
+Every run: copy/merge `params.json` → generator steps → a log per step in `<outDir>/logs/` →
+QA of every declared output (JS by default) → return `{ok, files[{path, qa}], commands, next}`.
 
-## Портативный режим (без `sim-project.json`)
+## Portable mode (without `sim-project.json`)
 
-`stl_generate`/`stl_check` работают в пустом каталоге: отчёт несёт `project: "defaults"`,
-относительные пути считаются от текущего каталога, реестр — `./stl/registry.csv` (создаётся сам),
-выходы — `./stl/generated/<family>/`. Реестр только для чтения не ломает вердикт
-(`registered: {ok:false, error, row}`). Полный сквозной сценарий, включая мешинг и поставку, —
-[`mesh-build/docs/PORTABLE.md`](../mesh-build/docs/PORTABLE.md), карточка `portable-setup`.
+`stl_generate`/`stl_check` work in an empty directory: the report carries `project: "defaults"`,
+relative paths are resolved from the current directory, the registry is `./stl/registry.csv` (created
+automatically), outputs go to `./stl/generated/<family>/`. A read-only registry does not break the verdict
+(`registered: {ok:false, error, row}`). The full end-to-end scenario, including meshing and delivery, is in
+[`mesh-build/docs/PORTABLE.md`](../mesh-build/docs/PORTABLE.md); card `portable-setup`.
 
-## Карточки знаний (`data/hints/*.json`)
+## Knowledge cards (`data/hints/*.json`)
 
-`snappy.json` — ловушки мешинга, влияющие на геометрию (minVol, единицы, пятна на плоскостях домена,
-уровень интерфейса, слои, `castellatedBufferLayer`, `symmetry`); `geometry.json` — контракт STL, чистка,
-тесселяция CadQuery, правило зазора, непригодность тетра gmsh, именованные патчи, единицы.
+`snappy.json` — meshing traps that affect geometry (minVol, units, patches on domain planes,
+interface level, layers, `castellatedBufferLayer`, `symmetry`); `geometry.json` — the STL contract, cleanup,
+CadQuery tessellation, the clearance rule, the unsuitability of gmsh tetrahedra, named patches, units.
 
-Формат карточки: `id`, `title`, `topics[]`, `status` (`verified|derived|unverified`), `when`, `statement`,
-`recipe[]`, `evidence[]`, `improves[]`. Поиск — по словам с лёгким стеммингом, точное совпадение весит больше.
+Card format: `id`, `title`, `topics[]`, `status` (`verified|derived|unverified`), `when`, `statement`,
+`recipe[]`, `evidence[]`, `improves[]`. Search is word-based with light stemming; an exact match weighs more.
 
-## Как расширять (без правки кода)
+## Extending (without touching code)
 
-- **Добавить семейство**: объект в `data/generators.json` — `script`, `presets.dir`, `preset.include`
-  (glob, чтобы не показывать чужие пресеты), `args` с плейсхолдерами `{paramsFile} {outDir} {json}
+- **Add a family**: an object in `data/generators.json` — `script`, `presets.dir`, `preset.include`
+  (a glob, so that other families' presets are not shown), `args` with the placeholders `{paramsFile} {outDir} {json}
   {rawOut} {cleanOut} {solidRawOut} {solidOut} {fluidRawOut} {fluidOut} {fluidPatchesOut} {ballsCsv}
-  {contactsCsv} {packingJson}`, `outputs[{path, role, qa}]`, `steps[]` (несколько шагов с тем же контекстом).
-- **Убрать семейство/маршрут**: удалить запись — инструмент перестанет его предлагать.
-- **Добавить знание**: JSON-карточка в `data/hints/`; `statement` — проверяемый факт, `evidence` — номера
-  экспериментов и/или дословные ошибки.
-- После правки: `node scripts/smoke.mjs` (работает без DSH) и перезагрузка пакета —
+  {contactsCsv} {packingJson}`, `outputs[{path, role, qa}]`, `steps[]` (several steps sharing the same context).
+- **Remove a family/route**: delete the entry — the tool stops offering it.
+- **Add knowledge**: a JSON card in `data/hints/`; `statement` is a checkable fact, `evidence` — experiment numbers
+  and/or verbatim errors.
+- After an edit: `node scripts/smoke.mjs` (works without DSH) and a bundle reload —
   `plugin_manager set_plugin {target:"include:mesh-stl", enabled:false}` → `enabled:true`.
-  Перезапуск DSH не нужен: изменённые модули выгружаются из ESM-кэша при reload.
+  No DSH restart is needed: changed modules are unloaded from the ESM cache on reload.
 
-## Границы
+## Limits
 
-- Не строит сетки (это `mesh-build`) и не запускает решатели.
-- Не «починяет» параметры молча: если генератор упал — возвращается `failure` с хвостом лога и путём к полному логу.
-- Числа в карточках — из журнала проекта (`journal/EXPERIMENTS.md`, `journal/DECISIONS.md`), а не по памяти.
+- It does not build meshes (that is `mesh-build`) and does not run solvers.
+- It does not silently "fix" parameters: if a generator fails, `failure` is returned with the log tail and the path to the full log.
+- Numbers in the cards come from the project journal (`journal/EXPERIMENTS.md`, `journal/DECISIONS.md`), not from memory.

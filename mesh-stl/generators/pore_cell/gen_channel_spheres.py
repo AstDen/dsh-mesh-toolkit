@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""gen_channel_spheres.py — параметрическая геометрия «канал с шарами» (аналог эталона good_mesing).
+"""gen_channel_spheres.py — parametric geometry of a «channel with spheres» (analogue of the good_mesing reference).
 
-Семейство (см. experiments/exp-017_channel-spheres-mesh/DIALOG.md):
+Family (see experiments/exp-017_channel-spheres-mesh/DIALOG.md):
     d = 2r, W = r*sqrt(2), H = sqrt((2r)^2 - W^2) = W
-    14 уровней по 2 шара на 4 рёбрах канала, диагонали чередуются,
-    входной пустой участок L_in = inlet_plenum_d * d, выход — плоскость через центры
-    последнего уровня (полушары срезаны).
+    14 levels with 2 spheres on the 4 channel edges, the diagonals alternate,
+    empty inlet section L_in = inlet_plenum_d * d, outlet — a plane through the centers
+    of the last level (the hemispheres are cut off).
 
-Артефакты (ASCII STL, единицы --units мм|м):
-    interface.stl        28 сфер (замкнутые оболочки, patch wall)
-    interface_necks.stl  шейки в контактах (patch wall, уровень +1)
-    inlet.stl            z = z_min, полный квадрат (patch symmetry при мешинге)
-    outlet.stl           z = z_max, жидкостная часть (квадрат минус четверть-диски)
-    outlet_solid.stl     z = z_max, твёрдая часть (четверть-диски сфер)
-    walls.stl            4 боковые грани домена (patch symmetry)
-    solid.stl            union(сферы + шейки) — для cfMesh / справки
-    fluid.stl            домен − solid — замкнутая поверхность жидкости (cfMesh)
-    geom_report.json     все числа + проверки watertight
+Artifacts (ASCII STL, units --units mm|m):
+    interface.stl        28 spheres (closed shells, patch wall)
+    interface_necks.stl  necks at the contacts (patch wall, level +1)
+    inlet.stl            z = z_min, the full square (patch symmetry when meshing)
+    outlet.stl           z = z_max, the fluid part (square minus quarter disks)
+    outlet_solid.stl     z = z_max, the solid part (quarter disks of the spheres)
+    walls.stl            4 side faces of the domain (patch symmetry)
+    solid.stl            union(spheres + necks) — for cfMesh / reference
+    fluid.stl            domain − solid — the closed fluid surface (cfMesh)
+    geom_report.json     all numbers + watertight checks
 
-Пример:
+Example:
     python3 geometry/pore_cell/gen_channel_spheres.py \
         --params geometry/pore_cell/params/channel_spheres_ref.json \
         --out-dir experiments/exp-017_channel-spheres-mesh/triSurface_mm --units mm
@@ -38,11 +38,11 @@ PROJ = Path(__file__).resolve().parents[2]
 
 
 # --------------------------------------------------------------------------- #
-# запись ASCII STL с именем solid
+# write an ASCII STL under the solid name
 # --------------------------------------------------------------------------- #
 def write_stl(mesh: trimesh.Trimesh, path: Path, name: str, scale: float = 1.0,
               fmt: str = "binary") -> int:
-    """Пишет Trimesh в STL (binary|ascii) под именем solid. Возвращает число треугольников."""
+    """Writes a Trimesh to STL (binary|ascii) under the solid name. Returns the triangle count."""
     if fmt == "binary":
         m = mesh.copy()
         m.vertices = np.asarray(m.vertices, dtype=float) * scale
@@ -52,7 +52,7 @@ def write_stl(mesh: trimesh.Trimesh, path: Path, name: str, scale: float = 1.0,
     v = np.asarray(mesh.vertices, dtype=float) * scale
     f = np.asarray(mesh.faces, dtype=int)
     if len(f) == 0:
-        raise ValueError(f"{name}: пустая сетка")
+        raise ValueError(f"{name}: empty mesh")
     tri = v[f]                                       # (n,3,3)
     n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
     ln = np.linalg.norm(n, axis=1, keepdims=True)
@@ -71,10 +71,10 @@ def write_stl(mesh: trimesh.Trimesh, path: Path, name: str, scale: float = 1.0,
 
 
 # --------------------------------------------------------------------------- #
-# геометрия
+# geometry
 # --------------------------------------------------------------------------- #
 def levels_and_centers(r: float, W: float, n_levels: int):
-    """Центры шаров: на каждом уровне одна диагональ (чёт — A-D, нечёт — B-C)."""
+    """Sphere centers: one diagonal per level (even — A-D, odd — B-C)."""
     H = math.sqrt(max((2.0 * r) ** 2 - W ** 2, 0.0)) if W <= 2.0 * r else W
     corners = {
         "A": (0.0, 0.0),
@@ -98,7 +98,7 @@ def sphere_at(r: float, center, subdivisions: int) -> trimesh.Trimesh:
 
 
 def contact_pairs(centers, r: float, tol: float = 1e-6):
-    """Пары (i, j) шаров, касающихся в ноль (|c_i - c_j| = 2r)."""
+    """Pairs (i, j) of spheres touching exactly (|c_i - c_j| = 2r)."""
     c = np.asarray(centers, dtype=float)
     pairs = []
     n = len(c)
@@ -111,13 +111,13 @@ def contact_pairs(centers, r: float, tol: float = 1e-6):
 
 
 def neck_at(c_i, c_j, r_neck: float, length: float, sections: int) -> trimesh.Trimesh:
-    """Цилиндр-шейка в точке касания, ось вдоль (c_j - c_i)."""
+    """Neck cylinder at the contact point, axis along (c_j - c_i)."""
     c_i = np.asarray(c_i, float)
     c_j = np.asarray(c_j, float)
     axis = c_j - c_i
     axis /= np.linalg.norm(axis)
     cyl = trimesh.creation.cylinder(radius=r_neck, height=length, sections=sections)
-    # цилиндр по умолчанию вдоль +z
+    # the cylinder is along +z by default
     rot = trimesh.geometry.align_vectors([0.0, 0.0, 1.0], axis)
     cyl.apply_transform(rot)
     cyl.apply_translation((c_i + c_j) / 2.0)
@@ -125,13 +125,13 @@ def neck_at(c_i, c_j, r_neck: float, length: float, sections: int) -> trimesh.Tr
 
 
 def neck_band(c_i, c_j, r_neck: float, r_sphere: float, sections: int = 24) -> trimesh.Trimesh:
-    """ОТКРЫТАЯ цилиндрическая полоса (waist) — часть шейки, лежащая снаружи обеих сфер.
+    """OPEN cylindrical band (waist) — the part of the neck lying outside both spheres.
 
-    Нужна для многорегионального snappyHexMesh: закрытый цилиндр-шейка даёт торец ВНУТРИ
-    сферы, на нём заливка cellZone останавливается и твёрдая область распадается на
-    несвязные компоненты (exp-017: solid 1071 ячейка вместо ~550k). Полоса открыта с
-    обоих концов, поэтому заливка проходит из сферы A в сферу B, а жидкость снаружи
-    не может попасть внутрь — торцы лежат внутри сфер.
+    Needed for multi-region snappyHexMesh: a closed neck cylinder gives an end cap INSIDE
+    a sphere, the cellZone fill stops there and the solid region breaks up into
+    disconnected components (exp-017: solid 1071 cells instead of ~550k). The band is open at
+    both ends, so the fill passes from sphere A into sphere B, while the fluid outside
+    cannot get inside — the end rings lie inside the spheres.
     """
     c_i = np.asarray(c_i, float)
     c_j = np.asarray(c_j, float)
@@ -141,7 +141,7 @@ def neck_band(c_i, c_j, r_neck: float, r_sphere: float, sections: int = 24) -> t
     half = math.sqrt(max(r_sphere ** 2 - r_neck ** 2, 0.0))
     t1, t2 = half, L - half
     if t2 <= t1:
-        raise SystemExit(f"ERROR: шейка вырождена: r_neck={r_neck} слишком велик для r={r_sphere}")
+        raise SystemExit(f"ERROR: degenerate neck: r_neck={r_neck} is too large for r={r_sphere}")
     e1 = np.cross(u, [0.0, 0.0, 1.0])
     if np.linalg.norm(e1) < 1e-9:
         e1 = np.cross(u, [0.0, 1.0, 0.0])
@@ -159,7 +159,7 @@ def neck_band(c_i, c_j, r_neck: float, r_sphere: float, sections: int = 24) -> t
 
 
 def fan_2d(contour_xy, center_xy) -> np.ndarray:
-    """Веерная триангуляция замкнутого контура (звёздного относительно center). Возвращает (n,3,2)."""
+    """Fan triangulation of a closed contour (star-shaped about center). Returns (n,3,2)."""
     c = np.asarray(center_xy, float)
     tris = []
     n = len(contour_xy)
@@ -171,7 +171,7 @@ def fan_2d(contour_xy, center_xy) -> np.ndarray:
 
 
 def mesh_2d(tris_2d, plane: str, value: float, outward=None) -> trimesh.Trimesh:
-    """(n,3,2) в плоскости -> Trimesh. plane: 'z'|'x'|'y'. outward — желаемая нормаль."""
+    """(n,3,2) in a plane -> Trimesh. plane: 'z'|'x'|'y'. outward — the desired normal."""
     tris_2d = np.asarray(tris_2d, float)
     if plane == "z":
         pts = np.stack([tris_2d[..., 0], tris_2d[..., 1],
@@ -202,12 +202,12 @@ def arc(center, r, a0_deg, a1_deg, nseg):
 
 
 def classify_fluid_triangles(fluid: trimesh.Trimesh, g, eps: float = 1e-9):
-    """Разносит треугольники границы жидкости по именам патчей (для cfMesh: отдельные solid-ы).
+    """Splits the fluid boundary triangles by patch name (for cfMesh: separate solids).
 
-    inlet  — плоскости z = z_min
-    outlet — плоскость z = z_max
-    walls  — четыре боковые плоскости домена
-    interface — всё остальное (поверхности сфер и шеек)
+    inlet  — the plane z = z_min
+    outlet — the plane z = z_max
+    walls  — the four side planes of the domain
+    interface — everything else (sphere and neck surfaces)
     """
     W, z0, z1 = g["W"], g["z_min"], g["z_max"]
     c = fluid.triangles_center
@@ -226,7 +226,7 @@ def classify_fluid_triangles(fluid: trimesh.Trimesh, g, eps: float = 1e-9):
 
 
 def write_stl_multi(parts: dict, path: Path, scale: float = 1.0) -> dict:
-    """Пишет ASCII STL с НЕСКОЛЬКИМИ именованными solid-ами — cfMesh разложит их в патчи."""
+    """Writes an ASCII STL with SEVERAL named solids — cfMesh will split them into patches."""
     lines = []
     counts = {}
     for name, mesh in parts.items():
@@ -238,8 +238,8 @@ def write_stl_multi(parts: dict, path: Path, scale: float = 1.0) -> dict:
         n = np.divide(n, ln, out=np.zeros_like(n), where=ln > 0)
         lines.append(f"solid {name}")
         for i in range(len(f)):
-            # один фасет на треугольник: вложенный цикл по k писал каждый фасет трижды
-            # (25 056 вместо 8352, benchmark DEF-01)
+            # one facet per triangle: the nested k loop wrote each facet three times
+            # (25 056 instead of 8352, benchmark DEF-01)
             lines.append(f"facet normal {n[i,0]:.9e} {n[i,1]:.9e} {n[i,2]:.9e}")
             lines.append("outer loop")
             for j in range(3):
@@ -274,22 +274,22 @@ def build(params: dict):
     nseg_arc = int(params.get("planar_arc_segments", 24))
 
     if W > 2.0 * r + 1e-9:
-        raise SystemExit(f"ERROR: W = {W:.6f} > 2r = {2*r:.6f}: шары не достигают стенок противоположного угла")
+        raise SystemExit(f"ERROR: W = {W:.6f} > 2r = {2*r:.6f}: the spheres do not reach the walls of the opposite corner")
 
     pairs = contact_pairs(centers, r) if contact != "none" else []
 
-    # --- сферы ---------------------------------------------------------- #
-    # сферы обрезаются доменом: центры лежат на стенках канала, иначе шары торчат
-    # за домен на r (как в эталоне: interface.stl — 28 площадок, срезанных плоскостями)
+    # --- spheres ---------------------------------------------------------- #
+    # the spheres are clipped by the domain: their centers lie on the channel walls, otherwise they stick out
+    # beyond the domain by r (as in the reference: interface.stl — 28 pads cut by the planes)
     spheres = [sphere_at(r, c, sub) for c in centers]
     raw_interface = trimesh.util.concatenate(spheres)
     domain_box = trimesh.creation.box(extents=[W, W, z_max - z_min])
     domain_box.apply_translation([W / 2, W / 2, (z_min + z_max) / 2])
     interface = trimesh.boolean.intersection([raw_interface, domain_box], engine="manifold")
 
-    # --- шейки ---------------------------------------------------------- #
-    # neck_surface: "waist" — открытая полоса (для snappy, связывает сферы для заливки),
-    #               "solid" — закрытый цилиндр (для boolean и мешеров без регионов)
+    # --- necks ---------------------------------------------------------- #
+    # neck_surface: "waist" — open band (for snappy, links the spheres for the fill),
+    #               "solid" — closed cylinder (for boolean and meshers without regions)
     neck_surface = params.get("neck_surface", "waist")
     necks = []
     necks_closed = []
@@ -301,19 +301,19 @@ def build(params: dict):
             necks = list(necks_closed)
     elif contact == "gap":
         gap = float(params.get("gap_mm", 0.1))
-        # шейку не строим, но и касания нет — предупреждение на уровне модели
+        # no neck is built, and there is no contact either — a model-level warning
         if gap <= 0:
-            raise SystemExit("ERROR: contact=gap требует gap_mm > 0")
+            raise SystemExit("ERROR: contact=gap requires gap_mm > 0")
     if necks:
         neck_mesh = trimesh.util.concatenate(necks)
     else:
         neck_mesh = trimesh.Trimesh()
 
-    # --- плоскости ------------------------------------------------------ #
-    # Единственный источник точек дуг: outlet и outlet_solid обязаны ТОЧНО стыковаться
-    # (иначе в плоскости z_max остаётся кольцо, не покрытое ни одним патчем).
+    # --- planes ------------------------------------------------------ #
+    # The single source of arc points: outlet and outlet_solid must join EXACTLY
+    # (otherwise a ring not covered by any patch remains in the z_max plane).
     def arc_pts(center, rad, a0, a1, nseg):
-        """Точки дуги ВКЛЮЧАЯ оба конца."""
+        """Arc points INCLUDING both ends."""
         ts = np.radians(np.linspace(a0, a1, nseg + 1))
         return [tuple(center + rad * np.array([math.cos(t), math.sin(t)])) for t in ts]
 
@@ -326,48 +326,48 @@ def build(params: dict):
             out.pop()
         return out
 
-    # z_min: полный квадрат (там только жидкость)
+    # z_min: the full square (fluid only there)
     square = [(0.0, 0.0), (W, 0.0), (W, W), (0.0, W)]
     inlet = mesh_2d(fan_2d(square, (W / 2, W / 2)), "z", z_min, outward=(0, 0, -1))
 
-    # z_max: плоскость проходит через центры сфер последнего уровня -> в углах четверть-диски.
-    # Плоскость — сечение через ЦЕНТР сфер: два угловых диска радиуса r касаются в центре
-    # квадрата (расстояние между углами = W*sqrt(2) = 2r), поэтому жидкостное сечение
-    # распадается на ДВЕ доли, сходящиеся в одной точке. Веер из центра невозможен
-    # (центр лежит на дугах) -> каждая доля триангулируется веером от своего угла домена.
+    # z_max: the plane passes through the sphere centers of the last level -> quarter disks in the corners.
+    # The plane is a section through the sphere CENTER: two corner disks of radius r touch at the center
+    # of the square (corner distance = W*sqrt(2) = 2r), so the fluid section
+    # splits into TWO lobes meeting at one point. A fan from the center is impossible
+    # (the center lies on the arcs) -> each lobe is triangulated by a fan from its own domain corner.
     if nseg_arc % 2:
-        raise SystemExit("ERROR: planar_arc_segments должен быть чётным (деление дуги пополам)")
+        raise SystemExit("ERROR: planar_arc_segments must be even (the arc is split in half)")
     k = nseg_arc // 2
     last_diag = ("A", "C") if ((n_levels - 1) % 2 == 0) else ("B", "D")
     corners = {"A": (0.0, 0.0), "B": (W, 0.0), "C": (W, W), "D": (0.0, W)}
     if last_diag == ("B", "D"):
-        # диски в B и D, свободные углы A и C
-        arcB = arc_pts(corners["B"], r, 180.0, 90.0, nseg_arc)     # (W-r,0) … центр … (W,r)
-        arcD = arc_pts(corners["D"], r, 270.0, 360.0, nseg_arc)    # (0,W-r) … центр … (r,W)
+        # disks at B and D, free corners A and C
+        arcB = arc_pts(corners["B"], r, 180.0, 90.0, nseg_arc)     # (W-r,0) … center … (W,r)
+        arcD = arc_pts(corners["D"], r, 270.0, 360.0, nseg_arc)    # (0,W-r) … center … (r,W)
         solid_contours = [([corners["B"]] + arcB, corners["B"]),
                           ([corners["D"]] + arcD, corners["D"])]
-        lobe1 = ([(W - r, 0.0)] + arcB[:k + 1] + arcD[k::-1] + [(0.0, 0.0)])   # доля у A
-        lobe2 = ([(W, W), (W, r)] + arcB[k:][::-1] + arcD[k:])                  # доля у C
+        lobe1 = ([(W - r, 0.0)] + arcB[:k + 1] + arcD[k::-1] + [(0.0, 0.0)])   # the lobe at A
+        lobe2 = ([(W, W), (W, r)] + arcB[k:][::-1] + arcD[k:])                  # the lobe at C
         lobes = [(lobe1, corners["A"]), (lobe2, corners["C"])]
     else:
-        # диски в A и C, свободные углы B и D
-        arcA = arc_pts(corners["A"], r, 0.0, 90.0, nseg_arc)       # (r,0) … центр … (0,r)
-        arcC = arc_pts(corners["C"], r, 180.0, 270.0, nseg_arc)    # (W-r,W) … центр … (W,W-r)
+        # disks at A and C, free corners B and D
+        arcA = arc_pts(corners["A"], r, 0.0, 90.0, nseg_arc)       # (r,0) … center … (0,r)
+        arcC = arc_pts(corners["C"], r, 180.0, 270.0, nseg_arc)    # (W-r,W) … center … (W,W-r)
         solid_contours = [([corners["A"]] + arcA, corners["A"]),
                           ([corners["C"]] + arcC, corners["C"])]
-        lobe1 = ([(0.0, W), (W - r, W)] + arcC[:k + 1] + arcA[k:])              # доля у D
-        lobe2 = ([(W, 0.0), (r, 0.0)] + arcA[:k + 1] + arcC[k:])                # доля у B
+        lobe1 = ([(0.0, W), (W - r, W)] + arcC[:k + 1] + arcA[k:])              # the lobe at D
+        lobe2 = ([(W, 0.0), (r, 0.0)] + arcA[:k + 1] + arcC[k:])                # the lobe at B
         lobes = [(lobe1, corners["D"]), (lobe2, corners["B"])]
 
-    # каждая доля — отдельная триангуляция: у долей разное направление обхода,
-    # поэтому нормаль нормируется ПО ДОЛЕ, а не по объединённой сетке
+    # each lobe is a separate triangulation: the lobes wind in different directions,
+    # so the normal is fixed PER LOBE, not over the merged mesh
     outlet = trimesh.util.concatenate([
         mesh_2d(fan_2d(dedupe(pts), ctr), "z", z_max, outward=(0, 0, 1))
         for pts, ctr in lobes])
     outlet_solid = mesh_2d(
         np.concatenate([fan_2d(c, ctr) for c, ctr in solid_contours]), "z", z_max, outward=(0, 0, 1))
 
-    # боковые стенки: 4 прямоугольника (нормали наружу)
+    # side walls: 4 rectangles (normals pointing outwards)
     zmid = (z_min + z_max) / 2.0
     rect = [(0.0, z_min), (W, z_min), (W, z_max), (0.0, z_max)]
     walls = trimesh.util.concatenate([
@@ -390,10 +390,10 @@ def build(params: dict):
 
 
 def solid_union(g, engine="manifold") -> trimesh.Trimesh:
-    """Твёрдое тело: union(сферы + шейки) -> обрезка доменом.
+    """Solid body: union(spheres + necks) -> clipped by the domain.
 
-    Объединять надо ДО обрезки: union уже обрезанных оболочек manifold считает
-    неправильно (на ref14 получалось 677 мм³ вместо ~442 при 28 компонентах).
+    The union must happen BEFORE clipping: manifold computes the union of already clipped shells
+    incorrectly (ref14 gave 677 mm³ instead of ~442 with 28 components).
     """
     parts = [g["raw_interface"]]
     if len(g["necks_closed"].faces):
@@ -403,13 +403,13 @@ def solid_union(g, engine="manifold") -> trimesh.Trimesh:
 
 
 def split_union_surface(solid, g, rel_tol: float = 0.05, plane_tol: float = 1e-6):
-    """Делит ГРАНИЦУ ТВЁРДОГО на две части: пояски шеек и остальное (сферы + пятна на стенках).
+    """Splits the SOLID BOUNDARY into two parts: the neck bands and the rest (spheres + pads on the walls).
 
-    Для многорегионального snappy нужна именно граница union-тела, а не набор исходных
-    оболочек: 28 закрытых сфер + закрытые цилиндры-шейки дают внутренние поверхности
-    (шапки сфер внутри шейки), на которых заливка cellZone останавливается — твёрдая
-    область распадается (exp-017: solid 30053 ячейки вместо ~550k, т.е. примерно один шар).
-    Части режутся по треугольникам, поэтому после разреза они стыкуются вершина-в-вершину.
+    Multi-region snappy needs the boundary of the union body itself, not the set of original
+    shells: 28 closed spheres + closed neck cylinders produce internal surfaces
+    (sphere caps inside the neck) where the cellZone fill stops — the solid
+    region breaks up (exp-017: solid 30053 cells instead of ~550k, i.e. roughly one sphere).
+    The parts are cut along triangles, so after the cut they match vertex to vertex.
     """
     centers = np.asarray(g["centers"], float)
     r, rn = g["r"], g["r_neck"]
@@ -427,9 +427,9 @@ def split_union_surface(solid, g, rel_tol: float = 0.05, plane_tol: float = 1e-6
         t = rel @ u
         rho = np.linalg.norm(rel - t[:, None] * u, axis=1)
         is_neck |= (t > hw - 1e-6) & (t < L - hw + 1e-6) & (np.abs(rho - rn) < tol_r)
-    # Плоские пятна на стенках домена (x=0, x=W, y=0, y=W, z=z_min, z=z_max) — это НЕ интерфейс
-    # fluid/solid: там граница домена, её закрывает сам blockMesh. Если оставить их в interface.stl,
-    # snappy ставит на них односторонние грани-патч interface (exp-017: 71170 лишних граней solid).
+    # Flat pads on the domain walls (x=0, x=W, y=0, y=W, z=z_min, z=z_max) are NOT the interface
+    # fluid/solid: that is the domain boundary, closed by blockMesh itself. If they stay in interface.stl,
+    # snappy puts one-sided interface patch faces on them (exp-017: 71170 extra solid faces).
     verts = solid.vertices[solid.faces]                      # (n, 3, 3)
     planes = [(0, 0.0), (0, g["W"]), (1, 0.0), (1, g["W"]),
               (2, g["z_min"]), (2, g["z_max"])]
@@ -443,7 +443,7 @@ def split_union_surface(solid, g, rel_tol: float = 0.05, plane_tol: float = 1e-6
     idx_wall = np.where(is_wall)[0]
     idx_rest = np.where(~is_neck & ~is_wall)[0]
     if len(idx_neck) == 0:
-        raise SystemExit("ERROR: не найдено ни одного треугольника на поясках шеек")
+        raise SystemExit("ERROR: no triangle found on the neck bands")
     neck_part = solid.submesh([idx_neck], append=True)
     rest_part = solid.submesh([idx_rest], append=True)
     wall_part = solid.submesh([idx_wall], append=True) if len(idx_wall) else trimesh.Trimesh()
@@ -457,14 +457,14 @@ def fluid_volume(g, solid: trimesh.Trimesh, engine="manifold") -> trimesh.Trimes
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Геометрия 'канал с шарами' (аналог good_mesing)")
-    ap.add_argument("--params", required=True, help="JSON с параметрами")
-    ap.add_argument("--out-dir", required=True, help="куда писать STL")
+    ap = argparse.ArgumentParser(description="'Channel with spheres' geometry (analogue of good_mesing)")
+    ap.add_argument("--params", required=True, help="JSON with the parameters")
+    ap.add_argument("--out-dir", required=True, help="where to write the STL files")
     ap.add_argument("--units", choices=["mm", "m"], default="mm")
-    ap.add_argument("--no-boolean", action="store_true", help="не строить solid.stl/fluid.stl (boolean)")
-    ap.add_argument("--format", choices=["binary", "ascii"], default="binary", help="формат STL")
+    ap.add_argument("--no-boolean", action="store_true", help="do not build solid.stl/fluid.stl (boolean)")
+    ap.add_argument("--format", choices=["binary", "ascii"], default="binary", help="STL format")
     ap.add_argument("--fluid-patches", action="store_true",
-                    help="писать fluid_patches.stl — ASCII с именованными solid-ами (inlet/outlet/walls/interface) для cfMesh")
+                    help="write fluid_patches.stl — ASCII with named solids (inlet/outlet/walls/interface) for cfMesh")
     args = ap.parse_args(argv)
 
     params = json.loads(Path(args.params).read_text())
@@ -475,8 +475,8 @@ def main(argv=None):
 
     g = build(params)
     files = {}
-    # interface_source: "raw" — сферы (как оболочки) + полосы шеек; "union" — граница union-тела,
-    # разрезанная на «сферы/пятна» и «пояски» (нужно для заливки cellZone в snappyHexMesh)
+    # interface_source: "raw" — spheres (as shells) + neck bands; "union" — the boundary of the union body,
+    # split into «spheres/pads» and «bands» (needed for the cellZone fill in snappyHexMesh)
     interface_source = params.get("interface_source", "raw")
     solid = None
     if interface_source == "union":
@@ -568,28 +568,28 @@ def main(argv=None):
     if args.fluid_patches and "fluid.stl" in files:
         fluid = trimesh.load(out / "fluid.stl", process=True)
         fluid_mm = fluid.copy()
-        fluid_mm.vertices = np.asarray(fluid.vertices, float) / scale     # классификация в мм
-        parts = classify_fluid_triangles(fluid_mm, g, eps=1e-3)  # бинарный STL хранит float32, допуск ~1e-3 мм
+        fluid_mm.vertices = np.asarray(fluid.vertices, float) / scale     # classification in mm
+        parts = classify_fluid_triangles(fluid_mm, g, eps=1e-3)  # the binary STL stores float32, tolerance ~1e-3 mm
         report["fluid_patches"] = write_stl_multi(parts, out / "fluid_patches.stl", scale)
         files["fluid_patches.stl"] = sum(report["fluid_patches"].values())
-        print(f"  fluid_patches.stl      {files['fluid_patches.stl']:8d} треугольников "
+        print(f"  fluid_patches.stl      {files['fluid_patches.stl']:8d} triangles "
               f"({', '.join(f'{k}:{v}' for k, v in report['fluid_patches'].items())})")
 
     (out / "geom_report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
 
     print(f"== {out} ({args.units}) ==")
-    print(f"  r = {g['r']:.4f} мм  W = {g['W']:.4f}  H = {g['H']:.4f}  уровней {g['n_levels']} "
-          f"(шаров {len(g['centers'])})  контактов {len(g['pairs'])}")
-    print(f"  z = {g['z_min']:.4f} … {g['z_max']:.4f} мм  (L = {g['z_max']-g['z_min']:.4f}, вход {g['L_in']:.4f} мм)")
+    print(f"  r = {g['r']:.4f} mm  W = {g['W']:.4f}  H = {g['H']:.4f}  levels {g['n_levels']} "
+          f"(spheres {len(g['centers'])})  contacts {len(g['pairs'])}")
+    print(f"  z = {g['z_min']:.4f} … {g['z_max']:.4f} mm  (L = {g['z_max']-g['z_min']:.4f}, inlet {g['L_in']:.4f} mm)")
     for k, v in files.items():
-        print(f"  {k:22s} {v:8d} треугольников")
+        print(f"  {k:22s} {v:8d} triangles")
     if "boolean" in report:
         b = report["boolean"]
-        print(f"  solid: {b['solid_volume_mm3']:.4f} мм³ ({b['solid_bodies']} тел, watertight={b['solid_watertight']})")
-        print(f"  fluid: {b['fluid_volume_mm3']:.4f} мм³ ({b['fluid_bodies']} тел, watertight={b['fluid_watertight']})")
-        print(f"  пористость {report['porosity']:.4f}  доля твёрдого {report['solid_fraction']:.4f}  "
-              f"сумма объёмов: {report['volume_check_pct']:+.4f} % от домена")
-    print(f"  отчёт: {out/'geom_report.json'}")
+        print(f"  solid: {b['solid_volume_mm3']:.4f} mm³ ({b['solid_bodies']} bodies, watertight={b['solid_watertight']})")
+        print(f"  fluid: {b['fluid_volume_mm3']:.4f} mm³ ({b['fluid_bodies']} bodies, watertight={b['fluid_watertight']})")
+        print(f"  porosity {report['porosity']:.4f}  solid fraction {report['solid_fraction']:.4f}  "
+              f"volume sum: {report['volume_check_pct']:+.4f} % of the domain")
+    print(f"  report: {out/'geom_report.json'}")
     return 0
 
 

@@ -1,7 +1,7 @@
 [
   {
     "id": "plugin-mesh-build",
-    "title": "Плагин mesh-build: что делает и когда звать",
+    "title": "mesh-build plugin: what it does and when to call it",
     "topics": [
       "plugin",
       "mesh-build",
@@ -14,22 +14,22 @@
       "quality-gate"
     ],
     "status": "verified",
-    "when": "STL готов и должен стать пригодной объёмной сеткой OpenFOAM",
-    "statement": "mesh-build — DSH-бандл для объёмных сеток: маршруты snappy (hex-dominant, слои, многорегионный CHT), cfMesh cartesianMesh, gmsh OCC route D, плюс шлюз качества по checkMesh для каждой области. Три инструмента: mesh_hints (эти карточки), mesh_build (scaffold кейса из STL либо сборка существующего кейса по маршруту), mesh_check (после мешинга: метрики + rc шлюза; minVol передаётся отдельно и он абсолютный).",
+    "when": "the STL is ready and must become a usable OpenFOAM volume mesh",
+    "statement": "mesh-build is a DSH bundle for volume meshes: routes snappy (hex-dominant, layers, multi-region CHT), cfMesh cartesianMesh, gmsh OCC route D, plus a checkMesh-based quality gate for each region. Three tools: mesh_hints (these cards), mesh_build (scaffold a case from an STL, or build an existing case along a route), mesh_check (after meshing: metrics + gate rc; minVol is passed separately and is absolute).",
     "recipe": [
-      "сначала mesh_hints({query}) — ловушки и рецепты улучшения качества",
-      "новый кейс: mesh_build({route:'snappy', scaffold:true, caseDir, stl, scaffoldOptions:{domainMin,domainMax,cellSize,locationInMesh}})",
-      "существующий кейс: mesh_build({route:'snappy', scaffold:false, caseDir, np:6})",
-      "после сборки: mesh_check({caseDir, profile:'project', minVol:<h_min³/6>}) — PASS ищите в verdict, а не в «построилось без ошибок»"
+      "start with mesh_hints({query}) — traps and quality-improvement recipes",
+      "new case: mesh_build({route:'snappy', scaffold:true, caseDir, stl, scaffoldOptions:{domainMin,domainMax,cellSize,locationInMesh}})",
+      "existing case: mesh_build({route:'snappy', scaffold:false, caseDir, np:6})",
+      "after the build: mesh_check({caseDir, profile:'project', minVol:<h_min³/6>}) — look for PASS in verdict, not in “it built without errors”"
     ],
     "evidence": [
-      "plugins/mesh-build/index.js: mesh_hints, mesh_build, mesh_check; data/engine.json — маршруты, шаги, профили; lib/skill.js — инструкция агенту",
-      "проверено живым запуском: v13_best → PASS при minVol 1e-16 (fluid 331 792 / 18.71°, solid 243 965 / 26.54°); e2e snappy 19.6 с → PASS 27 424 ячейки / 41.34°"
+      "plugins/mesh-build/index.js: mesh_hints, mesh_build, mesh_check; data/engine.json — routes, steps, profiles; lib/skill.js — the agent instruction",
+      "verified by a live run: v13_best → PASS at minVol 1e-16 (fluid 331 792 / 18.71°, solid 243 965 / 26.54°); e2e snappy 19.6 s → PASS 27 424 cells / 41.34°"
     ],
     "improves": [
-      "пригодность сетки",
-      "воспроизводимость мешинга",
-      "выбор маршрута и порогов"
+      "mesh usability",
+      "meshing reproducibility",
+      "route and threshold selection"
     ],
     "appliesTo": [
       "mesh_hints",
@@ -39,32 +39,32 @@
   },
   {
     "id": "portable-mesh-build",
-    "title": "Мешинг и поставка без sim-project.json",
+    "title": "Meshing and delivery without sim-project.json",
     "topics": [
       "portable",
-      "без проекта",
+      "without project",
       "sim-project.json",
       "empty directory",
-      "портативно",
+      "portability",
       "defaults",
       "caseRoots",
       "delivery"
     ],
     "status": "verified",
-    "when": "mesh_build/mesh_check/mesh_deliver запускают в чистом каталоге без профиля проекта",
-    "statement": "mesh-build работает без профиля: project:\"defaults\", кейсы по умолчанию ./cases, профиль шлюза project, а если в кейсе нет system/fvSchemes|fvSolution — шлюз синтезирует минимальные копии в overlay (на метрики не влияет, advisory это называет). mesh_deliver больше не требует tools/deliver/make_delivery.sh: при отсутствии проектного скрипта берётся пакетная копия <bundle>/scripts/deliver/make_delivery.sh (+ scripts/qa/mesh_gate.sh, region_layout.py), а шлюз пишет overlay в MESH_GATE_CACHE_DIR=<outDir>/.gate. Проверено в /tmp: 2584 ячейки, gate PASS, DELIVERED, 1.8 МБ артефактов.",
+    "when": "mesh_build/mesh_check/mesh_deliver run in a clean directory without a project profile",
+    "statement": "mesh-build works without a profile: project:\"defaults\", cases default to ./cases, the gate profile is project, and if the case has no system/fvSchemes|fvSolution the gate synthesises minimal copies in an overlay (it does not affect the metrics, an advisory says so). mesh_deliver no longer requires tools/deliver/make_delivery.sh: when the project script is absent a packaged copy <bundle>/scripts/deliver/make_delivery.sh is used (+ scripts/qa/mesh_gate.sh, region_layout.py), and the gate writes its overlay to MESH_GATE_CACHE_DIR=<outDir>/.gate. Verified in /tmp: 2584 cells, gate PASS, DELIVERED, 1.8 MB of artefacts.",
     "recipe": [
       "mesh_build({route:'snappy', scaffold:true, caseDir:'cases/cube', stl:['…/cube.stl'], scaffoldOptions:{domainMin,domainMax,cells,locationInMesh,minVol}})",
-      "mesh_check({caseDir:'cases/cube', minVol:<h_min³/6>, profile:'project'}) — verdict ищите в gate.verdict",
-      "mesh_deliver({caseDir:'cases/cube', name:'cube', minVol:<тот же>}) — фирменный путь: passport → шлюз → openfoam_<name>/ + .tar.gz + ansys_<name>/ + .zip",
-      "OpenFOAM не в PATH: передайте openfoam:'/usr/lib/openfoam/openfoam2512/etc/bashrc' (id установок живёт в sim-project.json)",
-      "нужны свои caseRoots/пороги/слои — создайте sim-project.json: gate.profiles, caseRoots, foam.installations"
+      "mesh_check({caseDir:'cases/cube', minVol:<h_min³/6>, profile:'project'}) — look for the verdict in gate.verdict",
+      "mesh_deliver({caseDir:'cases/cube', name:'cube', minVol:<same>}) — the signature path: passport → gate → openfoam_<name>/ + .tar.gz + ansys_<name>/ + .zip",
+      "OpenFOAM not in PATH: pass openfoam:'/usr/lib/openfoam/openfoam2512/etc/bashrc' (installation ids live in sim-project.json)",
+      "need your own caseRoots/thresholds/layers — create sim-project.json: gate.profiles, caseRoots, foam.installations"
     ],
     "evidence": [
       "plugins/mesh-build/lib/deliver.js: scriptOrigin project|package, env MESH_GATE_CACHE_DIR",
-      "plugins/mesh-build/scripts/deliver/make_delivery.sh и scripts/qa/mesh_gate.sh — пакетные копии с QA_ROOT из MESH_GATE_CACHE_DIR",
-      "plugins/mesh-build/index.js: withPortable() вместо гейта requireProject",
-      "прогон 2026-11-26 в /tmp: gate PASS 18.29°, DELIVERED, roundtrip ok"
+      "plugins/mesh-build/scripts/deliver/make_delivery.sh and scripts/qa/mesh_gate.sh — packaged copies with QA_ROOT from MESH_GATE_CACHE_DIR",
+      "plugins/mesh-build/index.js: withPortable() instead of the requireProject gate",
+      "run of 2026-11-26 in /tmp: gate PASS 18.29°, DELIVERED, roundtrip ok"
     ]
   }
 ]

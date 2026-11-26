@@ -4,179 +4,179 @@
   "cards": [
     {
       "id": "snappy-minvol",
-      "title": "minVol — абсолютный объём, а не доля ячейки",
+      "title": "minVol is an absolute volume, not a cell fraction",
       "topics": ["snappy", "quality", "minVol", "layers"],
       "status": "verified",
-      "when": "любая правка system/meshQualityDict для поровых сеток с мелкой ячейкой",
-      "statement": "В meshQualityDict minVol/minTetQuality — абсолютные объёмы (м³) пирамиды «грань–центр», а не доля ячейки. Шаблонное minVol 1e-13 рассчитано на ячейки ~1 мм; при поровых ячейках 5e-16…1.7e-11 м³ оно помечает нормальные ячейки как illegal.",
+      "when": "any edit of system/meshQualityDict for pore meshes with a small cell",
+      "statement": "In meshQualityDict minVol/minTetQuality are absolute volumes (m³) of the face–cell-centre pyramid, not a cell fraction. The template minVol 1e-13 is intended for ~1 mm cells; with pore cells of 5e-16…1.7e-11 m³ it flags normal cells as illegal.",
       "recipe": [
-        "minVol ≈ h_min³ / 6, где h_min — минимальный размер ячейки в метрах",
-        "поровая сетка с ячейкой 0.05–0.1 мм → minVol 1e-16…1e-14",
-        "задавать явно в system/meshQualityDict и в шлюзе: mesh_gate.sh --min-vol 1e-14"
+        "minVol ≈ h_min³ / 6, where h_min is the minimum cell size in metres",
+        "pore mesh with a 0.05–0.1 mm cell → minVol 1e-16…1e-14",
+        "set it explicitly in system/meshQualityDict and in the gate: mesh_gate.sh --min-vol 1e-14"
       ],
       "evidence": [
-        "exp-005: шаблонный minVol 1e-13 дал 419 044 illegal faces и `Extruding 0 out of 52592 faces (0%)` — слои не выросли",
-        "exp-003: 63 792 и 70 784 «плохих» грани при формально здоровой сетке, ячейка 0.063 мм"
+        "exp-005: the template minVol 1e-13 gave 419 044 illegal faces and `Extruding 0 out of 52592 faces (0%)` — no layers grew",
+        "exp-003: 63 792 and 70 784 “bad” faces on a formally sound mesh, cell 0.063 mm"
       ],
       "improves": ["negative volume", "layer coverage", "illegal faces"],
       "appliesTo": ["mesh_build snappy", "mesh_check"]
     },
     {
       "id": "snappy-stl-unit",
-      "title": "STL в мм → scale 0.001 и locationInMesh в метрах",
+      "title": "STL in mm → scale 0.001 and locationInMesh in metres",
       "topics": ["snappy", "units", "geometry", "scale"],
       "status": "verified",
-      "when": "STL нарезан в миллиметрах (контракт проекта), а кейс OpenFOAM в метрах",
-      "statement": "В snappyHexMeshDict geometry{...} нужен `scale 0.001`, а locationInMesh/locationsInMesh — в метрах. Иначе snappy ищет точку внутри сетки в мм-координатах и падает.",
+      "when": "the STL is in millimetres (project contract) while the OpenFOAM case is in metres",
+      "statement": "snappyHexMeshDict geometry{...} needs `scale 0.001`, and locationInMesh/locationsInMesh must be in metres. Otherwise snappy looks for the inside point in mm coordinates and fails.",
       "recipe": [
         "geometry { interface.stl { type triSurfaceMesh; name interface; scale 0.001; } }",
-        "locationsInMesh ( ((0.00176776695 0.00176776695 -0.0120) fluid) ) — координаты в метрах",
-        "STL всегда в мм; convertToMeters 0.001 в blockMeshDict"
+        "locationsInMesh ( ((0.00176776695 0.00176776695 -0.0120) fluid) ) — coordinates in metres",
+        "STL is always in mm; convertToMeters 0.001 in blockMeshDict"
       ],
       "evidence": [
-        "AGENTS.md §13, ловушка проекта: `FOAM FATAL ERROR: Point (...) is not inside the mesh or on a face or edge`"
+        "AGENTS.md §13, project trap: `FOAM FATAL ERROR: Point (...) is not inside the mesh or on a face or edge`"
       ],
-      "improves": ["запуск snappy без ручной правки координат"],
+      "improves": ["running snappy without hand-editing coordinates"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-domain-plane-spots",
-      "title": "Односторонние грани interface — мусор на плоскостях домена",
+      "title": "One-sided interface faces — debris on the domain planes",
       "topics": ["snappy", "interface", "cht", "geometry"],
       "status": "verified",
-      "when": "после splitMeshRegions у одной области есть грани interface, у другой их нет (несогласованный интерфейс)",
-      "statement": "Причина — пятна геометрии на плоскостях домена: пересечение STL с границей блока даёт лишние грани, и snappy делает интерфейс односторонним. Лечится удалением треугольников, лежащих в плоскостях домена, до мешинга.",
+      "when": "after splitMeshRegions one region has interface faces and the other does not (mismatched interface)",
+      "statement": "The cause is geometry spots on the domain planes: the intersection of the STL with the block boundary produces extra faces, and snappy makes the interface one-sided. The fix is to remove the triangles lying on the domain planes before meshing.",
       "recipe": [
-        "Найти площадь пятен на плоскостях (plane_tol 1e-6) и удалить эти треугольники из STL",
-        "Затем пересобрать case: blockMesh → surfaceFeatureExtract → snappy → splitMeshRegions",
-        "Проверить: число граней interface в обеих областях совпадает, площадь совпадает"
+        "Find the spot area on the planes (plane_tol 1e-6) and delete those triangles from the STL",
+        "Then rebuild the case: blockMesh → surfaceFeatureExtract → snappy → splitMeshRegions",
+        "Verify: the interface face count matches in both regions and so does the area"
       ],
       "evidence": [
-        "exp-018: 108.189 мм² пятен → 14 620 лишних граней; после drop_domain_plane_faces=true (plane_tol=1e-6) solid stray 0, fluid 14",
-        "exp-005 (эталон): интерфейс 26 296 ↔ 26 296 граней, суммы объёмов совпадают"
+        "exp-018: 108.189 mm² of spots → 14 620 extra faces; after drop_domain_plane_faces=true (plane_tol=1e-6) solid stray 0, fluid 14",
+        "exp-005 (reference): interface 26 296 ↔ 26 296 faces, volume sums match"
       ],
-      "improves": ["согласованность интерфейса", "maxNonOrtho"],
+      "improves": ["interface consistency", "maxNonOrtho"],
       "appliesTo": ["mesh_build snappy", "stl_check"]
     },
     {
       "id": "snappy-interface-level",
-      "title": "Уровень 2 на интерфейсе убирает главный пик неортогональности",
+      "title": "Level 2 on the interface removes the main non-orthogonality peak",
       "topics": ["snappy", "refinement", "nonOrtho", "interface"],
       "status": "verified",
-      "when": "maxNonOrtho > 60° и худшие грани лежат на interface fluid↔solid",
-      "statement": "refinementSurfaces interface { level (2 2); } снижает maxNonOrtho с 72.72° до 28.03° ценой +50.3 % ячеек. Это самый эффективный одиночный рычаг в изученном наборе.",
+      "when": "maxNonOrtho > 60° and the worst faces lie on the fluid↔solid interface",
+      "statement": "refinementSurfaces interface { level (2 2); } cuts maxNonOrtho from 72.72° to 28.03° at the cost of +50.3 % cells. This is the most effective single lever in the studied set.",
       "recipe": [
         "refinementSurfaces { interface { level (2 2); patchInfo { type wall; } } }",
-        "features { file \"interface.eMesh\"; level 1; } — фичи уровнем ниже поверхности",
-        "после — mesh_gate.sh --profile project; при провале смотреть mesh_gate вывод по порогам"
+        "features { file \"interface.eMesh\"; level 1; } — feature level below the surface level",
+        "then mesh_gate.sh --profile project; on failure read the per-threshold mesh_gate output"
       ],
       "evidence": [
-        "exp-018: v13_best — fluid 331 792 ячейки, maxNonOrtho 18.71°, skew 1.175; solid 243 965, 26.54°; 62 с; шлюз project rc=0",
-        "exp-018: без level 2 maxNonOrtho 72.72°"
+        "exp-018: v13_best — fluid 331 792 cells, maxNonOrtho 18.71°, skew 1.175; solid 243 965, 26.54°; 62 s; project gate rc=0",
+        "exp-018: without level 2 maxNonOrtho 72.72°"
       ],
       "improves": ["maxNonOrtho", "maxSkewness"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-layers-nonortho",
-      "title": "Слои — главный источник неортогональности",
+      "title": "Layers are the main source of non-orthogonality",
       "topics": ["snappy", "layers", "nonOrtho"],
       "status": "verified",
-      "when": "слои включены, maxNonOrtho высокий, а без слоёв сетка проходит",
-      "statement": "В изученном кейсе без слоёв maxNonOrtho 39.20°, со слоями 72.72°. Сначала поднимайте уровень интерфейса и качество snap, и только потом добавляйте слои — или проверяйте вердикт шлюза без слоёв.",
+      "when": "layers are on, maxNonOrtho is high, and the mesh passes without layers",
+      "statement": "In the studied case maxNonOrtho is 39.20° without layers and 72.72° with them. Raise the interface level and the snap quality first, and only then add layers — or judge the gate verdict without layers.",
       "recipe": [
-        "Диагностика: собрать вариант с addLayers false и сравнить maxNonOrtho",
-        "Слои вводить после того, как castellation+snap даёт приемлемую неортогональность",
-        "castellatedBufferLayer даёт чуть лучше solid (61.70°), но втрое медленнее"
+        "Diagnosis: build a variant with addLayers false and compare maxNonOrtho",
+        "Introduce layers once castellation+snap gives acceptable non-orthogonality",
+        "castellatedBufferLayer gives a slightly better solid (61.70°) but is three times slower"
       ],
-      "evidence": ["exp-018: раздельные эксперименты со слоями и без; exp-005: castellatedBufferLayer 367 293 ячейки, 64.90°, skew 1.74, 0 illegal, 74 с"],
-      "improves": ["осознанный выбор: слои или качество"],
+      "evidence": ["exp-018: separate runs with and without layers; exp-005: castellatedBufferLayer 367 293 cells, 64.90°, skew 1.74, 0 illegal, 74 s"],
+      "improves": ["an informed choice: layers or quality"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-buffer-layer-solver",
-      "title": "castellatedBufferLayer без _meshMotionSolver падает",
+      "title": "castellatedBufferLayer fails without _meshMotionSolver",
       "topics": ["snappy", "layers", "castellatedBufferLayer"],
       "status": "verified",
-      "when": "выбран layerType castellatedBufferLayer",
-      "statement": "Тип castellatedBufferLayer требует блок `_meshMotionSolver` (displacementPointSmoothing + `pointSmoother laplacian`) и ссылку `${_meshMotionSolver}` в snapControls, иначе шаг «Inflating buffer layers» падает с `Entry 'solver' not found`. В addLayersControls обязателен nRelaxIter.",
+      "when": "layerType castellatedBufferLayer is selected",
+      "statement": "The castellatedBufferLayer type requires a `_meshMotionSolver` block (displacementPointSmoothing + `pointSmoother laplacian`) and a `${_meshMotionSolver}` reference in snapControls; otherwise the “Inflating buffer layers” step fails with `Entry 'solver' not found`. addLayersControls requires nRelaxIter.",
       "recipe": [
         "_meshMotionSolver { displacementPointSmoothing { pointSmoother laplacian; } }",
         "snapControls { solver ${_meshMotionSolver}; ... }",
         "addLayersControls { nRelaxIter 10; ... }"
       ],
-      "evidence": ["exp-005: `FOAM FATAL IO ERROR: Entry 'solver' not found in ... snapControls` на шаге Inflating buffer layers"],
-      "improves": ["запуск слоёв без отладки словарей"],
+      "evidence": ["exp-005: `FOAM FATAL IO ERROR: Entry 'solver' not found in ... snapControls` during the Inflating buffer layers step"],
+      "improves": ["running layers without debugging dictionaries"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-toggles-neutral",
-      "title": "Рычаги, которые в этом кейсе ничего не дали",
+      "title": "Levers that gave nothing in this case",
       "topics": ["snappy", "tuning", "nonOrtho"],
       "status": "verified",
-      "when": "хочется «покрутить параметры» вместо смены уровня/геометрии",
-      "statement": "Проверено на exp-018: maxNonOrtho 65→60 стало хуже (75.69°); nCellsBetweenLevels 4→2 почти нейтрально; resolveFeatureAngle 60 нейтрален; allowFreeStandingZoneFaces false не лечит односторонний интерфейс. Не тратить время на эти ручки — сначала геометрия, уровень интерфейса, слои.",
+      "when": "tempted to “tweak parameters” instead of changing the level or the geometry",
+      "statement": "Verified on exp-018: maxNonOrtho 65→60 made things worse (75.69°); nCellsBetweenLevels 4→2 is nearly neutral; resolveFeatureAngle 60 is neutral; allowFreeStandingZoneFaces false does not fix a one-sided interface. Do not spend time on these knobs — geometry, interface level and layers come first.",
       "recipe": [
-        "Порядок действий: убрать пятна на плоскостях → level 2 на interface → слои → только потом мелкие ручки",
-        "Каждый вариант — отдельный каталог и строка метрик"
+        "Order of work: remove the plane spots → level 2 on the interface → layers → only then the small knobs",
+        "Each variant gets its own directory and metrics row"
       ],
-      "evidence": ["exp-018 REPORT.md: таблица 30 вариантов, перечисленные ручки без выигрыша"],
-      "improves": ["скорость поиска настроек"],
+      "evidence": ["exp-018 REPORT.md: table of 30 variants, the listed knobs without a gain"],
+      "improves": ["speed of finding settings"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-symmetry-domain",
-      "title": "Внешние плоские границы — тип symmetry при мешинге",
+      "title": "Outer flat boundaries — type symmetry during meshing",
       "topics": ["snappy", "boundary", "symmetry", "blockMesh"],
       "status": "verified",
-      "when": "домен ограничен плоскостями, на которых физически симметрия/стенка",
-      "statement": "Тип patch на внешней плоскости заставляет snap двигать точки за плоскость (9.53 мкм, 1444/1580 неплоских граней). Тип symmetry держит плоскость идеально (0…4.9e-14 мм, 0 неплоских граней). Физический тип ставить после мешинга правкой constant/polyMesh/boundary — changeDictionary в региональном режиме не работает.",
+      "when": "the domain is bounded by planes that are physically a symmetry or a wall",
+      "statement": "The patch type on an outer plane makes snap move points off the plane (9.53 µm, 1444/1580 non-planar faces). The symmetry type keeps the plane exact (0…4.9e-14 mm, 0 non-planar faces). Set the physical type after meshing by editing constant/polyMesh/boundary — changeDictionary does not work in region mode.",
       "recipe": [
         "blockMeshDict: patch world { type symmetry; faces (...); }",
-        "после мешинга: править constant/<region>/polyMesh/boundary, тип patch/wall/cyclic",
-        "patchInfo { type symmetry; } НЕ перетипизирует уже существующие патчи из blockMeshDict"
+        "after meshing: edit constant/<region>/polyMesh/boundary, type patch/wall/cyclic",
+        "patchInfo { type symmetry; } does NOT retype patches that already exist in blockMeshDict"
       ],
       "evidence": [
-        "exp-006: patch — 1826/1827 точек вне плоскости, 1444/1580 неплоских граней; symmetry — 0 неплоских",
-        "exp-006: patchInfo с symmetry оставил inlet/outlet типом patch (28…32 мкм) и дал 143 illegal faces, maxSkew 399, Failed 5 mesh checks в solid"
+        "exp-006: patch — 1826/1827 points off the plane, 1444/1580 non-planar faces; symmetry — 0 non-planar",
+        "exp-006: patchInfo with symmetry left inlet/outlet as patch (28…32 µm) and gave 143 illegal faces, maxSkew 399, Failed 5 mesh checks in solid"
       ],
-      "improves": ["плоскостность границ", "maxSkewness"],
+      "improves": ["boundary planarity", "maxSkewness"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-parallel-recipe",
-      "title": "Проверенная последовательность шагов snappy в параллели",
+      "title": "Verified snappy step sequence in parallel",
       "topics": ["snappy", "pipeline", "parallel"],
       "status": "verified",
-      "when": "сборка кейса snappy с регионами на 6+ ядрах",
-      "statement": "Рабочая цепочка: чистить старые регионы/поля → blockMesh → surfaceFeatureExtract → decomposePar -force → mpirun snappyHexMesh -parallel -overwrite → reconstructParMesh -constant -mergeTol 1e-6 → checkMesh → splitMeshRegions -cellZones -overwrite → checkMesh по регионам.",
+      "when": "building a snappy case with regions on 6+ cores",
+      "statement": "Working chain: clean old regions/fields → blockMesh → surfaceFeatureExtract → decomposePar -force → mpirun snappyHexMesh -parallel -overwrite → reconstructParMesh -constant -mergeTol 1e-6 → checkMesh → splitMeshRegions -cellZones -overwrite → checkMesh per region.",
       "recipe": [
         "rm -rf constant/{polyMesh,fluid,solid,cellToRegion,extendedFeatureEdgeMesh} processor*",
-        "удалять 0/{cellToRegion,cellLevel,pointLevel,nSurfaceLayers,thickness,thicknessFraction} перед пересборкой",
+        "delete 0/{cellToRegion,cellLevel,pointLevel,nSurfaceLayers,thickness,thicknessFraction} before rebuilding",
         "mpirun --allow-run-as-root -np 6 snappyHexMesh -parallel -overwrite",
-        "reconstructParMesh -constant -mergeTol 1e-6; затем splitMeshRegions -cellZones -overwrite"
+        "reconstructParMesh -constant -mergeTol 1e-6; then splitMeshRegions -cellZones -overwrite"
       ],
-      "evidence": ["exp-018 scripts/run_variant.sh — полный пайплайн, коды выхода 11–16 по шагам; v13_best собран этой цепочкой за 62 с"],
-      "improves": ["воспроизводимость", "время сборки"],
+      "evidence": ["exp-018 scripts/run_variant.sh — full pipeline, exit codes 11–16 per step; v13_best built by this chain in 62 s"],
+      "improves": ["reproducibility", "build time"],
       "appliesTo": ["mesh_build snappy"]
     },
     {
       "id": "snappy-quality-gate",
-      "title": "Голый checkMesh не является шлюзом качества",
+      "title": "A bare checkMesh is not a quality gate",
       "topics": ["qa", "checkMesh", "quality", "gate"],
       "status": "verified",
-      "when": "нужно решить «сетка пригодна или нет»",
-      "statement": "checkMesh без -meshQuality не проверяет неортогональность по порогу: ошибкой считается только >90°, а >70° лишь считается и печатается. Пороговые проверки включаются только флагом -meshQuality с system/meshQualityDict — в проекте это tools/qa/mesh_gate.sh.",
+      "when": "a decision “is the mesh usable” is needed",
+      "statement": "checkMesh without -meshQuality does not test non-orthogonality against a threshold: only >90° is an error, while >70° is merely counted and printed. Threshold checks are enabled only by the -meshQuality flag with system/meshQualityDict — in this project that is tools/qa/mesh_gate.sh.",
       "recipe": [
         "tools/qa/mesh_gate.sh --case <case> --profile project --min-vol <h_min³/6>",
-        "project-цели: maxNonOrtho ≤ 60°, internal skew ≤ 2, boundary skew ≤ 4, minFaceWeight ≥ 0.1, minVolRatio ≥ 0.05, minDeterminant ≥ 0.001, negative volume 0",
-        "слои: ≥ 3–5 у стенки, coverage > 0.8"
+        "project targets: maxNonOrtho ≤ 60°, internal skew ≤ 2, boundary skew ≤ 4, minFaceWeight ≥ 0.1, minVolRatio ≥ 0.05, minDeterminant ≥ 0.001, negative volume 0",
+        "layers: ≥ 3–5 at the wall, coverage > 0.8"
       ],
       "evidence": [
-        "AGENTS.md §6 (проверено по исходникам v2512: primitiveMesh::nonOrthThreshold_ = 70, polyMeshCheck.C)",
-        "exp-018: v13_best проходит project rc=0; варианты с 61–75° — нет"
+        "AGENTS.md §6 (checked against the v2512 sources: primitiveMesh::nonOrthThreshold_ = 70, polyMeshCheck.C)",
+        "exp-018: v13_best passes project rc=0; variants at 61–75° do not"
       ],
-      "improves": ["объективность вердикта"],
+      "improves": ["objectivity of the verdict"],
       "appliesTo": ["mesh_check", "mesh_build snappy", "delivery"]
     }
   ]

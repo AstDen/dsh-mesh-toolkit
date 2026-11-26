@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""gen_packing_stl.py — STL из таблицы упаковки шаров: шары + шейки в контактах.
+"""gen_packing_stl.py — STL from a sphere-packing table: balls + necks at the contacts.
 
-Идея (та же, что в exp-009 для FCC-решётки, но здесь упаковка произвольная):
+Idea (the same as in exp-009 for the FCC lattice, but here the packing is arbitrary):
 
-* каждый шар — UV-сфера (`--sphere-segments` × `--sphere-rings`, как segments/ring_count
-  в Blender; по умолчанию 32×32) радиуса r из таблицы;
-* каждая пара из таблицы контактов соединяется цилиндром-шейкой радиуса
-  `--neck-radius-frac`·d_min (по умолчанию 0.1 диаметра, как в Blender-скрипте), ось —
-  по нормали i→j, торцы утоплены в шары на `--neck-embed-frac`·r_min;
-* объединение — булев union (движок `manifold3d`), **по связным кластерам** графа
-  контактов: внутри кластера убираются пересечения «шар ↔ шейка», а разные кластеры
-  не пересекаются и просто склеиваются в один STL (несколько замкнутых оболочек —
-  нормальная ситуация для snappyHexMesh). Один общий union на всё (режим `global`)
-  на десятках тысяч тел съедает десятки ГБ памяти — проверено OOM;
-* опционально `--fluid-out`: домен контейнера минус твёрдое тело.
+* each ball is a UV sphere (`--sphere-segments` × `--sphere-rings`, like segments/ring_count
+  in Blender; 32×32 by default) of radius r from the table;
+* every pair from the contact table is joined by a neck cylinder of radius
+  `--neck-radius-frac`·d_min (0.1 of the diameter by default, as in the Blender script), the axis
+  along the i→j normal, the end faces sunk into the balls by `--neck-embed-frac`·r_min;
+* the union is a boolean union (`manifold3d` engine), **per connected cluster** of the contact
+  graph: inside a cluster the «ball ↔ neck» intersections are removed, while different clusters
+  do not intersect and are simply merged into one STL (several closed shells is a
+  normal situation for snappyHexMesh). One global union over everything (`global` mode)
+  eats tens of GB of memory on tens of thousands of bodies — OOM verified;
+* optionally `--fluid-out`: the container domain minus the solid body.
 
-Геометрия берётся из шаблонов (одна единичная сфера и один единичный цилиндр,
-масштаб+перенос на каждый шар) — иначе trimesh на ~8 тыс. шаров даёт гигабайты
-кешей и падает по памяти.
+The geometry comes from templates (one unit sphere and one unit cylinder,
+scaled+translated per ball) — otherwise trimesh produces gigabytes of caches on ~8 thousand
+balls and dies on memory.
 
-Единицы — мм. STL бинарный, нормали наружу, оболочки замкнутые.
+Units are mm. The STL is binary, normals point outward, the shells are closed.
 
-Пример:
+Example:
   python gen_packing_stl.py --params-file params/cyl.json \\
       --balls tables/balls.csv --contacts tables/balls_contacts.csv \\
       --solid-out stl/solid.stl --json logs/stl.json --check
@@ -44,18 +44,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from packing_lib import make_container  # noqa: E402
 
 DEFAULTS = {
-    "sphere_segments": 32,     # долгот (segments в Blender)
-    "sphere_rings": 32,        # широт (ring_count в Blender)
-    "neck_radius_frac": 0.1,   # радиус шейки = frac * диаметр меньшего шара (Blender: 0.1*d)
-    "neck_embed_frac": 0.35,   # насколько торец шейки утоплен в шар (доля min(r_i,r_j))
-    "neck_sections": 32,       # боковых граней цилиндра
+    "sphere_segments": 32,     # longitudes (segments in Blender)
+    "sphere_rings": 32,        # latitudes (ring_count in Blender)
+    "neck_radius_frac": 0.1,   # neck radius = frac * diameter of the smaller ball (Blender: 0.1*d)
+    "neck_embed_frac": 0.35,   # how deep the neck end face is sunk into the ball (fraction of min(r_i,r_j))
+    "neck_sections": 32,       # side faces of the cylinder
     "union_mode": "cluster",   # cluster | global
-    "wall_gap_mm": 0.0,        # зазор шар-стенка (справочно; на STL не влияет)
+    "wall_gap_mm": 0.0,        # ball-wall gap (informational; does not affect the STL)
 }
 
 
 # ---------------------------------------------------------------------------
-# шаблоны мешей
+# mesh templates
 # ---------------------------------------------------------------------------
 def sphere_template(segments: int, rings: int) -> tuple[np.ndarray, np.ndarray]:
     m = trimesh.creation.uv_sphere(radius=1.0, count=[int(segments), int(rings)])
@@ -76,14 +76,14 @@ def neck_arrays(tv: np.ndarray, tf: np.ndarray, p_i, r_i, p_j, r_j,
     d = np.asarray(p_j, dtype=np.float64) - np.asarray(p_i, dtype=np.float64)
     dist = float(np.linalg.norm(d))
     if dist <= 1e-12:
-        raise ValueError("шейка: центры шаров совпали")
+        raise ValueError("neck: the ball centers coincide")
     u = d / dist
     start = np.asarray(p_i, dtype=np.float64) + u * (r_i - embed)
     end = np.asarray(p_j, dtype=np.float64) - u * (r_j - embed)
     axis = end - start
     length = float(np.linalg.norm(axis))
     if length <= 1e-9:
-        raise ValueError("шейка: нулевая длина (шары перекрываются сильнее зазора)")
+        raise ValueError("neck: zero length (the balls overlap more than the gap)")
     rot = trimesh.geometry.align_vectors([0.0, 0.0, 1.0], axis / length)
     v = tv * np.array([radius, radius, length])[None, :]
     v = v @ np.asarray(rot)[:3, :3].T + ((start + end) / 2.0)[None, :]
@@ -110,11 +110,11 @@ def container_mesh(spec: dict, sections: int = 128) -> trimesh.Trimesh:
         m = trimesh.creation.uv_sphere(radius=float(spec["radius_mm"]), count=[sections, sections])
         m.apply_translation(c)
         return m
-    raise ValueError(f"контейнер {kind!r} не поддерживается")
+    raise ValueError(f"container {kind!r} is not supported")
 
 
 # ---------------------------------------------------------------------------
-# запись STL потоком (без единого гигантского массива)
+# streaming STL write (no single giant array)
 # ---------------------------------------------------------------------------
 def write_binary_stl_stream(path: Path, parts: list[tuple[np.ndarray, np.ndarray]],
                             name: str = "packing") -> int:
@@ -141,21 +141,21 @@ def write_binary_stl_stream(path: Path, parts: list[tuple[np.ndarray, np.ndarray
 # main
 # ---------------------------------------------------------------------------
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="STL упаковки: шары + шейки (union по кластерам)")
-    ap.add_argument("--params-file", required=True, help="JSON с container/radii и параметрами STL")
-    ap.add_argument("--balls", required=True, help="CSV таблицы шаров (id,x_mm,y_mm,z_mm,r_mm)")
-    ap.add_argument("--contacts", required=True, help="CSV таблицы контактов")
-    ap.add_argument("--solid-out", help="STL твёрдого тела (шары+шейки)")
-    ap.add_argument("--fluid-out", help="STL порового пространства (домен − solid)")
-    ap.add_argument("--json", dest="json_out", help="сводка в JSON")
+    ap = argparse.ArgumentParser(description="STL of the packing: balls + necks (union per cluster)")
+    ap.add_argument("--params-file", required=True, help="JSON with container/radii and the STL parameters")
+    ap.add_argument("--balls", required=True, help="balls table CSV (id,x_mm,y_mm,z_mm,r_mm)")
+    ap.add_argument("--contacts", required=True, help="contacts table CSV")
+    ap.add_argument("--solid-out", help="STL of the solid body (balls+necks)")
+    ap.add_argument("--fluid-out", help="STL of the pore space (domain − solid)")
+    ap.add_argument("--json", dest="json_out", help="summary in JSON")
     ap.add_argument("--sphere-segments", type=int)
     ap.add_argument("--sphere-rings", type=int)
     ap.add_argument("--neck-radius-frac", type=float)
     ap.add_argument("--neck-embed-frac", type=float)
     ap.add_argument("--union-mode", choices=["cluster", "global"])
-    ap.add_argument("--check", action="store_true", help="проверки: watertight, объём, тела")
+    ap.add_argument("--check", action="store_true", help="checks: watertight, volume, bodies")
     ap.add_argument("--reload-check", action="store_true",
-                    help="дополнительно перечитать записанный STL целиком (медленно, много RAM)")
+                    help="additionally reload the written STL in full (slow, lots of RAM)")
     args = ap.parse_args(argv)
 
     t_start = time.perf_counter()
@@ -181,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     r = np.asarray(balls["r_mm"], dtype=np.float64)
     n = len(r)
     if n == 0:
-        print("[stl] пустая таблица шаров", file=sys.stderr)
+        print("[stl] empty balls table", file=sys.stderr)
         return 2
     ct = np.genfromtxt(args.contacts, delimiter=",", names=True)
     ct = np.atleast_1d(ct)
@@ -191,8 +191,8 @@ def main(argv: list[str] | None = None) -> int:
 
     tv, tf = sphere_template(seg, rings)
     cv, cf = cylinder_template(sections)
-    print(f"[stl] шаров {n} (r {r.min():.3f}..{r.max():.3f} мм), контактов {n_neck}; "
-          f"тесселяция {seg}x{rings} = {len(tf)} треуг./шар, шейки r = {nr_frac:.3f}·d_min")
+    print(f"[stl] balls {n} (r {r.min():.3f}..{r.max():.3f} mm), contacts {n_neck}; "
+          f"tessellation {seg}x{rings} = {len(tf)} tri/ball, necks r = {nr_frac:.3f}·d_min")
 
     def neck_for(k: int) -> tuple[np.ndarray, np.ndarray]:
         i, j = int(idx_i[k]), int(idx_j[k])
@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
         return neck_arrays(cv, cf, p[i], r[i], p[j], r[j],
                            nr_frac * 2.0 * r_min, min(embed_frac * r_min, 0.9 * r_min))
 
-    # --- разбиение на связные кластеры ------------------------------------
+    # --- split into connected clusters -------------------------------------
     t0 = time.perf_counter()
     if mode == "global":
         groups = [{"spheres": list(range(n)), "necks": list(range(n_neck))}]
@@ -223,11 +223,11 @@ def main(argv: list[str] | None = None) -> int:
         for k in range(n_neck):
             buckets[find(int(idx_i[k]))]["necks"].append(k)
         groups = sorted(buckets.values(), key=lambda g: -len(g["spheres"]))
-    print(f"[stl] режим {mode}: групп {len(groups)} (крупнейшая: "
-          f"{len(groups[0]['spheres'])} шаров, {len(groups[0]['necks'])} шеек), "
-          f"разбиение {time.perf_counter() - t0:.1f} с")
+    print(f"[stl] mode {mode}: groups {len(groups)} (largest: "
+          f"{len(groups[0]['spheres'])} balls, {len(groups[0]['necks'])} necks), "
+          f"split {time.perf_counter() - t0:.1f} s")
 
-    # --- union по группам, сразу в компактные массивы ----------------------
+    # --- union per group, straight into compact arrays ---------------------
     parts: list[tuple[np.ndarray, np.ndarray]] = []
     t_union = 0.0
     for gi, g in enumerate(groups):
@@ -245,11 +245,11 @@ def main(argv: list[str] | None = None) -> int:
             del local, merged
         t_union += time.perf_counter() - t0
         if gi < 5 or (gi + 1) % 20 == 0 or gi + 1 == len(groups):
-            print(f"[stl]   группа {gi + 1}/{len(groups)}: шаров {len(g['spheres'])}, "
-                  f"шеек {len(g['necks'])}, треуг. {len(parts[-1][1])}, "
-                  f"{time.perf_counter() - t0:.1f} с")
+            print(f"[stl]   group {gi + 1}/{len(groups)}: balls {len(g['spheres'])}, "
+                  f"necks {len(g['necks'])}, tri {len(parts[-1][1])}, "
+                  f"{time.perf_counter() - t0:.1f} s")
     n_tri = int(sum(len(f) for _, f in parts))
-    print(f"[stl] union готов: {len(parts)} оболочек, {n_tri} треуг., {t_union:.1f} с")
+    print(f"[stl] union done: {len(parts)} shells, {n_tri} tri, {t_union:.1f} s")
 
     info: dict = {
         "params_file": str(args.params_file),
@@ -262,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
         "time_s": {"union": t_union},
     }
 
-    # --- запись STL --------------------------------------------------------
+    # --- STL write ----------------------------------------------------------
     if args.solid_out:
         t0 = time.perf_counter()
         write_binary_stl_stream(Path(args.solid_out), parts, name="packing_solid")
@@ -270,10 +270,10 @@ def main(argv: list[str] | None = None) -> int:
         info["solid_out"] = {"path": str(args.solid_out),
                              "bytes": Path(args.solid_out).stat().st_size,
                              "time_s": dt, "triangles": n_tri}
-        print(f"[stl] solid: {args.solid_out} ({info['solid_out']['bytes'] / 1e6:.1f} МБ, "
-              f"{n_tri} треуг., запись {dt:.1f} с)")
+        print(f"[stl] solid: {args.solid_out} ({info['solid_out']['bytes'] / 1e6:.1f} MB, "
+              f"{n_tri} tri, write {dt:.1f} s)")
 
-    # --- проверки ----------------------------------------------------------
+    # --- checks -------------------------------------------------------------
     problems: list[str] = []
     args_reload = "--reload-check" in (argv if argv is not None else sys.argv[1:])
     if args_reload and args.solid_out:
@@ -286,8 +286,8 @@ def main(argv: list[str] | None = None) -> int:
                      "n_bodies": int(len(mesh.split(only_watertight=False)))})
         del mesh
     else:
-        # быстрая проверка по частям (для 30+ млн треуг. полная перезагрузка STL
-        # не нужна и опасна по памяти): объём/площадь/замкнутость каждой оболочки
+        # fast per-part check (for 30+ M triangles a full STL reload
+        # is unnecessary and dangerous on memory): volume/area/closedness of each shell
         t0 = time.perf_counter()
         vol = area = 0.0
         bad = 0
@@ -306,21 +306,21 @@ def main(argv: list[str] | None = None) -> int:
     v_spheres = float((4.0 / 3.0 * np.pi * r ** 3).sum())
     info["volume_spheres_sum_mm3"] = v_spheres
     info["volume_ratio_vs_spheres"] = float(info["volume_mm3"] / v_spheres)
-    print(f"[stl] проверка: watertight={info['watertight']}, оболочек/тел={info['n_bodies']}, "
-          f"V={info['volume_mm3']:.1f} мм³, S={info['area_mm2']:.1f} мм², "
-          f"V/V_шаров={info['volume_ratio_vs_spheres']:.5f}")
+    print(f"[stl] check: watertight={info['watertight']}, shells/bodies={info['n_bodies']}, "
+          f"V={info['volume_mm3']:.1f} mm³, S={info['area_mm2']:.1f} mm², "
+          f"V/V_balls={info['volume_ratio_vs_spheres']:.5f}")
     if not info["watertight"]:
-        problems.append("есть незамкнутые оболочки")
+        problems.append("there are unclosed shells")
     if not (0.9 <= info["volume_ratio_vs_spheres"] <= 1.0 + 1e-9):
-        problems.append(f"V/V_шаров={info['volume_ratio_vs_spheres']:.6f} вне [0.9, 1.0]")
+        problems.append(f"V/V_balls={info['volume_ratio_vs_spheres']:.6f} outside [0.9, 1.0]")
 
     if args.fluid_out:
         t0 = time.perf_counter()
         if not args.solid_out:
-            raise SystemExit("--fluid-out требует --solid-out")
+            raise SystemExit("--fluid-out requires --solid-out")
         dom = container_mesh(params["container"])
-        # manifold требует «volume»: собираем solid из частей и сливаем вершины
-        # (чтение STL с process=False даёт несшитые вершины -> «Not all meshes are volumes!»)
+        # manifold needs a «volume»: assemble the solid from the parts and merge the vertices
+        # (reading an STL with process=False gives unwelded vertices -> «Not all meshes are volumes!»)
         solid_mesh = trimesh.util.concatenate(
             [trimesh.Trimesh(v, f, process=False) for v, f in parts])
         solid_mesh.merge_vertices()
@@ -334,14 +334,14 @@ def main(argv: list[str] | None = None) -> int:
                              "n_bodies": int(len(fluid.split(only_watertight=False))),
                              "triangles": int(len(fluid.faces)),
                              "time_s": time.perf_counter() - t0}
-        print(f"[stl] fluid: {args.fluid_out} (V={fluid.volume:.1f} мм³, "
-              f"S={fluid.area:.1f} мм², watertight={fluid.is_watertight}, "
-              f"{info['fluid_out']['time_s']:.1f} с)")
+        print(f"[stl] fluid: {args.fluid_out} (V={fluid.volume:.1f} mm³, "
+              f"S={fluid.area:.1f} mm², watertight={fluid.is_watertight}, "
+              f"{info['fluid_out']['time_s']:.1f} s)")
         if not info["fluid_out"]["watertight"]:
-            problems.append("fluid не watertight")
+            problems.append("fluid is not watertight")
         v_dom = float(container_mesh(params["container"]).volume)
         if not (1e-6 < info["fluid_out"]["volume_mm3"] < v_dom):
-            problems.append("объём fluid вне (0, V_домена)")
+            problems.append("fluid volume outside (0, V_domain)")
 
     info["problems"] = problems
     info["time_s"]["total"] = time.perf_counter() - t_start
@@ -352,14 +352,14 @@ def main(argv: list[str] | None = None) -> int:
         if problems:
             rc = 1
         else:
-            print("[check] PASS: watertight, нормали согласованы, объёмы в допуске")
+            print("[check] PASS: watertight, consistent normals, volumes within tolerance")
     info["verdict"] = "FAIL" if problems else "PASS"
     if args.json_out:
         Path(args.json_out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.json_out).write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n",
                                        encoding="utf-8")
-        print(f"[stl] сводка: {args.json_out}")
-    print(f"[stl] VERDICT: {info['verdict']}  время {info['time_s']['total']:.1f} с")
+        print(f"[stl] summary: {args.json_out}")
+    print(f"[stl] VERDICT: {info['verdict']}  time {info['time_s']['total']:.1f} s")
     return rc
 
 

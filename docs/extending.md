@@ -64,10 +64,10 @@ A JSON array, or `{ "cards": [...] }`:
 ```json
 {
   "id": "snappy-minvol",
-  "title": "minVol — абсолютный объём",
+  "title": "minVol — absolute volume",
   "topics": ["snappy", "minvol", "layers"],
   "status": "verified",
-  "when": "слои не растут или illegal faces при здоровой сетке",
+  "when": "layers do not grow or illegal faces on an otherwise healthy mesh",
   "statement": "…one falsifiable paragraph…",
   "recipe": ["what to change, step by step"],
   "evidence": ["same mesh: minVol below h_min³/6 → illegal faces; h_min³/6 → 0"],

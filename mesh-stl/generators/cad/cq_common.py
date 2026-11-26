@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""cq_common.py — общие кирпичики CadQuery-генераторов проекта Mesh_3D_pore_scale.
+"""cq_common.py — shared building blocks of the CadQuery generators of the Mesh_3D_pore_scale project.
 
-Зачем отдельный модуль: аналитические формулы объёма/площади и примитивы должны быть
-в ОДНОМ месте, чтобы генератор, QA и README не расходились.
+Why a separate module: the analytic volume/area formulas and the primitives must be
+in ONE place so that the generator, QA and README do not diverge.
 
-Аналитика (та же формула — в geometry/cad/README.md и в gen_cq_porous.py):
+Analytics (the same formula is in geometry/cad/README.md and in gen_cq_porous.py):
 
     V_fluid = V_domain − Σ V_holes + Σ V_overlaps
     V_domain  = Lx · Ly · Lz
     V_sphere  = 4/3 · π · R³
-    V_cyl     = π · R² · h            (h — длина цилиндра ВНУТРИ домена)
-    V_overlap = 16/3 · R³             (пересечение двух перпендикулярных цилиндров равного R,
-                                       когда их оси скрещиваются; для остальных случаев — 0,
-                                       и генератор предупреждает, что аналитика приблизительна)
+    V_cyl     = π · R² · h            (h — cylinder length INSIDE the domain)
+    V_overlap = 16/3 · R³             (intersection of two perpendicular cylinders of equal R,
+                                       when their axes cross; for other cases — 0,
+                                       and the generator warns that the analytics is approximate)
     A_fluid   = A_domain + Σ A_holes_inside,  A_domain = 2(Lx·Ly + Ly·Lz + Lz·Lx)
     A_sphere  = 4πR²
-    A_cyl (пробивает две противоположные грани) = 2πR·h − 2πR²   (в вклад в A_domain)
+    A_cyl (pierces two opposite faces) = 2πR·h − 2πR²   (contribution to A_domain)
 
-Фасетная поверхность всегда даёт объём меньше аналитики (вписанный многогранник) — это
-дискретизация STL, а не ошибка геометрии (env/ENV_REPORT.md §5 п.9).
+A faceted surface always gives a volume smaller than the analytics (inscribed polyhedron) — this is
+STL discretisation, not a geometry error (env/ENV_REPORT.md §5 item 9).
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ AXES = {"x": 0, "y": 1, "z": 2}
 
 
 # ---------------------------------------------------------------------------
-# Аналитика
+# Analytics
 # ---------------------------------------------------------------------------
 def box_volume(lx: float, ly: float, lz: float) -> float:
     return lx * ly * lz
@@ -62,10 +62,10 @@ def cylinder_lateral_area(r: float, h: float) -> float:
 
 
 def crossing_cylinder_overlap(r: float) -> float:
-    """Объём пересечения двух перпендикулярных цилиндров равного радиуса R.
+    """Volume of the intersection of two perpendicular cylinders of equal radius R.
 
-    Классический результат: 16/3 · R³ (равен объёму «штрафа» за перпендикулярное
-    пересечение двух круговых цилиндров; проверяется численно в exp-002 по объёму STL).
+    Classical result: 16/3 · R³ (equal to the «penalty» volume for a perpendicular
+    intersection of two circular cylinders; verified numerically in exp-002 against the STL volume).
     """
     return 16.0 / 3.0 * r**3
 
@@ -78,25 +78,25 @@ class CaseGeometry:
     expected_volume: float
     expected_area: float | None
     details: dict = field(default_factory=dict)
-    # число замкнутых оболочек в STL: 1 + число замкнутых полостей.
-    # Полости, открытые на грани домена (сквозные цилиндры), оболочек не добавляют.
+    # number of closed shells in the STL: 1 + the number of closed cavities.
+    # Cavities open on the domain faces (through cylinders) add no shells.
     expected_bodies: int = 1
 
 
 # ---------------------------------------------------------------------------
-# Примитивы
+# Primitives
 # ---------------------------------------------------------------------------
 def make_block(lx: float, ly: float, lz: float) -> cq.Workplane:
-    """Блок, угол (0,0,0) — в начале координат, габарит Lx×Ly×Lz (мм)."""
+    """Block with the (0,0,0) corner at the origin, size Lx×Ly×Lz (mm)."""
     return cq.Workplane("XY").box(lx, ly, lz, centered=(False, False, False))
 
 
 def make_sphere(r: float, center: Sequence[float]) -> cq.Solid:
-    """Полная сфера радиуса r с центром center.
+    """Full sphere of radius r with center center.
 
-    ВНИМАНИЕ (проверено в exp-002): у `cq.Solid.makeSphere` значения по умолчанию для
-    углов дают ПОЛУсферу (объём 2/3·πR³, z от центра вверх, а не шар) — молчаливая
-    ловушка. Полный шар получается только с явными angleDegrees1=-90, angleDegrees2=90.
+    WARNING (verified in exp-002): in `cq.Solid.makeSphere` the default values for
+    the angles give a HALF sphere (volume 2/3·πR³, z upward from the center, not a ball) — a silent
+    trap. A full ball is obtained only with explicit angleDegrees1=-90, angleDegrees2=90.
     """
     return cq.Solid.makeSphere(
         r, pnt=cq.Vector(*center), angleDegrees1=-90, angleDegrees2=90
@@ -111,13 +111,13 @@ def make_cylinder(
     length: float,
     extend: float = 1.0,
 ) -> cq.Solid:
-    """Цилиндр вдоль axis='x'|'y'|'z', ось проходит через (center_a, center_b) в
-    поперечных координатах. Длина — length + 2·extend, удлинение нужно, чтобы
-    вычитание насквозь не оставляло нулевой толщины на гранях блока (булевы
-    операции с совпадающими гранями — источник артефактов OCC)."""
+    """Cylinder along axis='x'|'y'|'z', the axis passes through (center_a, center_b) in the
+    transverse coordinates. Length is length + 2·extend, the extension is needed so that
+    a cut through does not leave zero thickness on the block faces (boolean
+    operations with coincident faces are a source of OCC artefacts)."""
     ax = axis.lower()
     if ax not in AXES:
-        raise ValueError(f"axis={axis!r}, допустимо {sorted(AXES)}")
+        raise ValueError(f"axis={axis!r}, allowed {sorted(AXES)}")
     a_idx = AXES[ax]
     perp = [i for i in range(3) if i != a_idx]
     start = [0.0, 0.0, 0.0]
@@ -134,8 +134,8 @@ def make_cylinder(
 def lattice_centers(
     lx: float, ly: float, lz: float, nx: int, ny: int, nz: int
 ) -> list[tuple[float, float, float]]:
-    """Центры простой кубической упаковки: ячейка домена делится на nx×ny×nz,
-    центр каждой ячейки — центр сферы. Детерминированно, без seed."""
+    """Centers of a simple cubic packing: the domain cell is divided into nx×ny×nz,
+    the center of each cell is the sphere center. Deterministic, no seed."""
     centers = []
     for ix in range(nx):
         for iy in range(ny):
@@ -151,32 +151,32 @@ def lattice_centers(
 
 
 # ---------------------------------------------------------------------------
-# Проверки геометрии ДО булевых операций (дешевле, чем ловить артефакты потом)
+# Geometry checks BEFORE the boolean operations (cheaper than chasing artefacts later)
 # ---------------------------------------------------------------------------
 def check_spheres_inside(
     centers: Iterable[Sequence[float]], r: float, domain: Sequence[float], tol: float = 1e-9
 ) -> None:
-    """Сфера должна быть строго внутри домена: касание грани даёт вырожденные
-    булевы операции и «нулевой толщины» перемычки в STL."""
+    """The sphere must be strictly inside the domain: touching a face gives degenerate
+    boolean operations and «zero thickness» bridges in the STL."""
     lx, ly, lz = domain
     for i, c in enumerate(centers):
         for val, size, name in ((c[0], lx, "x"), (c[1], ly, "y"), (c[2], lz, "z")):
             if val - r < -tol or val + r > size + tol:
                 raise ValueError(
-                    f"сфера #{i} центр {tuple(round(v, 6) for v in c)} R={r} "
-                    f"выходит за {name}: [{val - r:.6g}, {val + r:.6g}] vs домен [0, {size}]"
+                    f"sphere #{i} center {tuple(round(v, 6) for v in c)} R={r} "
+                    f"is outside {name}: [{val - r:.6g}, {val + r:.6g}] vs domain [0, {size}]"
                 )
 
 
 def check_crossing_cylinders(cyls: list[dict], domain: Sequence[float]) -> float:
-    """Проверить пересечения цилиндров и вернуть суммарный объём пересечений.
+    """Check the cylinder intersections and return the total intersection volume.
 
-    Аналитика выведена только для пары ПЕРПЕНДИКУЛЯРНЫХ цилиндров равного радиуса,
-    оси которых пересекаются: объём пересечения = 16/3·R³ (тело Штейнмеца,
-    двуцилиндр). Для остальных случаев (перпендикулярные со смещением осей,
-    параллельные перекрывающиеся, разные радиусы) объём пересечения зависит от
-    расстояния между осями и простой формулы нет — бросаем ValueError, чтобы
-    пользователь разнёс полости или явно сменил геометрию.
+    The analytics is derived only for a pair of PERPENDICULAR cylinders of equal radius
+    whose axes intersect: the intersection volume = 16/3·R³ (Steinmetz solid,
+    bicylinder). For other cases (perpendicular with offset axes,
+    parallel overlapping, different radii) the intersection volume depends on
+    the distance between the axes and there is no simple formula — we raise ValueError so that
+    the user separates the cavities or explicitly changes the geometry.
     """
     total = 0.0
     for i in range(len(cyls)):
@@ -190,22 +190,22 @@ def check_crossing_cylinders(cyls: list[dict], domain: Sequence[float]) -> float
             if parallel:
                 if d < r_sum - 1e-9:
                     raise ValueError(
-                        f"параллельные цилиндры #{i} и #{j} перекрываются (d={d:.6g} < "
-                        f"R1+R2={r_sum:.6g}); аналитика объёма не выведена — разнесите их"
+                        f"parallel cylinders #{i} and #{j} overlap (d={d:.6g} < "
+                        f"R1+R2={r_sum:.6g}); no volume analytics derived — separate them"
                     )
                 continue
             if d > r_sum + 1e-9:
-                continue  # не пересекаются
+                continue  # do not intersect
             if abs(c1["radius"] - c2["radius"]) > 1e-9:
                 raise ValueError(
-                    f"цилиндры #{i} и #{j} пересекаются при разных радиусах "
-                    f"({c1['radius']} vs {c2['radius']}) — аналитика не выведена"
+                    f"cylinders #{i} and #{j} intersect with different radii "
+                    f"({c1['radius']} vs {c2['radius']}) — no analytics derived"
                 )
             if d > 1e-9:
                 raise ValueError(
-                    f"оси цилиндров #{i} и #{j} перпендикулярны, но смещены на d={d:.6g} "
-                    f"(< R1+R2={r_sum:.6g}); объём пересечения зависит от d — аналитика "
-                    "не выведена, разнесите цилиндры хотя бы на R1+R2"
+                    f"the axes of cylinders #{i} and #{j} are perpendicular but offset by d={d:.6g} "
+                    f"(< R1+R2={r_sum:.6g}); the intersection volume depends on d — the analytics "
+                    "is not derived, separate the cylinders by at least R1+R2"
                 )
             total += crossing_cylinder_overlap(c1["radius"])
     return total
@@ -227,12 +227,12 @@ def _axis_point(cyl: dict) -> tuple[float, float, float]:
 
 
 def _line_distance(p1, d1, p2, d2) -> float:
-    """Кратчайшее расстояние между прямыми (p1 + s·d1) и (p2 + t·d2)."""
+    """Shortest distance between the lines (p1 + s·d1) and (p2 + t·d2)."""
     n = _cross(d1, d2)
     n_len = math.sqrt(sum(v * v for v in n))
     diff = [p2[i] - p1[i] for i in range(3)]
     if n_len < 1e-12:
-        # параллельные прямые: расстояние = |diff × d1| / |d1|
+        # parallel lines: distance = |diff × d1| / |d1|
         d1_len = math.sqrt(sum(v * v for v in d1)) or 1.0
         c = _cross(diff, d1)
         return math.sqrt(sum(v * v for v in c)) / d1_len
@@ -248,27 +248,27 @@ def _cross(a, b):
 
 
 # ---------------------------------------------------------------------------
-# Булевы операции и экспорт
+# Boolean operations and export
 # ---------------------------------------------------------------------------
 def cut_tools(
     base: cq.Workplane | cq.Shape,
     tools: Sequence[cq.Workplane | cq.Shape],
     strategy: str = "sequential",
 ) -> cq.Shape:
-    """Вычитание полостей из блока.
+    """Subtraction of the cavities from the block.
 
-    strategy="sequential" (по умолчанию) — по одному cut на полость: медленнее,
-        но единственная стратегия, верная для ПЕРЕСЕКАЮЩИХСЯ полостей;
-    strategy="single"     — один BRepAlgoAPI_Cut с компаундом полостей: быстрее,
-        НО для пересекающихся полостей OCC теряет объём пересечения. Проверено
-        2026-11-23 (блок 12x6x6, два цилиндра R=0.8, min-тест): компаунд дал
-        407.872568 мм3 там, где sequential даёт 410.603235 мм3. Поэтому по
-        умолчанию single НЕ используется;
-    strategy="fused"      — фьюз полостей, затем один cut: верно и для
-        пересекающихся полостей, обычно дороже sequential.
+    strategy="sequential" (default) — one cut per cavity: slower,
+        but the only strategy correct for INTERSECTING cavities;
+    strategy="single"     — one BRepAlgoAPI_Cut with a compound of the cavities: faster,
+        BUT for intersecting cavities OCC loses the intersection volume. Verified
+        2026-11-23 (block 12x6x6, two cylinders R=0.8, min test): the compound gave
+        407.872568 mm3 where sequential gives 410.603235 mm3. Therefore by
+        default single is NOT used;
+    strategy="fused"      — fuse the cavities, then one cut: correct also for
+        intersecting cavities, usually more expensive than sequential.
 
-    Инвариант: объём результата = V_block − V_union(полостей). Проверять всегда
-    (gen_cq_porous.py сравнивает occ_volume с аналитикой и падает при > 0.5 %).
+    Invariant: the result volume = V_block − V_union(cavities). Always check
+    (gen_cq_porous.py compares occ_volume with the analytics and fails above 0.5 %).
     """
     base_shape = base.val() if isinstance(base, cq.Workplane) else base
     tool_shapes = [t.val() if isinstance(t, cq.Workplane) else t for t in tools]
@@ -295,7 +295,7 @@ def cut_tools(
             fused = fused.fuse(tool)
         return base_shape.cut(fused)
 
-    raise ValueError(f"strategy={strategy!r}, допустимо 'single'|'sequential'|'fused'")
+    raise ValueError(f"strategy={strategy!r}, allowed 'single'|'sequential'|'fused'")
 
 
 def export_stl(
@@ -306,18 +306,18 @@ def export_stl(
     api: str = "exporters",
     relative: bool = True,
 ) -> float:
-    """Экспорт бинарного STL (мм); возвращает время экспорта, с.
+    """Export a binary STL (mm); returns the export time, s.
 
-    api="exporters"  — `cq.exporters.export(...)`. ВНИМАНИЕ (проверено в exp-002):
-                       этот путь всегда вызывает `Shape.exportStl(..., relative=True)`,
-                       т.е. tolerance масштабируется размером грани и НЕ является
-                       абсолютным допуском в мм;
-    api="exportStl"  — прямой `Shape.exportStl(path, tolerance, angTol, ascii=False,
-                       relative=relative)`: при relative=False получается АБСОЛЮТНЫЙ
-                       допуск в мм (сопоставимо с gmsh/другими мешерами).
+    api="exporters"  — `cq.exporters.export(...)`. WARNING (verified in exp-002):
+                       this path always calls `Shape.exportStl(..., relative=True)`,
+                       i.e. tolerance is scaled by the face size and is NOT an
+                       absolute tolerance in mm;
+    api="exportStl"  — direct `Shape.exportStl(path, tolerance, angTol, ascii=False,
+                       relative=relative)`: with relative=False you get an ABSOLUTE
+                       tolerance in mm (comparable with gmsh/other meshers).
 
-    tolerance — максимальное отклонение хорды от истинной поверхности (мм при relative=False);
-    angularTolerance — максимальный угол между нормалями соседних треугольников, рад.
+    tolerance — maximum deviation of the chord from the true surface (mm when relative=False);
+    angularTolerance — maximum angle between the normals of neighbouring triangles, rad.
     """
     t0 = time.perf_counter()
     if api == "exporters":
@@ -334,7 +334,7 @@ def export_stl(
             parallel=True,
         )
     else:
-        raise ValueError(f"api={api!r}, допустимо 'exporters'|'exportStl'")
+        raise ValueError(f"api={api!r}, allowed 'exporters'|'exportStl'")
     return time.perf_counter() - t0
 
 

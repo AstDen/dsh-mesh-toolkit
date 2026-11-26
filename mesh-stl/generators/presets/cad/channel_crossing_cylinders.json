@@ -1,7 +1,7 @@
 {
   "name": "channel_crossing_cylinders",
   "kind": "cylinders",
-  "comment": "Кейс 6 exp-002: блок 12x6x6 мм (канал по X, открыт на гранях x=0 и x=12) минус три сквозных цилиндра вдоль Y и три вдоль Z, R=0.8 мм, оси пересекаются в точках (x,3,3) при x=3,6,9 — это '+'-образные перекрёстки. Цилиндры удлинены на 1 мм за грани блока (extend_mm), чтобы не было булевых артефактов на совпадающих гранях.",
+  "comment": "exp-002 case 6: 12x6x6 mm block (an X channel, open at the x=0 and x=12 faces) minus three through cylinders along Y and three along Z, R=0.8 mm; the axes intersect at (x,3,3) for x=3,6,9, forming '+'-shaped crossings. The cylinders are extended 1 mm past the block faces (extend_mm) to avoid boolean artefacts on coincident faces.",
   "seed": 0,
   "units": "mm",
   "domain_mm": [12.0, 6.0, 6.0],
@@ -13,7 +13,7 @@
     {"axis": "z", "radius_mm": 0.8, "x": 6.0, "y": 3.0, "extend_mm": 1.0},
     {"axis": "z", "radius_mm": 0.8, "x": 9.0, "y": 3.0, "extend_mm": 1.0}
   ],
-  "expected_volume_formula": "V = 432 - 6*pi*R^2*6 + 3*(16/3)*R^3 = 432 - 72.382295 + 8.192 = 367.809705 мм3",
+  "expected_volume_formula": "V = 432 - 6*pi*R^2*6 + 3*(16/3)*R^3 = 432 - 72.382295 + 8.192 = 367.809705 mm3",
   "expected_area_formula": null,
-  "expected_area_note": "Площадь для пересекающихся цилиндров аналитически не выведена (боковые поверхности обрезаны линией пересечения) — сверяется только объём, площадь приводится как факт из STL."
+  "expected_area_note": "The area for intersecting cylinders is not derived analytically (the side surfaces are cut by the intersection line) — only the volume is checked, the area is reported as measured from the STL."
 }

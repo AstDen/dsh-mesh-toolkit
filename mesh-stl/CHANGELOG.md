@@ -2,131 +2,131 @@
 
 ## 0.3.6 — 2026-11-26
 
-- `files` теперь включает `generators/`: без этого `npm pack` терял python-генераторы, и семейства
-  `fcc-cell`, `channel-spheres`, `packing`, `cad-porous`, `blob-foam` падали на `@package/generators/...`
-  в установленном пакете.
-- `scripts/qa-parity.mjs` сам находит python-эталон: `tools/qa/stl_qa.py`, затем пакетная копия
-  `generators/cad/py_qa.py` (или `MESH_STL_QA_SCRIPT`), поэтому паритет проверяется и в отдельно взятом
-  пакете, и в CI.
-- `scripts/smoke.mjs` проходит без `sim-project.json`: в портативном режиме проверяются дефолты
-  (`project: "defaults"`, `registry: stl/registry.csv`, QA-движок `js`), а dry-run якорится на cwd.
-- `engines.dsh` и peer-диапазоны выровнены на `>=0.2.2-rc.1 <0.3.0`; заполнено `repository`.
+- `files` now includes `generators/`: without it `npm pack` lost the python generators, and the families
+  `fcc-cell`, `channel-spheres`, `packing`, `cad-porous`, `blob-foam` crashed on `@package/generators/...`
+  in the installed package.
+- `scripts/qa-parity.mjs` now finds the python reference itself: `tools/qa/stl_qa.py`, then the bundled copy
+  `generators/cad/py_qa.py` (or `MESH_STL_QA_SCRIPT`), so parity is checked both in a standalone
+  package and in CI.
+- `scripts/smoke.mjs` passes without `sim-project.json`: in portable mode it checks the defaults
+  (`project: "defaults"`, `registry: stl/registry.csv`, QA engine `js`), and the dry-run is anchored on cwd.
+- `engines.dsh` and the peer ranges are aligned to `>=0.2.2-rc.1 <0.3.0`; `repository` filled in.
 
 ## 0.3.5 — 2026-11-26
 
-### Добавлено
-- **Портативный режим (plan 1.4).** `stl_generate`/`stl_check` работают без `sim-project.json`:
-  `project: "defaults"`, `configured: false`, относительные пути от текущего каталога, реестр
-  `./stl/registry.csv` создаётся по требованию. Гейт `requireProject` больше не блокирует вызовы.
-- Карточка знаний `portable-setup`; ссылка на `mesh-build/docs/PORTABLE.md`.
+### Added
+- **Portable mode (plan 1.4).** `stl_generate`/`stl_check` work without `sim-project.json`:
+  `project: "defaults"`, `configured: false`, relative paths from the current directory, the registry
+  `./stl/registry.csv` created on demand. The `requireProject` gate no longer blocks calls.
+- Knowledge card `portable-setup`; a link to `mesh-build/docs/PORTABLE.md`.
 
-### Проверено
-- В пустом каталоге: `stl_generate(primitive)` → `./stl/generated/primitive/…stl`, QA PASS (JS),
-  `stl_check` PASS, затем полная цепочка meshing/поставки (см. mesh-build 0.5.3).
+### Verified
+- In an empty directory: `stl_generate(primitive)` → `./stl/generated/primitive/…stl`, QA PASS (JS),
+  `stl_check` PASS, then the full meshing/delivery chain (see mesh-build 0.5.3).
 
 ## 0.3.4 — 2026-11-26
 
-- **Реестр STL работает без проекта** (`lib/registry.js: registryFilePath`): относительный `registry`
-  разрешается от корня проекта, а без профиля — от текущего каталога; абсолютный путь тоже принимается.
-  Файл создаётся по требованию с заголовком.
-- **Read-only реестр не ломает вердикт**: если запись невозможна (EACCES, чужой заголовок), `stl_check`
-  возвращает `registered: {ok:false, error, row}` и предупреждение в `next`, а QA-вердикт остаётся
-  прежним (проверено на `chmod a-w stl/registry.csv`).
+- **The STL registry works without a project** (`lib/registry.js: registryFilePath`): a relative `registry`
+  is resolved from the project root, and without a profile — from the current directory; an absolute path is also accepted.
+  The file is created on demand with the header.
+- **A read-only registry does not break the verdict**: if a write is impossible (EACCES, a foreign header), `stl_check`
+  returns `registered: {ok:false, error, row}` and a warning in `next`, while the QA verdict stays
+  the same (verified with `chmod a-w stl/registry.csv`).
 
 ## 0.3.3 — 2026-11-26
 
-- **Генераторы переехали внутрь пакета.** Python-скрипты семейств и их пресеты лежат в
-  `generators/{pore_cell,packings,cad}/` и `generators/presets/<family>/`; `data/generators.json`
-  ссылается на них через `@package/…`, так что `stl_generate` работает на чужой машине без
-  исследовательского дерева `geometry/`. `cad-porous` больше не импортирует `tools.qa.stl_qa`:
-  рядом лежит `generators/cad/py_qa.py` (копия эталона для чистки/QA внутри генератора).
-- **Режим деревьев скриптов.** `generators.root` (`sim-project.json` / `MESH_STL_GENERATORS_ROOT`):
-  `package` (по умолчанию) или `project` — тогда python-семейства берут `projectScript`/`projectPreset`
-  (`geometry/pore_cell/...`), то есть исследовательский режим сохранён.
-- **Два новых встроенных JS-генератора, без python вообще.** `stratified-channel` переписан на JS
-  (`lib/generators/stratified.js`: две коробки по 12 треугольников, общий эмиттер `lib/shapes.js`),
-  добавлен `box-array` (`lib/generators/box-array.js`: решётка `nx×ny×nz` сфер/цилиндров →
-  `<name>.solid.stl` + `<name>.container.stl`, предупреждение при пересечении соседей).
-- **Понятная ошибка вместо traceback.** Перед python-семейством плагин проверяет
-  `import trimesh, numpy` (и `cadquery`/`scipy`/`skimage` там, где нужно) и возвращает
-  `error: "python-bridge-missing"` с точной командой `pip install`, подсказкой про JS-семейства
-  и путём к интерпретатору.
-- **Приёмка.** В пустом каталоге с минимальным `sim-project.json` работают `primitive`,
-  `stratified-channel`, `box-array` (генерация + JS QA) и дальше `mesh_build(snappy)`:
-  box-array 10×10×20 мм, 16 сфер r=1.5 → 63 228 ячеек, gate PASS (maxNonOrtho 21.48, skew 0.304).
-  Python-семейства проверены на упакованных скриптах: `channel_spheres_L3` даёт fluid 8352 tri /
-  162.7341 мм³ и `fluid_patches` 8352 tri (без утроения после DEF-01), `cad-porous` raw PASS 4950 tri.
+- **The generators moved into the package.** The family python scripts and their presets live in
+  `generators/{pore_cell,packings,cad}/` and `generators/presets/<family>/`; `data/generators.json`
+  references them via `@package/…`, so `stl_generate` works on another machine without the
+  research `geometry/` tree. `cad-porous` no longer imports `tools.qa.stl_qa`:
+  `generators/cad/py_qa.py` sits next to it (a copy of the reference for cleanup/QA inside the generator).
+- **Script-tree modes.** `generators.root` (`sim-project.json` / `MESH_STL_GENERATORS_ROOT`):
+  `package` (the default) or `project` — then the python families take `projectScript`/`projectPreset`
+  (`geometry/pore_cell/...`), i.e. the research mode is preserved.
+- **Two new built-in JS generators, with no python at all.** `stratified-channel` was rewritten in JS
+  (`lib/generators/stratified.js`: two boxes of 12 triangles each, a shared emitter `lib/shapes.js`),
+  and `box-array` was added (`lib/generators/box-array.js`: an `nx×ny×nz` lattice of spheres/cylinders →
+  `<name>.solid.stl` + `<name>.container.stl`, with a warning on neighbour intersections).
+- **A clear error instead of a traceback.** Before a python family the plugin checks
+  `import trimesh, numpy` (and `cadquery`/`scipy`/`skimage` where needed) and returns
+  `error: "python-bridge-missing"` with the exact `pip install` command, a hint about the JS families
+  and the path to the interpreter.
+- **Acceptance.** In an empty directory with a minimal `sim-project.json`, `primitive`,
+  `stratified-channel` and `box-array` work (generation + JS QA), and then `mesh_build(snappy)`:
+  box-array 10×10×20 mm, 16 spheres r=1.5 → 63 228 cells, gate PASS (maxNonOrtho 21.48, skew 0.304).
+  The python families were checked on the packaged scripts: `channel_spheres_L3` gives fluid 8352 tri /
+  162.7341 mm³ and `fluid_patches` 8352 tri (no tripling after DEF-01), `cad-porous` raw PASS 4950 tri.
 
 ## 0.3.2 — 2026-11-26
 
-- **QA STL переехал внутрь плагина (JS, без python и без проекта).** `lib/qa/` — собственный движок:
-  `reader.js` (бинарный/ASCII STL, сварка вершин по 8 знакам как `tol.merge` у trimesh), `metrics.js`
-  (watertight по «каждое ребро ровно в 2 гранях», согласованность нормалей, тела как компоненты
-  связности по рёбрам с 2 гранями, объём/площадь/bbox, вырожденные и дублирующиеся грани,
-  non-manifold рёбра), `verdict.js` (те же тексты и порядок проблем/предупреждений, что у
-  `stl_qa.py`, включая допуски в формате python) и `clean.js` (чистка по правилу OBB trimesh —
-  `height = 1e-8`, а не по площади: иначе 1-мкм сливеры открывают поверхность).
-- **Паритет с эталоном.** `scripts/qa-parity.mjs` сравнивает JS и `tools/qa/stl_qa.py` на синтетических
-  фикстурах и на реальных STL проекта: 15/15 совпадений, единственное документированное расхождение —
-  трижды продублированный ASCII-фасет (`fluid_patches.stl`), где trimesh сливает вершины по нормали
-  файла; вердикт, watertight, дубликаты, объём и площадь при этом совпадают.
-- **Выбор движка.** `stl_check` принимает `engine: "js"` (по умолчанию, в процессе, ~2 мс на куб) или
-  `engine: "python"` (эталон); конфиг `qaEngine` / `MESH_STL_QA_ENGINE`; при исключении в JS-движке
-  автоматический откат на python (`engine: "python-fallback"`), если скрипт проекта доступен.
-- **Скорость и память.** 862 898 треугольников — 6.6 с / 846 МБ, 1 471 974 — 11.9 с / 1.3 ГБ;
-  метрики совпадают с python до 1e-10 по объёму, тела и вырожденные грани — точно.
+- **STL QA moved inside the plugin (JS, no python and no project).** `lib/qa/` is its own engine:
+  `reader.js` (binary/ASCII STL, vertex welding to 8 significant digits like trimesh's `tol.merge`), `metrics.js`
+  (watertight by "every edge in exactly 2 faces", normal consistency, bodies as edge-connected components
+  sharing 2 faces, volume/area/bbox, degenerate and duplicate faces,
+  non-manifold edges), `verdict.js` (the same texts and the same order of problems/warnings as
+  `stl_qa.py`, including tolerances in python format) and `clean.js` (cleanup by trimesh's OBB rule —
+  `height = 1e-8`, not by area: otherwise 1-µm slivers open the surface).
+- **Parity with the reference.** `scripts/qa-parity.mjs` compares the JS engine and `tools/qa/stl_qa.py` on synthetic
+  fixtures and on the project's real STLs: 15/15 matches, the only documented divergence being
+  a thrice-duplicated ASCII facet (`fluid_patches.stl`), where trimesh welds vertices by the file's
+  normal; the verdict, watertightness, duplicates, volume and area still match.
+- **Engine selection.** `stl_check` accepts `engine: "js"` (the default, in-process, ~2 ms per cube) or
+  `engine: "python"` (the reference); config `qaEngine` / `MESH_STL_QA_ENGINE`; on an exception in the JS engine
+  an automatic fallback to python (`engine: "python-fallback"`) if the project script is available.
+- **Speed and memory.** 862 898 triangles — 6.6 s / 846 MB, 1 471 974 — 11.9 s / 1.3 GB;
+  the metrics match python to 1e-10 on volume, bodies and degenerate faces — exactly.
 
 ## 0.3.1 — 2026-11-26
 
-- **Семейства генераторов**: добавлены `stratified-channel` (две области через горизонтальный
-  интерфейс: `<name>.lower.stl` / `<name>.upper.stl`) и `blob-foam` (метаболы/marching cubes,
-  пористость 0.45–0.80, пресеты `blob_foam_cube16_phi*`) — оба доступны через `stl_generate`
-  без правки кода.
-- **QA не пропускает сырой не-watertight STL**: `stl_check` сообщает число non-manifold рёбер
-  (`non_manifold_edges`, касание поверхностей нулевой толщины) и при отсутствии `cleanup:true`
-  даёт FAIL с указанием на чистку (DEF-02/DEF-05: раньше вердикт строился только по очищенному мешу).
+- **Generator families**: added `stratified-channel` (two regions across a horizontal
+  interface: `<name>.lower.stl` / `<name>.upper.stl`) and `blob-foam` (metaballs/marching cubes,
+  porosity 0.45–0.80, presets `blob_foam_cube16_phi*`) — both available through `stl_generate`
+  without code changes.
+- **QA does not let a raw non-watertight STL through**: `stl_check` reports the number of non-manifold edges
+  (`non_manifold_edges`, zero-thickness surface contact) and, without `cleanup:true`,
+  gives FAIL with a pointer to cleanup (DEF-02/DEF-05: previously the verdict was built only on the cleaned mesh).
 
 
 ## 0.3.0 — 2026-11-25
-Переход на общее ядро `plugins/sim-core` и профиль проекта.
+Migration to the shared `plugins/sim-core` core and the project profile.
 
-- **Ядро:** утилиты, процесс-раннер, окружение OpenFOAM, поиск `sim-project.json`, резолвер путей,
-  слоистый конфиг, карточки знаний, парсер `checkMesh`, шлюз качества и паспорта артефактов теперь
-  живут в `sim-core`. `lib/common.js` — фасад, две копии кода больше не расходятся.
-- **Профиль:** `sim-project.json` (units, caseRoots, scratch, foam, gate, geometry, cores) заменяет
-  привязку к конкретному проекту; без профиля инструменты работают от cwd, путь ищется вверх на 12 уровней.
-- **Карточки:** общий сервис `simHints` — плагины регистрируют свои `data/hints`, чужие по путям не читаются.
-- **Сервис `simGeometry`:** генерация/QA доступны другим плагинам семейства (`simGeometry.generate/qa`).
-- **Переносимые примитивы:** семейство `primitive` (box/sphere/cylinder) пишет STL на чистом JS,
-  без Python, CAD и данных проекта — маршрут мешинга можно прогнать на любой машине.
-- **`geometry.scriptRoots`:** генераторы можно держать вне проекта, путь возвращается в `resolvedFrom`.
-- **Карточки соседа:** mesh-build отдаёт свои snappy/gate-карточки через общий сервис (вместо файлов).
+- **Core:** utilities, the process runner, the OpenFOAM environment, `sim-project.json` discovery, the path resolver,
+  layered config, knowledge cards, the `checkMesh` parser, the quality gate and artefact passports now
+  live in `sim-core`. `lib/common.js` is a facade, so two copies of the code no longer diverge.
+- **Profile:** `sim-project.json` (units, caseRoots, scratch, foam, gate, geometry, cores) replaces
+  binding to a specific project; without a profile the tools work from cwd, searching the path upwards for 12 levels.
+- **Cards:** a shared `simHints` service — plugins register their own `data/hints`, and others' are not read by path.
+- **`simGeometry` service:** generation/QA are available to the other plugins of the family (`simGeometry.generate/qa`).
+- **Portable primitives:** the `primitive` family (box/sphere/cylinder) writes STL in pure JS,
+  with no Python, CAD or project data — the meshing route can be run on any machine.
+- **`geometry.scriptRoots`:** generators can be kept outside the project, the path is returned in `resolvedFrom`.
+- **Neighbour's cards:** mesh-build exposes its snappy/gate cards through the shared service (instead of files).
 
 ## 0.2.0 — 2026-11-23
-Исправления по бенчмарку `benchmark/verify-20261123-1851`.
+Fixes from the benchmark `benchmark/verify-20261123-1851`.
 
-- **`expectBodies` больше не проверяется по умолчанию:** `stl_qa.py` принимает `--expect-bodies`
-  со значением `None` (проверка выключается), описание инструмента говорит «Omit to skip».
-  `stl_generate` сам подставляет объявленное генератором число оболочек (`n_bodies`,
-  `expected_bodies`, `fluid_out.n_bodies`) — кейсы `cad`/`packing` больше не «падают» на 28/15/16 телах.
-- **`maxVolumeErr`/`maxAreaErr` — проценты:** описания исправлены (`1 = 1 %`), при значении ≤0.05
-  выдаётся предупреждение о единицах (CLI `stl_qa.py` сравнивает именно проценты).
-- **Один вердикт на файл:** `cleaned` больше не перепроверяется отдельным вызовом без ожиданий —
-  возвращается `{file, cleanup}` из того же прогона (`cleanup` — что именно удалено).
-- **Карточка `cadquery-cutting-traps`:** `cut(Compound)` теряет объём пересечения полостей
-  (407.872568 против 410.603235 мм³ на минимальном тесте; −2.219 % на кейсе 1B).
-- **Карточки соседнего плагина:** `stl_hints` видит `data/hints` плагина `mesh-build` (hit@3 = 5/5).
-- **Версия сверяется с диском:** `versionInfo()` → `{reported, onDisk, stale}`.
-- Smoke-тесты дополнены регрессиями на все перечисленные пункты.
+- **`expectBodies` is no longer checked by default:** `stl_qa.py` accepts `--expect-bodies`
+  with the value `None` (the check is disabled), the tool description says "Omit to skip".
+  `stl_generate` substitutes the shell count declared by the generator (`n_bodies`,
+  `expected_bodies`, `fluid_out.n_bodies`) — so the `cad`/`packing` cases no longer "fail" on 28/15/16 bodies.
+- **`maxVolumeErr`/`maxAreaErr` are percentages:** the descriptions were fixed (`1 = 1 %`), and for a value ≤0.05
+  a warning about units is issued (the `stl_qa.py` CLI compares percentages).
+- **One verdict per file:** `cleaned` is no longer re-checked by a separate call without expectations —
+  `{file, cleanup}` from the same run is returned (`cleanup` — what exactly was removed).
+- **Card `cadquery-cutting-traps`:** `cut(Compound)` loses the volume of the cavity intersection
+  (407.872568 versus 410.603235 mm³ on the minimal test; −2.219 % on case 1B).
+- **Neighbouring plugin's cards:** `stl_hints` sees the `mesh-build` plugin's `data/hints` (hit@3 = 5/5).
+- **Version checked against disk:** `versionInfo()` → `{reported, onDisk, stale}`.
+- Smoke tests extended with regressions for every item listed above.
 
 ## 0.1.1 — 2026-11-23
-- Портируемость: из README/примеров убраны абсолютные пути машины (установка и конфиг — плейсхолдеры).
-- OpenFOAM-окружение настраивается: `openfoamRoots` / `MESH_STL_OPENFOAM_ROOTS` (стандартные каталоги остаются дефолтом), явный `openfoamBashrc` по-прежнему главнее.
-- Карточка `units-mm` уточнена: три места с единицами (blockMesh, geometry scale, locationsInMesh) и отличие скаффолда (метры).
-- Проверены все числовые утверждения карточек по `journal/` и `experiments/` (расхождений не найдено).
-- `stl_generate` после dry-run подсказывает реальный объявленный выход (`<name>.raw.stl`), а не несуществующий `<name>.stl`; в `next` добавлен `cleanup: true`.
+- Portability: machine absolute paths removed from the README/examples (installation and config — placeholders).
+- The OpenFOAM environment is configurable: `openfoamRoots` / `MESH_STL_OPENFOAM_ROOTS` (the standard directories remain the default), an explicit `openfoamBashrc` still takes priority.
+- Card `units-mm` refined: three places with units (blockMesh, geometry scale, locationsInMesh) and how the scaffold differs (metres).
+- All numeric claims in the cards verified against `journal/` and `experiments/` (no discrepancies found).
+- After a dry-run `stl_generate` hints at the real declared output (`<name>.raw.stl`) instead of the non-existent `<name>.stl`; `cleanup: true` added to `next`.
 
 ## 0.1.0 — 2026-11-23
-- Первая версия: три инструмента, JSON-данные (карточки знаний + реестр семейств/маршрутов).
-- Собрано по журналу проекта `experiments/exp-000…exp-018` и ADR `D-001…D-019`.
-- Smoke-тесты без DSH (`scripts/smoke.mjs`).
+- First version: three tools, JSON data (knowledge cards + family/route registry).
+- Assembled from the project journal `experiments/exp-000…exp-018` and ADRs `D-001…D-019`.
+- Smoke tests without DSH (`scripts/smoke.mjs`).

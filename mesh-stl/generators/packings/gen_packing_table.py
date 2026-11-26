@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""gen_packing_table.py — генератор таблицы шаров (упаковка) для STL-билдера.
+"""gen_packing_table.py — generator of the ball table (packing) for the STL builder.
 
-Алгоритм и модель — в `packing_lib.py` (гравитационная засыпка с устойчивыми
-положениями, опциональная компакция). Здесь только CLI и отчёт.
+The algorithm and model live in `packing_lib.py` (gravitational filling with stable
+positions, optional compaction). Here there is only the CLI and the report.
 
 CLI:
     python gen_packing_table.py --params-file params/packing_box_mono.json \
@@ -11,13 +11,13 @@ CLI:
         --json logs/packing_box_mono.json [--seed N] [--check] \
         [--preview-stl tables/packing_box_mono_preview.stl]
 
-Выход:
-    * `--out`           таблица шаров: id,x_mm,y_mm,z_mm,r_mm
-    * `--contacts-out`  контакты:      i,j,dist_mm,gap_mm (по ним ставятся шейки)
-    * `--json`          сводка: плотность, пористость, координационные числа и т.п.
-    * `--preview-stl`   шары как STL (только для просмотра в ParaView)
+Output:
+    * `--out`           ball table:  id,x_mm,y_mm,z_mm,r_mm
+    * `--contacts-out`  contacts:    i,j,dist_mm,gap_mm (used to place the necks)
+    * `--json`          summary: density, porosity, coordination numbers, etc.
+    * `--preview-stl`   the balls as STL (viewing in ParaView only)
 
-Exit code: 0 — успех и (при `--check`) независимая проверка пройдена; 1 — провал.
+Exit code: 0 — success and (with `--check`) the independent check passed; 1 — failure.
 """
 from __future__ import annotations
 
@@ -74,30 +74,30 @@ def load_params(path: str | None, overrides: dict) -> dict:
         with Path(path).open(encoding="utf-8") as f:
             raw = json.load(f)
         if not isinstance(raw, dict):
-            raise ValueError(f"{path}: ожидается JSON-объект")
+            raise ValueError(f"{path}: a JSON object is expected")
         p.update(raw)
     for k, v in overrides.items():
         if v is not None:
             p[k] = v
     for req in ("container", "radii"):
         if req not in p:
-            raise ValueError(f"в параметрах нет обязательного ключа {req!r}")
+            raise ValueError(f"the parameters have no required key {req!r}")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Гравитационная засыпка шаров → таблица центров и радиусов")
-    ap.add_argument("--params-file", help="JSON с параметрами (container, radii, packing, seed)")
-    ap.add_argument("--out", required=True, help="путь к CSV-таблице шаров")
-    ap.add_argument("--contacts-out", help="путь к CSV-таблице контактов (для шеек в STL)")
-    ap.add_argument("--json", dest="json_out", help="путь к JSON-сводке")
-    ap.add_argument("--preview-stl", help="записать STL из шаров (для визуальной проверки)")
-    ap.add_argument("--seed", type=int, help="переопределить seed")
-    ap.add_argument("--max-spheres", type=int, help="переопределить max_spheres")
-    ap.add_argument("--compaction-cycles", type=int, help="переопределить compaction_cycles")
+    ap = argparse.ArgumentParser(description="Gravitational ball filling → table of centers and radii")
+    ap.add_argument("--params-file", help="JSON with the parameters (container, radii, packing, seed)")
+    ap.add_argument("--out", required=True, help="path to the balls CSV table")
+    ap.add_argument("--contacts-out", help="path to the contacts CSV table (for the necks in the STL)")
+    ap.add_argument("--json", dest="json_out", help="path to the JSON summary")
+    ap.add_argument("--preview-stl", help="write an STL of the balls (for a visual check)")
+    ap.add_argument("--seed", type=int, help="override the seed")
+    ap.add_argument("--max-spheres", type=int, help="override max_spheres")
+    ap.add_argument("--compaction-cycles", type=int, help="override compaction_cycles")
     ap.add_argument("--fill-cycles", type=int,
-                    help="сколько раз «засыпать + компактировать» (нужно >1 для роста плотности)")
-    ap.add_argument("--check", action="store_true", help="независимая проверка результата")
+                    help="how many «fill + compact» rounds (needs >1 to raise the density)")
+    ap.add_argument("--check", action="store_true", help="independent check of the result")
     args = ap.parse_args(argv)
 
     t_start = time.perf_counter()
@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
 
     container_domain = make_container(params["container"])
     wall_gap = float(params["wall_gap_mm"])
-    # шар не должен касаться стенки/дна/потолка в ноль: засыпаем в сжатый контейнер
+    # a ball must not touch the wall/bottom/top exactly: we fill a shrunken container
     container = make_container(shrink_spec(params["container"], wall_gap))
     sampler = RadiusSampler(params["radii"])
     pack = Packing(
@@ -131,12 +131,12 @@ def main(argv: list[str] | None = None) -> int:
         log=print,
     )
 
-    print(f"[pack] контейнер: {container_domain.describe()}")
+    print(f"[pack] container: {container_domain.describe()}")
     if wall_gap > 0.0:
-        print(f"[pack] зазор шар-стенка {wall_gap} мм -> контейнер засыпки: {container.describe()}")
-    print(f"[pack] радиусы:   {sampler.describe()}")
+        print(f"[pack] ball-wall gap {wall_gap} mm -> fill container: {container.describe()}")
+    print(f"[pack] radii:      {sampler.describe()}")
     print(f"[pack] seed={params['seed']} max_spheres={params['max_spheres']} "
-          f"gap={params['gap_policy']}:{params['gap_mm']}мм/rel={params['gap_rel']} "
+          f"gap={params['gap_policy']}:{params['gap_mm']}mm/rel={params['gap_rel']} "
           f"fill_cycles={params['fill_cycles']} compaction_cycles={params['compaction_cycles']}")
 
     fill_cycles = max(1, int(params["fill_cycles"]))
@@ -151,9 +151,9 @@ def main(argv: list[str] | None = None) -> int:
         phi_cycle = pack.packing_fraction()
         if cyc == 0:
             phi_fill0 = phi_cycle
-        print(f"[pack] засыпка {cyc + 1}/{fill_cycles}: N={n_cycle} phi={phi_cycle:.4f} "
-              f"за {t_fill:.2f} с (средн. {pack.t_place / max(n_cycle, 1) * 1000:.1f} мс/шар, "
-              f"итераций спуска в среднем "
+        print(f"[pack] fill {cyc + 1}/{fill_cycles}: N={n_cycle} phi={phi_cycle:.4f} "
+              f"in {t_fill:.2f} s (avg {pack.t_place / max(n_cycle, 1) * 1000:.1f} ms/ball, "
+              f"settle iterations on average "
               f"{pack.stats['settle_iters_total'] / max(pack.stats['place_attempts'], 1):.1f})")
         history.append({"cycle": cyc + 1, "n_spheres": n_cycle,
                         "phi": phi_cycle, "time_s": t_fill})
@@ -166,13 +166,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             info["cycle"] = cyc + 1
             compaction_all.append(info)
-            print(f"[pack]   компакция после цикла {cyc + 1}: z_top "
+            print(f"[pack]   compaction after cycle {cyc + 1}: z_top "
                   f"{info['z_top_before_mm']:.3f} -> {info['z_top_after_mm']:.3f}, "
-                  f"перекрытие {info['max_overlap_after_mm']:.2e} мм, "
-                  f"свипов до сходимости {info['sweeps_used_max']}")
+                  f"overlap {info['max_overlap_after_mm']:.2e} mm, "
+                  f"sweeps to convergence {info['sweeps_used_max']}")
     phi_before, phi_after = phi_fill0, pack.packing_fraction()
-    print(f"[pack] плотность: {phi_before:.4f} (после первой засыпки) -> {phi_after:.4f} "
-          f"(итог, пористость {1 - phi_after:.4f})")
+    print(f"[pack] density: {phi_before:.4f} (after the first fill) -> {phi_after:.4f} "
+          f"(final, porosity {1 - phi_after:.4f})")
     compaction = None
     if compaction_all:
         compaction = {"cycles_total": compaction_cycles * len(compaction_all),
@@ -184,13 +184,13 @@ def main(argv: list[str] | None = None) -> int:
     r = pack.r[: pack.n].copy()
 
     table_path = write_table(args.out, p, r)
-    print(f"[pack] таблица: {table_path} ({len(r)} строк)")
+    print(f"[pack] table: {table_path} ({len(r)} rows)")
 
     contacts = pack.contacts_table()
     if args.contacts_out:
         cpath = write_contacts(args.contacts_out, contacts)
-        print(f"[pack] контакты: {cpath} ({len(contacts)} пар, "
-              f"макс. |gap| = {max((abs(c['gap_mm']) for c in contacts), default=0.0):.2e} мм)")
+        print(f"[pack] contacts: {cpath} ({len(contacts)} pairs, "
+              f"max |gap| = {max((abs(c['gap_mm']) for c in contacts), default=0.0):.2e} mm)")
 
     summary = pack.summary(compaction=compaction)
     summary["container"] = container_domain.describe()
@@ -206,23 +206,23 @@ def main(argv: list[str] | None = None) -> int:
         write_preview_stl(args.preview_stl, p, r, subdivisions=int(params["preview_subdivisions"]))
         summary["preview_stl"] = {"path": str(args.preview_stl),
                                   "time_s": time.perf_counter() - t0}
-        print(f"[pack] превью-STL: {args.preview_stl} ({summary['preview_stl']['time_s']:.1f} с)")
+        print(f"[pack] preview STL: {args.preview_stl} ({summary['preview_stl']['time_s']:.1f} s)")
 
     if args.json_out:
         write_summary(args.json_out, summary)
-        print(f"[pack] сводка: {args.json_out}")
+        print(f"[pack] summary: {args.json_out}")
 
     print(f"[pack] N={len(r)}  phi={summary['packing_fraction']:.4f}  "
-          f"пористость={summary['porosity']:.4f}  контактов={summary['n_contacts']}  "
+          f"porosity={summary['porosity']:.4f}  contacts={summary['n_contacts']}  "
           f"<Z_sphere>={summary['coordination_sphere_mean']:.2f}  "
-          f"max_overlap={summary['max_overlap_mm']:.2e} мм  "
-          f"время={summary['time_s']['total']:.2f} с")
+          f"max_overlap={summary['max_overlap_mm']:.2e} mm  "
+          f"time={summary['time_s']['total']:.2f} s")
 
     rc = 0
     if args.check:
         p_back, r_back = read_table(table_path)
         if len(r_back) != len(r) or not np.allclose(p_back, p, atol=1e-9) or not np.allclose(r_back, r, atol=1e-12):
-            print("[check] FAIL: прочитанная таблица не совпадает с результатом", file=sys.stderr)
+            print("[check] FAIL: the table read back does not match the result", file=sys.stderr)
             return 1
         verdict = check_packing(p, r, container,
                                overlap_tol=max(float(params["overlap_tol_mm"]), 1e-9),

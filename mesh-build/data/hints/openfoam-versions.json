@@ -2,7 +2,7 @@
   "cards": [
     {
       "id": "openfoam-versions",
-      "title": "Версии OpenFOAM: cfMesh только в com, surfaceFeatures только в org",
+      "title": "OpenFOAM versions: cfMesh only in com, surfaceFeatures only in org",
       "topics": [
         "openfoam",
         "version",
@@ -14,27 +14,27 @@
         "locationsInMesh"
       ],
       "status": "verified",
-      "when": "маршрут мешинга должен работать не только на OpenFOAM.com; выбор версии или непонятная ошибка инструмента",
-      "statement": "Версии OpenFOAM не взаимозаменяемы по инструментам. com (v2412, v2506, v2512, v2606) содержит cfMesh (cartesianMesh, pMesh, tetMesh, foamyHexMesh), reconstructParMesh -mergeTol и locationsInMesh (мультирегион snappy); org (v14) не содержит cfMesh, surfaceFeatureExtract в нём — заглушка (rc=0, файлов не пишет), reconstructParMesh без -mergeTol, locationsInMesh нет (только единственный locationInMesh), зато есть surfaceFeatures + system/surfaceFeaturesDict и foamRun/foamMultiRun. Один и тот же STL даёт разное качество: куб 10 мм, 16³ ячеек — com2512/com2606 maxNonOrtho 9.7073°, org14 25.2146° при одинаковых 2584 ячейках (exp-019).",
+      "when": "a meshing route must work beyond OpenFOAM.com; version selection, or an unclear tool error",
+      "statement": "OpenFOAM versions are not interchangeable in their tools. com (v2412, v2506, v2512, v2606) contains cfMesh (cartesianMesh, pMesh, tetMesh, foamyHexMesh), reconstructParMesh -mergeTol and locationsInMesh (multi-region snappy); org (v14) has no cfMesh, its surfaceFeatureExtract is a stub (rc=0, writes no files), reconstructParMesh has no -mergeTol, locationsInMesh is absent (only the single locationInMesh), but it does have surfaceFeatures + system/surfaceFeaturesDict and foamRun/foamMultiRun. The same STL gives different quality: a 10 mm cube, 16³ cells — com2512/com2606 maxNonOrtho 9.7073°, org14 25.2146° at the same 2584 cells (exp-019).",
       "recipe": [
-        "установки объявлены в sim-project.json → foam.installations {id: {bashrc}}, default выбирает одну",
-        "mesh_build / mesh_check / mesh_deliver принимают openfoam: \"<id>\" или абсолютный путь к etc/bashrc",
-        "перед запуском маршрута полезно снять матрицу: tools/qa/of_matrix.sh --json --bashrc <bashrc> --out .cache/of-matrix/<id>.json",
-        "cfmesh на org: preflight вернёт route cfmesh needs \"cartesianMesh\" … pass openfoam:\"com2606\" or use route snappy/gmsh",
-        "org14 + snappy: scaffold сам пишет system/surfaceFeaturesDict и явный file \"<name>.stl\" в geometry; вызов surfaceFeatureExtract на org бессмыслен",
-        "org14 + CHT: locationsInMesh не поддерживается — route D (gmsh OCC) или прогон по регионам; com остаётся основным для мультирегиона",
-        "org-deb при распаковке в нестандартный путь требует патча FOAM_INST_DIR (в deb он равен /opt)"
+        "installations are declared in sim-project.json → foam.installations {id: {bashrc}}, default selects one",
+        "mesh_build / mesh_check / mesh_deliver accept openfoam: \"<id>\" or an absolute path to etc/bashrc",
+        "before running a route it helps to capture the matrix: tools/qa/of_matrix.sh --json --bashrc <bashrc> --out .cache/of-matrix/<id>.json",
+        "cfmesh on org: preflight returns route cfmesh needs \"cartesianMesh\" … pass openfoam:\"com2606\" or use route snappy/gmsh",
+        "org14 + snappy: the scaffold writes system/surfaceFeaturesDict and an explicit file \"<name>.stl\" in geometry itself; calling surfaceFeatureExtract on org is pointless",
+        "org14 + CHT: locationsInMesh is not supported — route D (gmsh OCC) or a per-region run; com remains the primary for multi-region",
+        "org-deb unpacked to a non-standard path requires patching FOAM_INST_DIR (it is /opt in the deb)"
       ],
       "evidence": [
-        "exp-019_openfoam-version-matrix: матрица инструментов и E2E куба на com2512 / com2606 / org14",
+        "exp-019_openfoam-version-matrix: tool matrix and cube E2E on com2512 / com2606 / org14",
         "com2512: 2584 cells, 9.7073°, 0.261026; com2606: 2584, 9.7073°, 0.261026; org14: 2584, 25.2146°, 0.334515",
-        "cfMesh присутствует только в com; org14: cartesianMesh/pMesh/tetMesh/foamyHexMesh отсутствуют",
-        "exp-019: gmshToFoam OK на com2512 и org14; поставка org14-куба через make_delivery — rc=0, round-trip сошёлся",
-        "meshing/OPENFOAM_VERSIONS.md — таблица, команды установки, ловушки"
+        "cfMesh is present only in com; org14: cartesianMesh/pMesh/tetMesh/foamyHexMesh are absent",
+        "exp-019: gmshToFoam OK on com2512 and org14; org14 cube delivery via make_delivery — rc=0, round-trip matched",
+        "meshing/OPENFOAM_VERSIONS.md — table, install commands, traps"
       ],
       "improves": [
-        "переносимость маршрутов мешинга между сборками OpenFOAM",
-        "диагностику «инструмент не найден» без запуска мешера"
+        "portability of meshing routes between OpenFOAM builds",
+        "diagnosing “tool not found” without running the mesher"
       ],
       "appliesTo": [
         "mesh_build",

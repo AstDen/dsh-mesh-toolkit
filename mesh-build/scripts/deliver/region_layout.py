@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""tools/deliver/region_layout.py — разбор многорегионального кейса OpenFOAM для поставки.
+"""tools/deliver/region_layout.py — parse a multi-region OpenFOAM case for delivery.
 
-Что делает (только чтение, ничего не меняет):
-  1) находит региональные сетки `<case>/constant/<region>/polyMesh`;
-  2) парсит `polyMesh/boundary` каждого региона → таблица патчей (имя, тип, nFaces);
-  3) сверяет СМЕЖНОСТЬ ИНТЕРФЕЙСА: для пары регионов (a, b) патчи `a_to_b` и `b_to_a`
-     должны существовать оба и иметь одинаковое число граней (это одни и те же грани,
-     разрезанные splitMeshRegions); для `mappedWall` дополнительно проверяются
-     sampleRegion/samplePatch, если они записаны;
-  4) отдаёт JSON (или текст) + код возврата: 0 — всё сходится, 1 — расхождение,
-     2 — ошибка входа.
+What it does (read-only, changes nothing):
+  1) finds the regional meshes `<case>/constant/<region>/polyMesh`;
+  2) parses `polyMesh/boundary` of each region -> patch table (name, type, nFaces);
+  3) checks INTERFACE ADJACENCY: for a region pair (a, b) the patches `a_to_b` and `b_to_a`
+     must both exist and have the same face count (they are the same faces,
+     cut apart by splitMeshRegions); for `mappedWall` sampleRegion/samplePatch are
+     additionally checked when they are present;
+  4) returns JSON (or text) + exit code: 0 — everything matches, 1 — mismatch,
+     2 — input error.
 
-Пример:
+Example:
   tools/deliver/region_layout.py --case openfoam_x --regions fluid,solid \
       --json delivery/.region_layout_x.json
 """
@@ -26,13 +26,13 @@ ENTRY_RE = re.compile(r"^\s*(\S+)\s*\n\s*\{(.*?)\n\s*\}", re.MULTILINE | re.DOTA
 
 
 def parse_boundary(path):
-    """Патчи из polyMesh/boundary: список {name,type,nFaces,inGroups,sampleRegion,samplePatch}."""
+    """Patches from polyMesh/boundary: list of {name,type,nFaces,inGroups,sampleRegion,samplePatch}."""
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         text = f.read()
-    # отрезать заголовок FoamFile {...}
+    # strip the FoamFile {...} header
     m = re.search(r"FoamFile\s*\{.*?\n\}\s*\n", text, re.DOTALL)
     body = text[m.end():] if m else text
-    # тело: "<N>\n(\n  <patch> {...}\n)\n"
+    # body: "<N>\n(\n  <patch> {...}\n)\n"
     patches = []
     for name, block in ENTRY_RE.findall(body):
         name = name.strip().strip('"')
@@ -59,7 +59,7 @@ def parse_boundary(path):
 
 
 def find_regions(case_root):
-    """Регионы = каталоги <root>/constant/<name>/polyMesh (сам polyMesh не считается)."""
+    """Regions = directories <root>/constant/<name>/polyMesh (polyMesh itself is not counted)."""
     const = os.path.join(case_root, "constant")
     out = []
     if not os.path.isdir(const):
@@ -72,16 +72,16 @@ def find_regions(case_root):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Разбор регионального кейса OpenFOAM")
-    ap.add_argument("--case", required=True, help="корень дистрибутива/кейса")
-    ap.add_argument("--regions", default="", help="через запятую; пусто = все найденные")
-    ap.add_argument("--json", default="", help="куда записать JSON")
-    ap.add_argument("--quiet", action="store_true", help="не печатать человекочитаемый итог")
+    ap = argparse.ArgumentParser(description="Parse a regional OpenFOAM case")
+    ap.add_argument("--case", required=True, help="root of the distribution/case")
+    ap.add_argument("--regions", default="", help="comma-separated; empty = all found")
+    ap.add_argument("--json", default="", help="where to write the JSON")
+    ap.add_argument("--quiet", action="store_true", help="do not print the human-readable summary")
     args = ap.parse_args()
 
     root = os.path.abspath(args.case)
     if not os.path.isdir(root):
-        print(f"region_layout: нет каталога {root}", file=sys.stderr)
+        print(f"region_layout: no such directory {root}", file=sys.stderr)
         return 2
 
     found = find_regions(root)
@@ -89,13 +89,13 @@ def main():
         regions = [r.strip() for r in args.regions.split(",") if r.strip()]
         missing = [r for r in regions if r not in found]
         if missing:
-            print(f"region_layout: нет региональной сетки для {missing} "
-                  f"(найдены: {found})", file=sys.stderr)
+            print(f"region_layout: no regional mesh for {missing} "
+                  f"(found: {found})", file=sys.stderr)
             return 2
     else:
         regions = found
     if not regions:
-        print(f"region_layout: в {root}/constant нет ни одной региональной сетки "
+        print(f"region_layout: {root}/constant contains no regional mesh "
               f"(<region>/polyMesh)", file=sys.stderr)
         return 2
 
@@ -116,7 +116,7 @@ def main():
                 return p
         return None
 
-    # пары интерфейса: ищем патчи вида "<a>_to_<b>", где b — тоже выбранный регион
+    # interface pairs: look for patches named "<a>_to_<b>", where b is also a selected region
     seen = set()
     for a in regions:
         for p in report["regions"][a]["patches"]:
@@ -148,9 +148,9 @@ def main():
                                      and q.get("samplePatch") == p["name"])
             report["interfaces"].append(item)
 
-    # патчи вида "<r>_to_<other>", у которых партнёр не выбран (--regions подмножество):
-    # это не ошибка — интерфейс просто ведёт в регион, который не отгружается;
-    # ошибка — когда партнёр ВЫБРАН, а парного патча нет.
+    # patches named "<r>_to_<other>" whose partner is not selected (--regions subset):
+    # this is not an error — the interface simply leads into a region that is not shipped;
+    # it IS an error when the partner is selected but the paired patch is missing.
     for r in regions:
         for p in report["regions"][r]["patches"]:
             m = re.match(r"^(.+)_to_(.+)$", p["name"])
@@ -179,17 +179,17 @@ def main():
             json.dump(report, f, ensure_ascii=False, indent=2)
 
     if not args.quiet:
-        print(f"region_layout: регионы {regions}, интерфейсных пар {len(report['interfaces'])}"
-              f" → {'OK' if report['ok'] else 'РАСХОЖДЕНИЕ'}")
+        print(f"region_layout: regions {regions}, interface pairs {len(report['interfaces'])}"
+              f" -> {'OK' if report['ok'] else 'MISMATCH'}")
         for it in report["interfaces"]:
             print(f"   {it['patch_a']}({it['n_faces_a']}) ↔ {it['patch_b']}({it['n_faces_b']})"
                   f" match={it['match']}"
                   + (f" mapped={it['mapped_ok']}" if it['mapped_ok'] is not None else ""))
         for u in report["unpaired_patches"]:
-            print(f"   без пары: {u['region']}/{u['patch']} (нет {u['missing']})")
+            print(f"   unpaired: {u['region']}/{u['patch']} (missing {u['missing']})")
         for u in report.get("external_patches", []):
-            print(f"   интерфейс наружу: {u['region']}/{u['patch']} → регион '{u['counterpart']}' "
-                  f"не выбран (--regions)")
+            print(f"   interface leads out: {u['region']}/{u['patch']} -> region '{u['counterpart']}' "
+                  f"not selected (--regions)")
     return 0 if report["ok"] else 1
 
 

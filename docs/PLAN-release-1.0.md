@@ -1,205 +1,214 @@
-# План до релиза 1.0: снятие трёх блокеров
+# Plan to release 1.0: clearing the three blockers
 
-Состояние на 2026-11-26: код 0.5.1 опубликован (`master` = `d7ac1aa`, тег `v0.5.1`, Release есть).
-Ниже — что осталось, чтобы toolkit можно было ставить на чужую машину и связывать с
-`@yakovlev-i-a/dsh-openfoam-workbench` (0.9.20) без ручной правки путей.
+State as of 2026-11-26: code 0.5.1 is published (`master` = `d7ac1aa`, tag `v0.5.1`, the Release exists).
+Below is what remains so that the toolkit can be installed on someone else's machine and linked to
+`@yakovlev-i-a/dsh-openfoam-workbench` (0.9.20) without hand-editing paths.
 
-Обозначения: ✅ сделано · 🟡 частично · ⬜ не начато. Оценки — в человеко-днях одного агента.
+Legend: ✅ done · 🟡 partial · ⬜ not started. Estimates are in agent-days for one agent.
 
 ---
 
-## Блокер 1. Привязка к исследовательскому проекту (🟡 1–2 дня: 1.1 и 1.2 готовы)
+## Blocker 1. Coupling to the research project (🟡 1–2 days: 1.1 and 1.2 done)
 
-Сейчас вне `Mesh_3D_pore_scale` работает только семейство `primitive`: остальное упирается
-в `tools/qa/stl_qa.py`, `geometry/*.py`, `stl/registry.csv`, `caseRoots: experiments/...`.
+Outside `Mesh_3D_pore_scale` only the `primitive` family works right now: everything else runs into
+`tools/qa/stl_qa.py`, `geometry/*.py`, `stl/registry.csv`, `caseRoots: experiments/...`.
 
-### 1.1 QA STL внутри плагина (✅ готово, 2026-11-26) — главный кусок
-Сделано в `mesh-stl/lib/qa/` (dependency-free ESM, без python и без проекта), версия пакета 0.3.2:
-- `reader.js` — бинарный и ASCII STL, `mergeVertices` по 8 знакам (как `tol.merge` trimesh), для ASCII
-  — с учётом нормали файла, как делает загрузчик trimesh; вырожденные треугольники сохраняются.
-- `metrics.js` — watertight (каждое ребро ровно в 2 гранях), согласованность обхода (только рёбра
-  с кратностью 2), тела = компоненты связности по граням через такие рёбра, объём по дивергенции,
-  площадь, bbox, вырожденные грани (площадь ≤ 1e-12), дубликаты, non-manifold рёбра.
-  Реализация — open-addressing хеш-таблица рёбер (без аллокаций на ребро).
-- `verdict.js` — те же тексты и порядок `problems`/`warnings`, что у `stl_qa.py`, включая
-  `|ΔV| … > допуска 2.0%`, `объём <= 0 (…)`, предупреждение `тел N, ожидалось M` и
-  проблему «сырой STL не watertight … нужен `--clean-out`» только когда чистка не запрошена.
-- `clean.js` — чистка по правилу trimesh (`nondegenerate_faces(height=1e-8)`: минимальное ребро и
-  минимальная высота > 1e-8), а **не** по площади: у blob-пены 2 грани с площадью 1e-13 мм² —
-  законная геометрия, их удаление открывало поверхность и давало ложный FAIL.
-- Выбор движка: `stl_check(engine)` / `qaEngine` / `MESH_STL_QA_ENGINE`, по умолчанию `js`;
-  `python` оставлен эталоном, при исключении в JS — автоматический откат `python-fallback`.
+### 1.1 STL QA inside the plugin (✅ done, 2026-11-26) — the main piece
+Done in `mesh-stl/lib/qa/` (dependency-free ESM, no python and no project), package version 0.3.2:
+- `reader.js` — binary and ASCII STL, `mergeVertices` over 8 digits (like trimesh's `tol.merge`); for ASCII
+  — taking the file normal into account, the way the trimesh loader does; degenerate triangles are kept.
+- `metrics.js` — watertight (every edge in exactly 2 faces), winding consistency (only edges
+  with multiplicity 2), bodies = connected components over faces via such edges, volume by divergence,
+  area, bbox, degenerate faces (area ≤ 1e-12), duplicates, non-manifold edges.
+  Implementation — an open-addressing edge hash table (no allocation per edge).
+- `verdict.js` — the same texts and the same order of `problems`/`warnings` as in `stl_qa.py`, including
+  `|ΔV| = …% > tolerance 2.0%`, `volume <= 0 (…)`, the warning `bodies: N (expected M)` and
+  the `raw STL is not watertight (…)` problem, which ends in `run --clean-out before meshing`,
+  only when no cleanup was requested.
+- `clean.js` — cleanup by the trimesh rule (`nondegenerate_faces(height=1e-8)`: minimum edge and
+  minimum height > 1e-8), and **not** by area: the blob foam has 2 faces with an area of 1e-13 mm² —
+  legitimate geometry; removing them opened the surface and produced a false FAIL.
+- Engine selection: `stl_check(engine)` / `qaEngine` / `MESH_STL_QA_ENGINE`, default `js`;
+  `python` is kept as the reference, and on an exception in JS there is an automatic `python-fallback`.
 
-**Приёмка (факты):** `scripts/qa-parity.mjs --project` → **15/15 проверок совпадают** с
-`tools/qa/stl_qa.py` на синтетических фикстурах (куб, вырожденные грани, открытая коробка, касание
-кубов, трижды продублированный ASCII) и реальных STL (A1, A2, E1 raw, C4 raw, fluid, patches):
-вердикт, `bodies`, объём/площадь (объём совпадает до 1e-10 отн.), вырожденные грани и дубликаты.
-Единственное документированное расхождение — `fluid_patches.stl`: trimesh сливает вершины ASCII-фасетов
-по нормали файла, поэтому `vertices_merged/non_manifold/euler` у него меньше (4592/12947/16701 против
-20880/22956/22980 у нас), при том что вердикт, watertight и объём совпадают.
-Скорость/память: 862 898 треугольников — 6.6 с / 846 МБ; 1 471 974 — 11.9 с / 1.3 ГБ.
+**Acceptance (facts):** `scripts/qa-parity.mjs --project` → **15/15 checks match**
+`tools/qa/stl_qa.py` on synthetic fixtures (cube, degenerate faces, open box, touching cubes,
+triple-duplicated ASCII) and on real STLs (A1, A2, E1 raw, C4 raw, fluid, patches):
+verdict, `bodies`, volume/area (volume matches to 1e-10 relative), degenerate faces and duplicates.
+The only documented discrepancy is `fluid_patches.stl`: trimesh merges the vertices of ASCII facets
+by the file normal, so its `vertices_merged/non_manifold/euler` are lower (4592/12947/16701 versus
+20880/22956/22980 for us), while the verdict, watertightness and volume match.
+Speed/memory: 862 898 triangles — 6.6 s / 846 MB; 1 471 974 — 11.9 s / 1.3 GB.
 
-### 1.2 Генераторы без проекта (✅ готово, 2026-11-26)
-- Python-скрипты семейств переносятся **внутрь пакета**: `mesh-stl/generators/{pore_cell,cad,stratified}/…`
-  (сейчас они лежат в исследовательском `geometry/`). `generators.json` получает `script` относительно
-  `PACKAGE_ROOT`, режим `generators.root: "package" | "project"`.
-- Простые семейства переписываются на JS (без python вообще): `primitive` (есть), `stratified-channel`
-  (две коробки — 12 треугольников на часть), `box-array` (решётка сфер/цилиндров как отдельные STL).
-- Для python-семейств — предварительная проверка: `python3 -c "import trimesh, numpy"` → понятная
-  ошибка `python-bridge-missing` с командой установки, а не stack trace.
-- **Приёмка:** в пустом каталоге с минимальным `sim-project.json` работают `stl_generate` для
-  `primitive`, `stratified-channel`, `box-array` + `stl_check` + `mesh_build(snappy)`.
+### 1.2 Generators without the project (✅ done, 2026-11-26)
+- The family Python scripts move **into the package**: `mesh-stl/generators/{pore_cell,cad,stratified}/…`
+  (they currently live in the research `geometry/`). `generators.json` gains a `script` relative to
+  `PACKAGE_ROOT`, and the mode `generators.root: "package" | "project"`.
+- Simple families are rewritten in JS (no python at all): `primitive` (exists), `stratified-channel`
+  (two boxes — 12 triangles per part), `box-array` (a lattice of spheres/cylinders as separate STLs).
+- For the python families — a pre-check: `python3 -c "import trimesh, numpy"` → a comprehensible
+  `python-bridge-missing` error with the install command, not a stack trace.
+- **Acceptance:** in an empty directory with a minimal `sim-project.json`, `stl_generate` works for
+  `primitive`, `stratified-channel`, `box-array`, plus `stl_check` + `mesh_build(snappy)`.
 
-**Сделано (факты, 2026-11-26):**
-- Python-скрипты и хелперы (`packing_lib.py`, `cq_common.py`, копия эталона `py_qa.py`) — в
-  `mesh-stl/generators/{pore_cell,packings,cad}/`; пресеты — `mesh-stl/generators/presets/<family>/`
-  (30 файлов). `data/generators.json` ссылается на них через `@package/…`; у python-семейств есть
-  `projectScript`/`projectPreset` для режима `generators.root: "project"`.
-- `generators.root` разобран в `sim-core/schemas/sim-project.schema.json`; конфиг читается из
-  `sim-project.json`, `MESH_STL_GENERATORS_ROOT`, по умолчанию `package`.
-- `stratified-channel` переписан на JS (`lib/generators/stratified.js`, две коробки по 12 треугольников),
-  добавлен `box-array` (`lib/generators/box-array.js`: решётка сфер/цилиндров + контейнер,
-  предупреждение о пересечении соседей); общие эмиттеры — `lib/shapes.js`.
-- `python-bridge-missing`: до запуска проверяется `import trimesh, numpy` (+ `cadquery`/`scipy`/`skimage`
-  по полю `requires`), ошибка содержит интерпретатор, модули, команду `pip install` и подсказку про JS-семейства.
-- **Проверено:** пустой каталог `experiments/_scratch/accept-1.2` (только `sim-project.json`) —
-  `primitive` 12 tri/1 тело, `stratified-channel` 12+12 tri (800/1200 мм³), `box-array` 8448 tri / 16 тел
-  (QA PASS), затем `mesh_build(snappy)`: 63 228 ячеек, gate PASS 21.48°/0.304; упакованный
-  `channel_spheres_L3` — fluid 8352 tri / 162.7341 мм³, `fluid_patches` 8352 tri (утроение DEF-01 не вернулось);
-  `cad-porous` raw PASS 4950 tri (импорт `py_qa` работает); `python-bridge-missing` возвращается без traceback.
-- Регрессии: `smoke.mjs` SMOKE OK, `qa-parity.mjs --project` 15/15.
+**Done (facts, 2026-11-26):**
+- The Python scripts and helpers (`packing_lib.py`, `cq_common.py`, a copy of the `py_qa.py` reference)
+  are in `mesh-stl/generators/{pore_cell,packings,cad}/`; presets are in
+  `mesh-stl/generators/presets/<family>/` (30 files). `data/generators.json` references them via
+  `@package/…`; the python families have `projectScript`/`projectPreset` for the
+  `generators.root: "project"` mode.
+- `generators.root` is parsed in `sim-core/schemas/sim-project.schema.json`; the config is read from
+  `sim-project.json`, `MESH_STL_GENERATORS_ROOT`, default `package`.
+- `stratified-channel` is rewritten in JS (`lib/generators/stratified.js`, two boxes of 12 triangles each),
+  and `box-array` was added (`lib/generators/box-array.js`: a lattice of spheres/cylinders + container,
+  with a warning about neighbours intersecting); the shared emitters are in `lib/shapes.js`.
+- `python-bridge-missing`: `import trimesh, numpy` is checked before the run (+ `cadquery`/`scipy`/`skimage`
+  per the `requires` field); the error contains the interpreter, the modules, the `pip install` command
+  and a hint about the JS families.
+- **Verified:** an empty `experiments/_scratch/accept-1.2` directory (only `sim-project.json`) —
+  `primitive` 12 tri/1 body, `stratified-channel` 12+12 tri (800/1200 mm³), `box-array` 8448 tri / 16 bodies
+  (QA PASS), then `mesh_build(snappy)`: 63 228 cells, gate PASS 21.48°/0.304; the packaged
+  `channel_spheres_L3` — fluid 8352 tri / 162.7341 mm³, `fluid_patches` 8352 tri (the DEF-01 tripling
+  did not come back); `cad-porous` raw PASS 4950 tri (the `py_qa` import works); `python-bridge-missing`
+  is returned without a traceback.
+- Regressions: `smoke.mjs` SMOKE OK, `qa-parity.mjs --project` 15/15.
 
-### 1.3 Реестр STL и caseRoots (✅ готово, 2026-11-26)
-- `lib/registry.js: registryFilePath(config)` — относительный `registry` разрешается от `projectRoot`, а без
-  профиля от текущего каталога; абсолютный путь принимается. Таблица создаётся по требованию с заголовком.
-- Read-only реестр больше не ломает вердикт: `stl_check` отдаёт `registered: {ok:false, error, row}` и
-  строку-предупреждение в `next`. Проверено живым вызовом на `chmod a-w stl/registry.csv` →
-  `verdict PASS`, `registered.error = EACCES …`, файл не изменился.
-- `sim-core/lib/project.js`: case-local по умолчанию `caseRoots: ["./cases"]` (профиль переопределяет);
-  `mesh-build` DEFAULTS `caseRoot: "cases"`. Проверено в пустом каталоге-профиле: `registry → ./stl/registry.csv`,
-  `caseRoots ["./cases"] → <root>/cases`, `resolveProjectPath("exp-001/case") → <root>/cases/exp-001/case`.
-- `fluid-point.py` переехал в `plugins/mesh-build/scripts/fluid-point.py` (канонический), в
-  `benchmark/scripts/fluid_point.py` остался тонкий шим; сообщения `precheck.js`/`index.js` указывают на
-  упакованный скрипт. Оба входа прогнаны на реальных STL (A1, box-array) — одинаковый JSON.
-- Версии: mesh-stl 0.3.4, mesh-build 0.5.2, sim-core 0.4.2. Регрессии: оба `smoke.mjs` SMOKE OK,
+### 1.3 STL registry and caseRoots (✅ done, 2026-11-26)
+- `lib/registry.js: registryFilePath(config)` — a relative `registry` resolves from `projectRoot`, and
+  without a profile from the current directory; an absolute path is accepted. The table is created on
+  demand, together with its header.
+- A read-only registry no longer breaks the verdict: `stl_check` returns `registered: {ok:false, error, row}`
+  and a warning line in `next`. Verified with a live call on `chmod a-w stl/registry.csv` →
+  `verdict PASS`, `registered.error = EACCES …`, the file was unchanged.
+- `sim-core/lib/project.js`: case-local by default `caseRoots: ["./cases"]` (a profile overrides it);
+  `mesh-build` DEFAULTS `caseRoot: "cases"`. Verified in an empty profile directory:
+  `registry → ./stl/registry.csv`, `caseRoots ["./cases"] → <root>/cases`,
+  `resolveProjectPath("exp-001/case") → <root>/cases/exp-001/case`.
+- `fluid-point.py` moved to `plugins/mesh-build/scripts/fluid-point.py` (canonical), and a thin shim
+  remains in `benchmark/scripts/fluid_point.py`; the messages in `precheck.js`/`index.js` point at the
+  packaged script. Both entry points were run on real STLs (A1, box-array) — identical JSON.
+- Versions: mesh-stl 0.3.4, mesh-build 0.5.2, sim-core 0.4.2. Regressions: both `smoke.mjs` SMOKE OK,
   `qa-parity.mjs --project` 15/15.
 
-### 1.4 Первый запуск без проекта (⬜ 0.5 дня)
-- `sim-core/lib/config.js`: если `sim-project.json` нет — работать на дефолтах и вернуть
-  `project: "defaults"` в ответах; отдельная карточка-подсказка `portable-setup`.
-- `mesh_hints`/`stl_hints` получают карточку «работа без исследовательского проекта: что доступно».
-- **Приёмка блокера:** `docs/PORTABLE.md` + сквозной сценарий в `experiments/portable-smoke/`
-  (gitignored), который в чистом каталоге проходит STL → snappy → gate → delivery.
+### 1.4 First run without the project (⬜ 0.5 day)
+- `sim-core/lib/config.js`: when there is no `sim-project.json` — work on the defaults and return
+  `project: "defaults"` in the responses; a separate hint card `portable-setup`.
+- `mesh_hints`/`stl_hints` gain a card "working without the research project: what is available".
+- **Blocker acceptance:** `docs/PORTABLE.md` + an end-to-end scenario in `experiments/portable-smoke/`
+  (gitignored) that walks STL → snappy → gate → delivery in a clean directory.
 
 ---
 
-## Блокер 2. Упаковка и релиз-инжиниринг (✅ готово, 2026-11-26)
+## Blocker 2. Packaging and release engineering (✅ done, 2026-11-26)
 
-Сделано в 0.5.1: отдельный репозиторий, теги, GitHub Release, CHANGELOG всех трёх пакетов.
-Закрыто в 0.5.4 / 0.3.6 / 0.4.4:
+Done in 0.5.1: a separate repository, tags, a GitHub Release, a CHANGELOG for all three packages.
+Closed in 0.5.4 / 0.3.6 / 0.4.4:
 
 ### 2.1 CI (✅)
-`.github/workflows/ci.yml`, matrix node 20/24, без OpenFOAM: `node --check` по `find` (не
-`git ls-files`), `python3 -m compileall` по `mesh-stl/generators` и `benchmark/scripts`, `bash -n`
-по пакетным shell-скриптам, оба `smoke.mjs`, `scripts/check-catalogue.mjs` (21 + 24 карточки, 35
-уникальных после слияния, 10 общих — отчёт, не ошибка) и `scripts/check-versions.mjs`
-(package.json == CHANGELOG == баннер README, `engines`, лицензия, `repository`,
-`dsh.bundle.patch`), `qa-parity.mjs` с `pip install trimesh numpy` и проверка полноты tarball'ов
+`.github/workflows/ci.yml`, node matrix 20/24, without OpenFOAM: `node --check` over `find` (not
+`git ls-files`), `python3 -m compileall` over `mesh-stl/generators` and `benchmark/scripts`, `bash -n`
+over the package shell scripts, both `smoke.mjs`, `scripts/check-catalogue.mjs` (21 + 24 cards,
+35 unique after the merge, 10 shared — a report, not an error) and `scripts/check-versions.mjs`
+(package.json == CHANGELOG == README banner, `engines`, licence, `repository`, `dsh.bundle.patch`),
+`qa-parity.mjs` with `pip install trimesh numpy`, and a tarball completeness check
 (`generators/`, `lib/qa/`, `scripts/deliver/`, `docs/`).
 
-### 2.2 Публикация (✅ решение: git-канал)
-Канал — **git + `dsh plugin install_bundle` с абсолютным путём**, как у workbench
-(`"private": true`), плюс `*.tgz` из ассетов Release как оффлайновый вариант. Причина отказа от
-npm: `mesh-stl`/`mesh-build` импортируют ядро относительным путём `../sim-core/lib/index.js`, а
-имена без scope на npm заняты; переход на npm — отдельная задача (scoped-имена + импорты
-`sim-core/lib/...`). Подробности и команды — `docs/PACKAGING.md`.
-`files` починен: `mesh-stl` получил `generators/` (иначе tarball ехал без python-генераторов),
-`mesh-build` — `docs/` (README ссылается на `docs/PORTABLE.md`). Оба дефекта ловятся новым шагом CI.
-`scripts/bump.mjs` — одна команда на три пакета (patch/minor/major/явная версия, `--packages`,
-`--dry-run`, `--date`), правит `package.json`, заголовок CHANGELOG, баннер README и запускает
+### 2.2 Publication (✅ decision: the git channel)
+The channel is **git + `dsh plugin install_bundle` with an absolute path**, as for workbench
+(`"private": true`), plus the `*.tgz` from the Release assets as the offline option. The reason for
+rejecting npm: `mesh-stl`/`mesh-build` import the core by the relative path `../sim-core/lib/index.js`,
+and the unscoped names on npm are taken; the move to npm is a separate task (scoped names + imports
+`sim-core/lib/...`). Details and commands — `docs/PACKAGING.md`.
+`files` was fixed: `mesh-stl` got `generators/` (otherwise the tarball shipped without the python
+generators), `mesh-build` got `docs/` (the README links to `docs/PORTABLE.md`). Both defects are caught
+by the new CI step.
+`scripts/bump.mjs` — one command for three packages (patch/minor/major/an explicit version, `--packages`,
+`--dry-run`, `--date`); it edits `package.json`, the CHANGELOG heading and the README banner, then runs
 `check-versions`.
 
 ### 2.3 `engines.dsh` (✅)
-Выровнено на `">=0.2.2-rc.1 <0.3.0"` во всех трёх пакетах (в `sim-core` поле добавлено), peer-диапазоны
-`@deepseek-ai/dsh-*` — так же. Верхняя граница `<0.3.0` сохранена намеренно (отклонение от текста
-плана): мажор DSH может ломать API, а workbench объявляет только нижнюю границу — снимать верхнюю
-имеет смысл вместе с проверкой на 0.3.0.
+Aligned to `">=0.2.2-rc.1 <0.3.0"` in all three packages (the field was added in `sim-core`), and the
+`@deepseek-ai/dsh-*` peer ranges the same way. The upper bound `<0.3.0` is kept deliberately (a deviation
+from the plan text): a DSH major may break the API, while workbench declares only the lower bound —
+dropping the upper one only makes sense together with testing on 0.3.0.
 
 ### 2.4 Release workflow (✅)
-`.github/workflows/release.yml` на тег `v*`: проверки, `npm pack` трёх пакетов в `dist/`, тело из
-`docs/RELEASE-<тег>.md` (иначе краткая сводка), `gh release create/upload` с `GITHUB_TOKEN`,
-в конце печать ассетов. Ручной вызов API из релизов 0.5.1/0.5.3 больше не нужен.
+`.github/workflows/release.yml` on a `v*` tag: the checks, `npm pack` of the three packages into `dist/`,
+the body from `docs/RELEASE-<tag>.md` (otherwise a brief summary), `gh release create/upload` with
+`GITHUB_TOKEN`, and the assets printed at the end. The manual API call from the 0.5.1/0.5.3 releases is
+no longer needed.
 
-## Блокер 3. Контракт с workbench (⬜ 2–3 дня)
+## Blocker 3. Contract with workbench (⬜ 2–3 days)
 
-Поставка сейчас mesh-центрична: в `deliver/openfoam_<name>/` пустая `0/` и мешерские словари;
-пользователь вручную делает поля и решательские словари. Workbench
-(`@yakovlev-i-a/dsh-openfoam-workbench` 0.9.20, `openfoam_case_scaffold`) умеет их создать —
-нужен явный стык.
+Delivery is mesh-centric right now: `deliver/openfoam_<name>/` holds an empty `0/` and the mesher
+dictionaries; the user creates the fields and the solver dictionaries by hand. Workbench
+(`@yakovlev-i-a/dsh-openfoam-workbench` 0.9.20, `openfoam_case_scaffold`) can create them — an explicit
+seam is required.
 
-### 3.1 Документ контракта (⬜ 0.5 дня)
-`docs/WORKBENCH-CONTRACT.md`: кто владеет чем.
+### 3.1 Contract document (⬜ 0.5 day)
+`docs/WORKBENCH-CONTRACT.md`: who owns what.
 
-| Этап | Владелец | Инструменты |
+| Stage | Owner | Tools |
 |---|---|---|
-| геометрия → STL | mesh-toolkit | `stl_generate`, `stl_check` |
-| STL → сетка, качество, паспорт | mesh-toolkit | `mesh_build`, `mesh_check` |
-| типы патчей (inlet/outlet/wall/symmetry/cavity) | mesh-toolkit (новый `mesh_patch_types`) | — |
-| поставка кейса + handoff | mesh-toolkit | `mesh_deliver` + `handoff.json` |
-| `0/` поля, `fvSchemes/fvSolution`, решатель, пост | workbench | `openfoam_case_scaffold`, `openfoam_check`, … |
+| geometry → STL | mesh-toolkit | `stl_generate`, `stl_check` |
+| STL → mesh, quality, passport | mesh-toolkit | `mesh_build`, `mesh_check` |
+| patch types (inlet/outlet/wall/symmetry/cavity) | mesh-toolkit (new `mesh_patch_types`) | — |
+| case delivery + handoff | mesh-toolkit | `mesh_deliver` + `handoff.json` |
+| `0/` fields, `fvSchemes/fvSolution`, solver, post | workbench | `openfoam_case_scaffold`, `openfoam_check`, … |
 
-### 3.2 `handoff.json` в поставке (⬜ 0.5 дня)
-`mesh_deliver` пишет рядом с `delivery_<name>.json`:
+### 3.2 `handoff.json` in the delivery (⬜ 0.5 day)
+`mesh_deliver` writes next to `delivery_<name>.json`:
 `{units, scale, regions[], patches[{name, type, role, nFaces, area_m3}], cells, gate, bbox_m,
 suggestedFamily: "incompressible|compressible|cht", suggestedToolCalls: [{tool, args}]}`
-(`role` выводится из имени патча и типа; `suggestedToolCalls` — готовый вызов `openfoam_case_scaffold`).
-Схема версионируется (`handoffVersion: 1`).
+(`role` is derived from the patch name and type; `suggestedToolCalls` is a ready-made
+`openfoam_case_scaffold` call).
+The schema is versioned (`handoffVersion: 1`).
 
-### 3.3 `mesh_patch_types` (⬜ 1 день)
-Новый инструмент mesh-build: конфиг `patches: {inlet: "patch", outlet: "patch", walls: "wall", ...}`
-→ правит `constant/<region>/polyMesh/boundary` (в multi-region — каждый регион), пишет `.bak`,
-пересчитывает `mesh-passport.json` (пометка `patchedBy`) и **не** меняет метрики.
-Заменяет ручной шаг `foamDictionary -entry boundary.inlet.type -set patch` из Appendix C.
+### 3.3 `mesh_patch_types` (⬜ 1 day)
+A new mesh-build tool: a `patches: {inlet: "patch", outlet: "patch", walls: "wall", ...}` config →
+edits `constant/<region>/polyMesh/boundary` (in multi-region — every region), writes `.bak`, recomputes
+`mesh-passport.json` (a `patchedBy` mark) and **does not** change the metrics.
+Replaces the manual `foamDictionary -entry boundary.inlet.type -set patch` step from Appendix C.
 
-### 3.4 Снятие дублирования (⬜ 0.5 дня)
-- В README обоих плагинов: `mesh_build` — основной путь, `openfoam_mesh_plan` — фолбэк, когда
-  mesh-toolkit не установлен или нужен «нулевой конфиг».
-- Скилл `openfoam-meshing` (workbench) получает в начале раздел «если установлен mesh-build —
-  используйте `mesh_build`/`mesh_check`» (правка в репозитории workbench, отдельный PR).
-- `simMesh`-сервис описывается в контракте как программный вход для workbench.
+### 3.4 Removing duplication (⬜ 0.5 day)
+- In the README of both plugins: `mesh_build` is the main path, `openfoam_mesh_plan` is the fallback when
+  mesh-toolkit is not installed or a "zero-config" setup is wanted.
+- The `openfoam-meshing` skill (workbench) gains an opening section "if mesh-build is installed — use
+  `mesh_build`/`mesh_check`" (an edit in the workbench repository, a separate PR).
+- The `simMesh` service is described in the contract as the programmatic entry point for workbench.
 
-### 3.5 Сквозной тест стыка (⬜ 0.5 дня)
+### 3.5 End-to-end seam test (⬜ 0.5 day)
 `scripts/contract-test.mjs`: A1m → `mesh_deliver` → `openfoam_case_scaffold` (workbench) →
-проверка `0/`, `system/fvSchemes`, `openfoam_check` без ошибок. В CI — `skip` без OpenFOAM.
+a check of `0/`, `system/fvSchemes`, `openfoam_check` with no errors. In CI — `skip` without OpenFOAM.
 
 ---
 
-## Порядок и вехи
+## Order and milestones
 
-| Веха | Содержание | Итог |
+| Milestone | Content | Outcome |
 |---|---|---|
-| M1 (дни 1–4) | 1.1–1.4 | toolkit ставится в пустой каталог, 3 семейства + snappy работают |
-| M2 (дни 5–6) | 2.1–2.4 | CI зелёный, версии/CHANGELOG автоматизированы, канал установки выбран |
-| M3 (дни 7–9) | 3.1–3.5 | «сетка → решаемый кейс» за 2 вызова инструментов по контракту |
-| 1.0.0-rc.1 | M1+M2 + QUICKSTART/TROUBLESHOOTING | публичный предрелиз |
-| 1.0.0 | + M3 + приёмка на чужой машине | GA |
+| M1 (days 1–4) | 1.1–1.4 | the toolkit installs into an empty directory, 3 families + snappy work |
+| M2 (days 5–6) | 2.1–2.4 | CI green, versions/CHANGELOG automated, the installation channel chosen |
+| M3 (days 7–9) | 3.1–3.5 | "mesh → solvable case" in 2 tool calls per the contract |
+| 1.0.0-rc.1 | M1+M2 + QUICKSTART/TROUBLESHOOTING | public pre-release |
+| 1.0.0 | + M3 + acceptance on someone else's machine | GA |
 
-## Риски
+## Risks
 
-- **Паритет JS-QA с python**: считать объём/площадь тем же способом (дивергенция по треугольникам),
-  тест на 12 фикстурах обязателен, иначе вердикты разъедутся.
-- **Python-генераторы**: без python/numpy/trimesh 3 из 6 семейств недоступны — это должно быть
-  в README и в ошибке инструмента, а не выясняться на середине.
-- **Версия workbench**: контракт привязать к `>=0.9.20`; при отсутствии workbench — `handoff.json`
-  остаётся валидным артефактом.
-- **npm-скоуп** `@astden` может быть занят — зарезервировать до M2.
+- **JS-QA parity with python**: compute volume/area the same way (divergence over triangles); a test on
+  12 fixtures is mandatory, otherwise the verdicts will drift apart.
+- **Python generators**: without python/numpy/trimesh 3 of the 6 families are unavailable — this must be
+  in the README and in the tool error, not discovered halfway through.
+- **Workbench version**: tie the contract to `>=0.9.20`; when workbench is absent, `handoff.json`
+  remains a valid artefact.
+- The **npm scope** `@astden` may be taken — reserve it before M2.
 
-## Определение готовности 1.0
+## Definition of done for 1.0
 
-- [ ] В пустом каталоге: `stl_generate` → `stl_check` → `mesh_build` → `mesh_check` → `mesh_deliver`
-      без единого пути за пределы рабочего каталога.
-- [ ] CI на двух версиях node, без OpenFOAM, зелёный; релизный workflow создаёт Release по тегу.
-- [ ] `handoff.json` + `mesh_patch_types`: после поставки `openfoam_case_scaffold` даёт рабочий кейс
-      без ручной правки `boundary`.
-- [ ] Документация: QUICKSTART, TROUBLESHOOTING (15 точных строк ошибок), CONFIG, WORKBENCH-CONTRACT.
-- [ ] Установка на чистой машине проверена по README не автором.
+- [ ] In an empty directory: `stl_generate` → `stl_check` → `mesh_build` → `mesh_check` → `mesh_deliver`
+      with no single path outside the working directory.
+- [ ] CI green on two node versions, without OpenFOAM; the release workflow creates a Release from a tag.
+- [ ] `handoff.json` + `mesh_patch_types`: after delivery `openfoam_case_scaffold` produces a working case
+      without hand-editing `boundary`.
+- [ ] Documentation: QUICKSTART, TROUBLESHOOTING (15 exact error strings), CONFIG, WORKBENCH-CONTRACT.
+- [ ] Installation on a clean machine verified from the README by someone other than the author.

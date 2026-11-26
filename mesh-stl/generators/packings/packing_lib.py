@@ -1,59 +1,59 @@
 #!/usr/bin/env python3
-"""packing_lib.py — упаковка шаров «гравитационной засыпкой» в контейнер.
+"""packing_lib.py — ball packing by «gravitational filling» into a container.
 
-Задача
-------
-Для контейнера произвольной (в этой реализации — аналитически заданной) формы
-получить статическую засыпку шаров случайных/постоянных радиусов и выдать
-таблицу центров и радиусов: `id,x_mm,y_mm,z_mm,r_mm`. По ней потом строится STL:
-в точках контакта шаров ставятся цилиндры-шейки, чтобы не было точечного контакта
-(см. exp-009 — та же идея «шары + шейки», но там решётка FCC задавалась руками).
+Problem
+-------
+For a container of arbitrary (in this implementation — analytically defined) shape
+obtain a static filling of balls with random/constant radii and output
+a table of centers and radii: `id,x_mm,y_mm,z_mm,r_mm`. The STL is then built from it:
+neck cylinders are placed at the ball contact points so that there is no point contact
+(see exp-009 — the same «balls + necks» idea, but there the FCC lattice was set by hand).
 
-Модель (квазистатическая, без трения)
+Model (quasi-static, frictionless)
 -------------------------------------
-1. Шар радиуса r «падает» в случайную точку (x, y) верхней границы контейнера.
-2. При фиксированных (x, y) его высота z определена однозначно — он садится на
-   максимум из опор: дно контейнера и уже лежащие шары
+1. A ball of radius r «falls» onto a random point (x, y) of the container top boundary.
+2. For fixed (x, y) its height z is determined uniquely — it settles on
+   the maximum of the supports: the container bottom and the balls already lying there
 
        z(x, y) = max( z_floor(x, y, r),
                       max_j [ z_j + sqrt((r + r_j)^2 - d_xy^2) ] )
 
-   по тем j, у которых d_xy < r + r_j. Формула точная: для фиксированных (x, y)
-   множество запрещённых высот вокруг шара j — интервал (z_j - h_j, z_j + h_j),
-   h_j = sqrt((r + r_j)^2 - d_xy^2); взять максимум верхних границ = «лечь сверху
-   на самый высокий столб», пересечений нет ни с одним шаром. Это заменяет
-   перебор шагов падения: одна формула даёт точное положение.
-3. Равновесие. Считаем нормали всех контактов (шар-шар и шар-стенка). Если нормали
-   натягивают всё 3D-пространство — свободных направлений нет, шар стоит. Иначе
-   он катится в направлении наискорейшего спуска, разрешённом связями: d = -P·e_z,
-   где P — проектор на нуль-пространство нормалей (касание = движение только
-   перпендикулярно нормали). Шаг уменьшается, если спуск не удался.
-   Это «механическая» засыпка: шар скатывается по уже лежащим шарам и заклинивается
-   в устойчивом положении, как настоящий.
-4. Засыпка заканчивается, когда `stop_after_fail` попыток подряд не дали места.
-5. Опциональная компакция (`compaction_cycles>0`): векторная релаксация перекрытий
-   по cKDTree с «встряхиванием» вниз — имитирует вибрацию и повышает плотность.
+   over those j with d_xy < r + r_j. The formula is exact: for fixed (x, y)
+   the set of forbidden heights around ball j is the interval (z_j - h_j, z_j + h_j),
+   h_j = sqrt((r + r_j)^2 - d_xy^2); taking the max of the upper bounds = «lie on top
+   of the tallest column», with no intersection with any ball. This replaces
+   stepping through the fall: one formula gives the exact position.
+3. Equilibrium. We collect the normals of all contacts (ball-ball and ball-wall). If the normals
+   span the whole 3D space — there are no free directions and the ball stands. Otherwise
+   it rolls along the steepest descent direction allowed by the constraints: d = -P·e_z,
+   where P is the projector onto the null space of the normals (contact = motion only
+   perpendicular to the normal). The step is reduced when the descent fails.
+   This is a «mechanical» filling: the ball rolls over the balls already lying there and jams
+   in a stable position, like a real one.
+4. The filling ends when `stop_after_fail` attempts in a row found no room.
+5. Optional compaction (`compaction_cycles>0`): vector relaxation of the overlaps
+   over a cKDTree with a downward «shake» — it mimics vibration and raises the density.
 
-Что даётся на выходе
+What is given on output
 --------------------
-* таблица шаров (CSV): `id,x_mm,y_mm,z_mm,r_mm`;
-* таблица контактов (CSV): `i,j,dist_mm,gap_mm` — пары соприкасающихся шаров; по ней
-  строитель STL ставит шейки (шейка на пару с `gap_mm <= tol`);
-* сводка (JSON): плотность упаковки, пористость, число шаров, координационное число
-  (распределение и среднее), контакты со стенками, максимальное перекрытие,
-  минимальный зазор между несоприкасающимися шарами, время, параметры.
+* ball table (CSV): `id,x_mm,y_mm,z_mm,r_mm`;
+* contacts table (CSV): `i,j,dist_mm,gap_mm` — pairs of touching balls; from it
+  the STL builder places the necks (a neck per pair with `gap_mm <= tol`);
+* summary (JSON): packing density, porosity, number of balls, coordination number
+  (distribution and mean), wall contacts, maximum overlap,
+  minimum gap between non-touching balls, time, parameters.
 
-Единицы — **мм** (как STL в проекте). Радиусы/координаты — float64.
+Units are **mm** (like the STL in the project). Radii/coordinates are float64.
 
-Ограничения (честно)
+Limitations (honestly)
 --------------------
-* Трение не моделируется: устойчивость определяется только нормалями. Реальная
-  засыпка с трением может стоять круче; наша — «идеально скользкая».
-* Ложе заморожено: уже лежащие шары не сдвигаются, когда падает новый (кроме
-  явной компакции). Это даёт чуть более рыхлую упаковку, чем настоящая.
-* Контейнеры — только аналитические: параллелепипед (`box`), цилиндр вдоль z
-  (`cylinder`), шар (`sphere`). Произвольная сетка/STL — расширение через
-  реализацию того же интерфейса (шаг 2 требует «высоту дна» и нормали).
+* Friction is not modelled: stability is determined by the normals only. A real
+  filling with friction can stand steeper; ours is «perfectly slippery».
+* The bed is frozen: balls already lying there do not move when a new one falls (except
+  for explicit compaction). This gives a slightly looser packing than the real one.
+* Containers are analytic only: a parallelepiped (`box`), a cylinder along z
+  (`cylinder`), a sphere (`sphere`). An arbitrary mesh/STL is an extension through
+  an implementation of the same interface (step 2 needs the «bottom height» and normals).
 """
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ from typing import Iterable, Optional, Sequence
 
 import numpy as np
 
-try:  # scipy нужен только для компакции и быстрых пар контактов
+try:  # scipy is needed only for compaction and fast contact pairs
     from scipy.spatial import cKDTree
 
     HAVE_SCIPY = True
@@ -75,14 +75,14 @@ except Exception:  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
-# Контейнеры
+# Containers
 # ---------------------------------------------------------------------------
 class Container:
-    """Базовый интерфейс контейнера (всё в мм)."""
+    """Base container interface (everything in mm)."""
 
     name = "container"
 
-    # --- геометрия контейнера -------------------------------------------------
+    # --- container geometry ---------------------------------------------------
     def volume(self) -> float:
         raise NotImplementedError
 
@@ -90,16 +90,16 @@ class Container:
         raise NotImplementedError
 
     def max_sphere_radius(self) -> float:
-        """Максимальный радиус шара, который ещё помещается в контейнер."""
+        """Maximum ball radius that still fits into the container."""
         raise NotImplementedError
 
-    # --- постановка шара ------------------------------------------------------
+    # --- ball placement -------------------------------------------------------
     def drop_xy(self, rng: np.random.Generator, r: float) -> Optional[np.ndarray]:
-        """Случайная точка (x, y) «входа» шара на верхней границе; None — не влезает."""
+        """Random (x, y) «entry» point of the ball on the top boundary; None — does not fit."""
         raise NotImplementedError
 
     def bottom_z(self, x: float, y: float, r: float) -> float:
-        """Высота центра шара, лежащего на дне контейнера в точке (x, y)."""
+        """Height of the center of a ball resting on the container bottom at (x, y)."""
         raise NotImplementedError
 
     def clamp_xy(self, xy: np.ndarray, r: float) -> np.ndarray:
@@ -115,7 +115,7 @@ class Container:
         raise NotImplementedError
 
     def contacts(self, p: np.ndarray, r: float, tol: float) -> list[np.ndarray]:
-        """Нормали контактов шара со стенками (единичные, внутрь контейнера)."""
+        """Wall contact normals of the ball (unit, pointing into the container)."""
         raise NotImplementedError
 
     def describe(self) -> dict:
@@ -123,7 +123,7 @@ class Container:
 
 
 class Box(Container):
-    """Параллелепипед с гранями по осям: [lo, hi] (мм)."""
+    """Parallelepiped with axis-aligned faces: [lo, hi] (mm)."""
 
     name = "box"
 
@@ -131,7 +131,7 @@ class Box(Container):
         self.lo = np.asarray(lo, dtype=float)
         self.hi = np.asarray(hi, dtype=float)
         if np.any(self.hi <= self.lo):
-            raise ValueError(f"box: hi должен быть больше lo, получено lo={self.lo}, hi={self.hi}")
+            raise ValueError(f"box: hi must be greater than lo, got lo={self.lo}, hi={self.hi}")
 
     def volume(self) -> float:
         return float(np.prod(self.hi - self.lo))
@@ -186,7 +186,7 @@ class Box(Container):
 
 
 class Cylinder(Container):
-    """Цилиндр с осью z: центр (cx, cy), радиус R, высота z0..z1 (мм)."""
+    """Cylinder with a z axis: center (cx, cy), radius R, height z0..z1 (mm)."""
 
     name = "cylinder"
 
@@ -196,7 +196,7 @@ class Cylinder(Container):
         self.z0 = float(z0)
         self.z1 = float(z1)
         if self.R <= 0 or self.z1 <= self.z0:
-            raise ValueError("cylinder: нужны R > 0 и z1 > z0")
+            raise ValueError("cylinder: R > 0 and z1 > z0 are required")
 
     def volume(self) -> float:
         return float(math.pi * self.R**2 * (self.z1 - self.z0))
@@ -270,7 +270,7 @@ class Cylinder(Container):
 
 
 class SphereContainer(Container):
-    """Сферическая полость: центр c, радиус R (мм)."""
+    """Spherical cavity: center c, radius R (mm)."""
 
     name = "sphere"
 
@@ -347,9 +347,9 @@ class SphereContainer(Container):
 
 
 def make_container(spec: dict) -> Container:
-    """Собрать контейнер из описания в параметрах (JSON)."""
+    """Build a container from the description in the parameters (JSON)."""
     if not isinstance(spec, dict):
-        raise TypeError("container: ожидается словарь")
+        raise TypeError("container: a dict is expected")
     kind = str(spec.get("type", "")).lower()
     if kind in ("box", "parallelepiped", "brick"):
         return Box(spec["lo_mm"], spec["hi_mm"])
@@ -358,15 +358,15 @@ def make_container(spec: dict) -> Container:
         return Cylinder(spec["center_xy_mm"], float(spec["radius_mm"]), float(z0), float(z1))
     if kind == "sphere":
         return SphereContainer(spec["center_mm"], float(spec["radius_mm"]))
-    raise ValueError(f"container.type={kind!r} не поддерживается (box|cylinder|sphere)")
+    raise ValueError(f"container.type={kind!r} is not supported (box|cylinder|sphere)")
 
 
 def shrink_spec(spec: dict, gap_mm: float) -> dict:
-    """Описание контейнера, сжатого на `gap_mm` со всех сторон.
+    """Description of the container shrunk by `gap_mm` on all sides.
 
-    Нужно для зазора «шар–стенка»: засыпка идёт в сжатый контейнер, а STL режется
-    по исходному домену. Иначе шар касается стенки/дна/потолка в ноль, и при
-    мешировании получаются сливеры (правило «зазор ≥ 2·MeshSizeMin», D-007).
+    Needed for the «ball–wall» gap: the filling goes into the shrunk container, while the STL is cut
+    along the original domain. Otherwise a ball touches the wall/bottom/top exactly, and during
+    meshing this produces slivers (rule «gap ≥ 2·MeshSizeMin», D-007).
     """
     if gap_mm <= 0.0:
         return dict(spec)
@@ -376,44 +376,44 @@ def shrink_spec(spec: dict, gap_mm: float) -> dict:
         lo = [float(v) + gap_mm for v in spec["lo_mm"]]
         hi = [float(v) - gap_mm for v in spec["hi_mm"]]
         if any(h <= l for l, h in zip(lo, hi)):
-            raise ValueError("shrink_spec: зазор больше контейнера (box)")
+            raise ValueError("shrink_spec: the gap is larger than the container (box)")
         out["lo_mm"], out["hi_mm"] = lo, hi
         return out
     if kind == "cylinder":
         z0, z1 = (float(v) for v in spec["z_range_mm"])
         r = float(spec["radius_mm"]) - gap_mm
         if r <= 0.0 or z1 - z0 <= 2 * gap_mm:
-            raise ValueError("shrink_spec: зазор больше контейнера (cylinder)")
+            raise ValueError("shrink_spec: the gap is larger than the container (cylinder)")
         out["radius_mm"] = r
         out["z_range_mm"] = [z0 + gap_mm, z1 - gap_mm]
         return out
     if kind == "sphere":
         r = float(spec["radius_mm"]) - gap_mm
         if r <= 0.0:
-            raise ValueError("shrink_spec: зазор больше контейнера (sphere)")
+            raise ValueError("shrink_spec: the gap is larger than the container (sphere)")
         out["radius_mm"] = r
         return out
-    raise ValueError(f"container.type={kind!r} не поддерживается (box|cylinder|sphere)")
+    raise ValueError(f"container.type={kind!r} is not supported (box|cylinder|sphere)")
 
 
 # ---------------------------------------------------------------------------
-# Распределение радиусов
+# Radius distribution
 # ---------------------------------------------------------------------------
 class RadiusSampler:
-    """Политика радиусов: constant | uniform | lognormal | list.
+    """Radius policy: constant | uniform | lognormal | list.
 
-    * constant  — все шары одного радиуса;
-    * uniform   — равномерно в [r_min_mm, r_max_mm];
-    * lognormal — логнормальное, медиана r_median_mm и sigma (в ln), усечение
-                  повтором выборки в [r_min_mm, r_max_mm];
-    * list      — заданный список радиусов: `sampling` = `cycle` (по порядку)
-                  или `random` (случайно с возвращением); можно `file` — CSV с
-                  колонкой `r_mm`.
+    * constant  — all balls have the same radius;
+    * uniform   — uniform in [r_min_mm, r_max_mm];
+    * lognormal — lognormal, median r_median_mm and sigma (in ln), truncation
+                  by resampling in [r_min_mm, r_max_mm];
+    * list      — a given list of radii: `sampling` = `cycle` (in order)
+                  or `random` (randomly with replacement); `file` is also possible — a CSV with
+                  a `r_mm` column.
     """
 
     def __init__(self, spec: dict):
         if not isinstance(spec, dict):
-            raise TypeError("radii: ожидается словарь")
+            raise TypeError("radii: a dict is expected")
         self.spec = dict(spec)
         self.kind = str(spec.get("policy", "constant")).lower()
         self._values: Optional[np.ndarray] = None
@@ -424,7 +424,7 @@ class RadiusSampler:
             self._r_min = float(spec["r_min_mm"])
             self._r_max = float(spec["r_max_mm"])
             if not (self._r_max > self._r_min > 0):
-                raise ValueError("radii.uniform: нужно r_max_mm > r_min_mm > 0")
+                raise ValueError("radii.uniform: r_max_mm > r_min_mm > 0 is required")
         elif self.kind == "lognormal":
             self._median = float(spec["r_median_mm"])
             self._sigma = float(spec.get("sigma", 0.25))
@@ -435,13 +435,13 @@ class RadiusSampler:
             if vals is None and spec.get("file"):
                 vals = self._read_csv(Path(spec["file"]))
             if not vals:
-                raise ValueError("radii.list: нужен values_mm или file")
+                raise ValueError("radii.list: values_mm or file is required")
             self._values = np.asarray(vals, dtype=float)
             if np.any(self._values <= 0):
-                raise ValueError("radii.list: радиусы должны быть > 0")
+                raise ValueError("radii.list: the radii must be > 0")
             self._sampling = str(spec.get("sampling", "cycle")).lower()
         else:
-            raise ValueError(f"radii.policy={self.kind!r} не поддерживается")
+            raise ValueError(f"radii.policy={self.kind!r} is not supported")
 
     @staticmethod
     def _read_csv(path: Path) -> list[float]:
@@ -452,7 +452,7 @@ class RadiusSampler:
             for row in csv.DictReader(f):
                 key = "r_mm" if "r_mm" in row else "radius_mm" if "radius_mm" in row else None
                 if key is None:
-                    raise ValueError(f"{path}: нужна колонка r_mm или radius_mm")
+                    raise ValueError(f"{path}: a r_mm or radius_mm column is required")
                 out.append(float(row[key]))
         return out
 
@@ -474,7 +474,7 @@ class RadiusSampler:
         return float(rng.choice(self._values))
 
     def rmax(self) -> float:
-        """Верхняя граница возможного радиуса (для размеров ячейки сетки)."""
+        """Upper bound of the possible radius (for the grid cell sizes)."""
         if self.kind == "constant":
             return self._r_const
         if self.kind == "uniform":
@@ -491,14 +491,14 @@ class RadiusSampler:
 
 
 # ---------------------------------------------------------------------------
-# Упаковка
+# Packing
 # ---------------------------------------------------------------------------
 _DIRS8 = tuple(np.array([math.cos(a), math.sin(a)]) for a in
                [k * math.pi / 4.0 for k in range(8)])
 
 
 class Packing:
-    """Гравитационная засыпка шаров в контейнер (см. модульный docstring)."""
+    """Gravitational filling of balls into a container (see the module docstring)."""
 
     def __init__(
         self,
@@ -530,7 +530,7 @@ class Packing:
         self.overlap_tol = float(overlap_tol)
         self.contact_tol = float(contact_tol)
         if gap_policy not in ("uniform", "pairwise"):
-            raise ValueError(f"gap_policy: {gap_policy!r} (нужно uniform|pairwise)")
+            raise ValueError(f"gap_policy: {gap_policy!r} (uniform|pairwise required)")
         self.gap_policy = gap_policy
         self.gap_mm = float(gap_mm)
         self.gap_rel = float(gap_rel)
@@ -543,10 +543,10 @@ class Packing:
 
         self.rmax = float(sampler.rmax())
         if self.rmax <= 0:
-            raise ValueError("нужен положительный радиус")
-        # ячейка 2*rmax: любые две сферы с |d| <= r_i + r_j <= 2*rmax попадают
-        # в соседние ячейки (3x3 в плоскости xy) -> запрос по 9 ячейкам точен
-        # максимальный зазор пары (для поиска соседей и запаса по reach)
+            raise ValueError("a positive radius is required")
+        # cell 2*rmax: any two spheres with |d| <= r_i + r_j <= 2*rmax land
+        # in neighbouring cells (3x3 in the xy plane) -> a 9-cell query is exact
+        # maximum pair gap (for the neighbour search and the reach margin)
         self.gap_max = self.gap_mm + (self.gap_rel * self.rmax
                                       if self.gap_policy == "pairwise" else 0.0)
         self.cell = 2.0 * self.rmax
@@ -564,14 +564,14 @@ class Packing:
         }
         self.t_place = 0.0
 
-    # --- зазор (гарантированный просвет между поверхностями шаров) -----------
+    # --- gap (guaranteed clearance between the ball surfaces) -----------------
     def _gap(self, r_a: float, r_b: float) -> float:
-        """Требуемый просвет между двумя шарами.
+        """Required clearance between two balls.
 
-        uniform  — одинаковый для всех пар (gap_mm), размер шейки в STL постоянный;
-        pairwise — max(gap_mm, gap_rel*min(r_a, r_b)), шейка ~пропорциональна меньшему
-                   шару (удобно для полидисперсных упаковок: не «мосты» между
-                   большим и малым шаром).
+        uniform  — the same for all pairs (gap_mm), the neck size in the STL is constant;
+        pairwise — max(gap_mm, gap_rel*min(r_a, r_b)), the neck is ~proportional to the smaller
+                   ball (convenient for polydisperse packings: no «bridges» between
+                   a large and a small ball).
         """
         if self.gap_policy == "uniform":
             return self.gap_mm
@@ -582,7 +582,7 @@ class Packing:
             return np.full(rs.shape, self.gap_mm, dtype=float)
         return np.maximum(self.gap_mm, self.gap_rel * np.minimum(r_a, rs))
 
-    # --- сетка ---------------------------------------------------------------
+    # --- grid ----------------------------------------------------------------
     def _key(self, x: float, y: float) -> tuple[int, int]:
         return (int(math.floor(x / self.cell)), int(math.floor(y / self.cell)))
 
@@ -591,7 +591,7 @@ class Packing:
         self.grid.setdefault(k, []).append(idx)
 
     def _grid_drop(self, idx: int) -> None:
-        """Убрать индекс из сетки (позиция шара должна быть ещё старой)."""
+        """Remove the index from the grid (the ball position must still be the old one)."""
         k = self._key(self.p[idx, 0], self.p[idx, 1])
         lst = self.grid.get(k)
         if lst:
@@ -608,7 +608,7 @@ class Packing:
             self._grid_add(idx)
 
     def _query_xy(self, x: float, y: float, reach: float) -> np.ndarray:
-        """Индексы шаров из ячеек, накрывающих квадрат (x±reach, y±reach)."""
+        """Ball indices from the cells covering the square (x±reach, y±reach)."""
         if self.n == 0:
             return np.empty(0, dtype=np.int64)
         span = int(math.ceil(reach / self.cell))
@@ -624,9 +624,9 @@ class Packing:
             return np.empty(0, dtype=np.int64)
         return np.fromiter(buf, dtype=np.int64, count=len(buf))
 
-    # --- опора ---------------------------------------------------------------
+    # --- support -------------------------------------------------------------
     def support_z(self, x: float, y: float, r: float) -> float:
-        """Точная высота центра шара над замороженным ложем (см. п. 2 docstring)."""
+        """Exact height of the ball center above the frozen bed (see item 2 of the docstring)."""
         z = self.container.bottom_z(x, y, r)
         idx = self._query_xy(x, y, r + self.rmax + self.gap_max)
         if idx.size:
@@ -640,7 +640,7 @@ class Packing:
                     z = zmax
         return z
 
-    # --- контакты ------------------------------------------------------------
+    # --- contacts ------------------------------------------------------------
     def _contacts(self, p: np.ndarray, r: float) -> list[np.ndarray]:
         normals = list(self.container.contacts(p, r, self.contact_tol))
         idx = self._query_xy(p[0], p[1], r + self.rmax + self.gap_max)
@@ -656,7 +656,7 @@ class Packing:
 
     @staticmethod
     def _descent_dir(normals: list[np.ndarray]) -> Optional[np.ndarray]:
-        """Направление скатывания: проекция -e_z на нуль-пространство нормалей."""
+        """Rolling direction: projection of -e_z onto the null space of the normals."""
         if not normals:
             return None
         A = np.asarray(normals, dtype=float)
@@ -678,14 +678,14 @@ class Packing:
             return None
         return d
 
-    # --- постановка одного шара ---------------------------------------------
+    # --- placing a single ball ----------------------------------------------
     def _settle_xy(self, xy: np.ndarray, r: float) -> Optional[np.ndarray]:
-        """Опустить шар, стартуя с (x, y): скатывание до локального минимума опоры.
+        """Lower a ball starting from (x, y): rolling down to a local minimum of the support.
 
-        Физика: шар без трения катится вниз по опорной поверхности; ищем минимум
-        функции z(x,y) = support_z поиском по 8 направлениям с уменьшающимся шагом.
-        Дно лунки соответствует касанию 2–3 соседей (плотная укладка).
-        Возвращает положение центра или None, если шар не влезает в контейнер.
+        Physics: a frictionless ball rolls down the support surface; we look for the minimum
+        of the function z(x,y) = support_z by a search over 8 directions with a decreasing step.
+        The bottom of the dimple corresponds to touching 2–3 neighbours (dense packing).
+        Returns the center position or None if the ball does not fit into the container.
         """
         t0 = time.perf_counter()
         xy = np.array([float(xy[0]), float(xy[1])], dtype=float)
@@ -693,17 +693,17 @@ class Packing:
         step = self.step0_frac * r
         step_min = self.min_step_frac * r
         it = 0
-        # поиск по 8 направлениям: шар катится туда, где опора ниже всего —
-        # так он находит дно лунки (касание 2-3 соседей), а не «скатывается»
-        # только по одной сфере до первого препятствия
+        # search over 8 directions: the ball rolls where the support is lowest —
+        # this way it finds the bottom of the dimple (touching 2-3 neighbours) instead of «rolling»
+        # along a single sphere only until the first obstacle
         while step > step_min and it < self.max_settle_iters:
             it += 1
             best_z = z
             best_xy = None
             dirs = list(_DIRS8)
-            # аналитическое направление вдоль складки/жёлоба между соседями:
-            # без него дискретные 8 направлений не могут идти вдоль «гребня»,
-            # и шар замерзает в метастабильной позиции с 1–2 касаниями
+            # analytic direction along the crease/groove between the neighbours:
+            # without it the discrete 8 directions cannot follow the «ridge»,
+            # and the ball freezes in a metastable position with 1–2 contacts
             cand = np.array([xy[0], xy[1], z])
             dn = self._descent_dir(self._contacts(cand, r))
             if dn is not None:
@@ -720,9 +720,9 @@ class Packing:
             else:
                 step *= 0.5
 
-        # финальная постановка ровно на опору и внутрь контейнера.
-        # ВАЖНО: опора может оказаться ВЫШЕ потолка (шар должен лечь на высокого
-        # соседа) — тогда места нет, а не «вылезаем за контейнер».
+        # final placement exactly on the support and inside the container.
+        # IMPORTANT: the support may be ABOVE the ceiling (the ball must lie on a tall
+        # neighbour) — then there is no room, rather than «sticking out of the container».
         p = np.array([xy[0], xy[1], z], dtype=float)
         p = self.container.clamp(p, r)
         p[2] = self.support_z(p[0], p[1], r)
@@ -752,7 +752,7 @@ class Packing:
         self.stats["place_ok"] += 1
 
     def _remove(self, k: int) -> None:
-        """Убрать шар k (перестановка с последним, сетка остаётся согласованной)."""
+        """Remove ball k (swap with the last one, the grid stays consistent)."""
         last = self.n - 1
         self._grid_drop(last)
         if k != last:
@@ -762,7 +762,7 @@ class Packing:
         self.n = last
 
     def try_place(self, r: float) -> Optional[np.ndarray]:
-        """Бросить шар в случайную точку контейнера и дать скатиться."""
+        """Throw a ball to a random point of the container and let it roll down."""
         self.stats["place_attempts"] += 1
         xy = self.container.drop_xy(self.rng, r)
         if xy is None:
@@ -774,7 +774,7 @@ class Packing:
         self._insert(p, r)
         return p
 
-    # --- засыпка -------------------------------------------------------------
+    # --- filling -------------------------------------------------------------
     def run(self, stop_after_fail: int = 200, max_spheres: Optional[int] = None) -> int:
         target = min(self.cap, int(max_spheres) if max_spheres else self.cap)
         rmax_ok = self.container.max_sphere_radius()
@@ -793,24 +793,24 @@ class Packing:
         self.t_run = time.perf_counter() - t0
         return self.n
 
-    # --- компакция -----------------------------------------------------------
+    # --- compaction ----------------------------------------------------------
     def _pairs(self, cutoff: float) -> np.ndarray:
         if self.n < 2:
             return np.empty((0, 2), dtype=np.int64)
         if not HAVE_SCIPY:
-            raise RuntimeError("для компакции/контактов нужен scipy (cKDTree)")
+            raise RuntimeError("compaction/contacts need scipy (cKDTree)")
         tree = cKDTree(self.p[: self.n])
         out = tree.query_pairs(cutoff, output_type="ndarray")
         return np.asarray(out, dtype=np.int64)
 
     def compact(self, cycles: int = 10, shake_frac: float = 0.02,
                 sweeps: int = 50, tol: float = 1e-9, log=None) -> dict:
-        """Уплотнение «вибрацией»: сдвиг всех шаров вниз + разведение перекрытий.
+        """Densification by «vibration»: shift all balls down + resolve the overlaps.
 
-        Один цикл: все шары опускаются на `shake_frac * r_max` (гравитация), затем
-        перекрытия разводятся итеративно (position-based dynamics) до `tol` (мм).
-        Структура садится ниже -> освобождается место -> можно досыпать шары
-        (`run()`), так плотность растёт от цикла к циклу.
+        One cycle: all balls are lowered by `shake_frac * r_max` (gravity), then
+        the overlaps are resolved iteratively (position-based dynamics) down to `tol` (mm).
+        The structure settles lower -> room is freed -> more balls can be poured in
+        (`run()`), so the density grows from cycle to cycle.
         """
         log = log or (lambda *a, **k: None)
         if cycles <= 0 or self.n == 0:
@@ -851,10 +851,10 @@ class Packing:
                     self.p[: self.n], self.r[: self.n])
             sweeps_hist.append(used)
             self.resettle_all()
-            log(f"[compact] цикл {c + 1}/{cycles}: N={self.n} phi={self.packing_fraction():.4f} "
+            log(f"[compact] cycle {c + 1}/{cycles}: N={self.n} phi={self.packing_fraction():.4f} "
                 f"z_top={self.p[:self.n, 2].max():.2f} ovl={self.max_overlap():.1e} "
-                f"свипов={used}")
-        # после сдвигов сетка xy устарела
+                f"sweeps={used}")
+        # after the shifts the xy grid is stale
         self._rebuild_grid()
         return {"cycles": int(cycles), "shake_frac": float(shake_frac),
                 "sweeps_used_max": int(max(sweeps_hist)) if sweeps_hist else 0,
@@ -865,12 +865,12 @@ class Packing:
                 "phi_before": phi0, "phi_after": self.packing_fraction()}
 
     def resettle_all(self) -> dict:
-        """Опустить все шары на их точную опору (снизу вверх), xy не меняются.
+        """Lower all balls onto their exact support (bottom to top), xy unchanged.
 
-        После «встряхивания» (compact) шары могут перекрываться и висеть в воздухе.
-        Здесь они заново укладываются на опору в порядке возрастания z: перекрытий
-        не возникает (опора — точная высота первого касания), структура садится
-        ниже, освобождая место для досыпки. Это и есть «вибрация + усадка».
+        After the «shake» (compact) the balls may overlap and hang in the air.
+        Here they are laid onto the support again in increasing z order: no overlaps
+        appear (the support is the exact height of the first contact), the structure settles
+        lower, freeing room for more pouring. This is the «vibration + shrinkage».
         """
         if self.n == 0:
             return {"n": 0, "dz_total_mm": 0.0, "moved": 0, "failed": 0}
@@ -887,7 +887,7 @@ class Packing:
             r = float(rad[k])
             p_new = self._settle_xy(xy, r)
             if p_new is None:
-                # места нет (опора выше потолка) — шар выпадает из упаковки
+                # no room (the support is above the ceiling) — the ball drops out of the packing
                 failed += 1
                 continue
             dz += float(pos[k, 2] - p_new[2])
@@ -898,19 +898,19 @@ class Packing:
         return {"n": self.n, "dz_total_mm": dz, "moved": moved, "failed": failed,
                 "max_overlap_mm": self.max_overlap()}
 
-    # --- переусадка (вибрация) ----------------------------------------------
+    # --- re-settling (vibration) --------------------------------------------
     def packing_fraction(self) -> float:
         v = float(np.sum(4.0 / 3.0 * math.pi * self.r[: self.n] ** 3))
         return v / self.container.volume()
 
     def resediment(self, sweeps: int = 3, jitter_frac: float = 0.0,
                    log=None) -> dict:
-        """Переусадка: каждый шар по очереди вынимается и снова скатывается.
+        """Re-settling: each ball is taken out in turn and rolled down again.
 
-        Имитация вибрации/ползучести: шар стартует со своей (x, y) (при
-        `jitter_frac` > 0 — со случайным сдвигом) и находит более низкую лунку,
-        освободившуюся после перестройки соседей. Порядок — случайный, проходов
-        `sweeps`. Плотность растёт; перекрытий не появляется (опора аналитическая).
+        Imitation of vibration/creep: the ball starts from its own (x, y) (with
+        `jitter_frac` > 0 — with a random shift) and finds a lower dimple
+        freed by the rearrangement of the neighbours. The order is random, the number of sweeps
+        is `sweeps`. The density grows; no overlaps appear (the support is analytic).
         """
         log = log or (lambda *a, **k: None)
         if sweeps <= 0 or self.n == 0:
@@ -934,7 +934,7 @@ class Packing:
                     xy = xy + self.rng.normal(0.0, jitter_frac * r, size=2)
                     xy = self.container.clamp_xy(xy, r)
                 p_new = self._settle_xy(xy, r)
-                if p_new is None:  # не влез -> возвращаем на место
+                if p_new is None:  # did not fit -> put it back
                     self._insert(p_old, r)
                     failed += 1
                     continue
@@ -943,23 +943,23 @@ class Packing:
                 dz_total += float(p_old[2] - p_new[2])
                 self._insert(p_new, r)
             phi = self.packing_fraction()
-            log(f"[resediment] проход {sw + 1}/{sweeps}: N={self.n} phi={phi:.4f} "
-                f"(сдвинуто {moved}, не влезло {failed})")
-        # страховка: перекрытия от аналитической опоры появиться не могут, но
-        # сетка после перестановок должна остаться согласованной
+            log(f"[resediment] sweep {sw + 1}/{sweeps}: N={self.n} phi={phi:.4f} "
+                f"(moved {moved}, did not fit {failed})")
+        # safety net: overlaps cannot appear from the analytic support, but
+        # the grid must stay consistent after the permutations
         self._rebuild_grid()
         return {"sweeps": int(sweeps), "jitter_frac": float(jitter_frac),
                 "moved": moved, "failed": failed,
                 "dz_total_mm": dz_total,
                 "phi_before": phi0, "phi_after": self.packing_fraction()}
 
-    # --- контакты/метрики ----------------------------------------------------
+    # --- contacts/metrics ----------------------------------------------------
     def contact_pairs(self, tol: Optional[float] = None) -> np.ndarray:
-        """Пары соприкасающихся шаров (i, j) — i < j."""
+        """Pairs of touching balls (i, j) — i < j."""
         tol = self.contact_tol if tol is None else float(tol)
         if self.n < 2:
             return np.empty((0, 2), dtype=np.int64)
-        # радиус поиска обязан включать зазор: шары в модели разделены gap
+        # the search radius must include the gap: in the model the balls are separated by gap
         pairs = self._pairs(2.0 * self.rmax + self.gap_max + tol)
         if pairs.size == 0:
             return np.empty((0, 2), dtype=np.int64)
@@ -970,7 +970,7 @@ class Packing:
         return pairs[np.abs(dist - (self.r[i] + self.r[j] + g)) <= tol]
 
     def contacts_table(self, tol: Optional[float] = None) -> list[dict]:
-        """Контакты пар: точка касания и нормаль — исходные данные для шеек в STL."""
+        """Pair contacts: contact point and normal — the input data for the necks in the STL."""
         tol = self.contact_tol if tol is None else float(tol)
         out = []
         for i, j in self.contact_pairs(tol):
@@ -1017,7 +1017,7 @@ class Packing:
             np.add.at(z_sphere, pairs[:, 1], 1)
         z_wall = self.wall_contacts()
         z_total = z_sphere + z_wall
-        # минимальный зазор между НЕсоприкасающимися парами (в пределах 2*rmax)
+        # minimum gap between NON-touching pairs (within 2*rmax)
         min_gap = None
         if n >= 2:
             allp = self._pairs(2.0 * self.rmax + 1e-6)
@@ -1045,7 +1045,7 @@ class Packing:
             "solid_volume_mm3": v_solid,
             "packing_fraction": phi,
             "porosity": 1.0 - phi,
-            "max_theoretical_fraction": 0.7404804896930611,  # FCC/HCP, проверка на вменяемость
+            "max_theoretical_fraction": 0.7404804896930611,  # FCC/HCP, sanity check
             "centers_bbox_mm": {"lo": p.min(axis=0).tolist() if n else [0, 0, 0],
                                 "hi": p.max(axis=0).tolist() if n else [0, 0, 0]},
             "container_bbox_mm": {"lo": np.asarray(lo).tolist(), "hi": np.asarray(hi).tolist()},
@@ -1066,7 +1066,7 @@ class Packing:
 
 
 # ---------------------------------------------------------------------------
-# Ввод-вывод
+# Input-output
 # ---------------------------------------------------------------------------
 TABLE_COLUMNS = ["id", "x_mm", "y_mm", "z_mm", "r_mm"]
 
@@ -1082,7 +1082,7 @@ def write_table(path: str | Path, p: np.ndarray, r: np.ndarray, fmt: str = "%.9f
 
 
 def read_table(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
-    """Прочитать таблицу шаров (обратная операция к write_table)."""
+    """Read the ball table (inverse of write_table)."""
     import csv
 
     p, r = [], []
@@ -1119,7 +1119,7 @@ def write_summary(path: str | Path, summary: dict, extra: Optional[dict] = None)
 
 
 def write_preview_stl(path: str | Path, p: np.ndarray, r: np.ndarray, subdivisions: int = 1) -> Path:
-    """Превью- STL из шаров (только для визуальной проверки, не для мешинга)."""
+    """Preview STL from the balls (visual check only, not for meshing)."""
     import trimesh
 
     path = Path(path)
@@ -1144,18 +1144,18 @@ def check_packing(p: np.ndarray, r: np.ndarray, container: Container,
                   overlap_tol: float = 1e-6, contact_tol: float = 1e-6,
                   gap_policy: str = "uniform", gap_mm: float = 0.0,
                   gap_rel: float = 0.0) -> dict:
-    """Независимая проверка таблицы: без перекрытий, все внутри, плотность вменяема."""
+    """Independent check of the table: no overlaps, all inside, plausible density."""
     n = len(r)
     problems: list[str] = []
     if n == 0:
-        return {"ok": False, "problems": ["таблица пуста"], "n_spheres": 0}
+        return {"ok": False, "problems": ["empty table"], "n_spheres": 0}
     if not np.all(np.isfinite(p)) or not np.all(np.isfinite(r)):
-        problems.append("NaN/inf в таблице")
+        problems.append("NaN/inf in the table")
     outside = [int(k) for k in range(n) if not container.contains(p[k], r[k], overlap_tol)]
     if outside:
-        problems.append(f"{len(outside)} шаров вне контейнера (например {outside[:5]})")
+        problems.append(f"{len(outside)} balls outside the container (e.g. {outside[:5]})")
     if np.any(r <= 0):
-        problems.append("есть радиусы <= 0")
+        problems.append("there are radii <= 0")
     if HAVE_SCIPY and n >= 2:
         tree = cKDTree(p)
         gmax = gap_mm + (gap_rel * float(np.max(r)) if gap_policy == "pairwise" else 0.0)
@@ -1172,7 +1172,7 @@ def check_packing(p: np.ndarray, r: np.ndarray, container: Container,
             worst = float(np.max(ov))
             if worst > overlap_tol:
                 bad = int(np.count_nonzero(ov > overlap_tol))
-                problems.append(f"перекрытие {worst:.3e} мм у {bad} пар (> {overlap_tol:.1e})")
+                problems.append(f"overlap {worst:.3e} mm on {bad} pairs (> {overlap_tol:.1e})")
         else:
             worst = 0.0
     else:
@@ -1180,7 +1180,7 @@ def check_packing(p: np.ndarray, r: np.ndarray, container: Container,
     vol = container.volume()
     phi = float(np.sum(4.0 / 3.0 * math.pi * r**3) / vol) if vol > 0 else float("nan")
     if not (0.0 < phi < 0.7404804896930611 + 1e-9):
-        problems.append(f"плотность упаковки {phi:.4f} вне (0, 0.7405]")
+        problems.append(f"packing density {phi:.4f} outside (0, 0.7405]")
     return {
         "ok": not problems,
         "problems": problems,

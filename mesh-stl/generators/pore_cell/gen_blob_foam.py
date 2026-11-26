@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""gen_blob_foam.py — пористая «блочная» пена: поле метаболов → изоповерхность → обрезка доменом.
+"""gen_blob_foam.py — porous «blob» foam: metaball field → isosurface → clipping by the domain.
 
-Воспроизводит подход Blender-скрипта `Blender_porous/test_01/script_generation.py`
-(метаболы в цилиндре + voxel remesh + Boolean Intersect), но без Blender и без CAD:
+Reproduces the approach of the Blender script `Blender_porous/test_01/script_generation.py`
+(metaballs in a cylinder + voxel remesh + Boolean Intersect), but without Blender and without CAD:
 
-    поле    f(x) = Σ_i s·(1 − |x−c_i|²/R_i²)³   при |x−c_i| < R_i, иначе 0
-    твёрдое f ≥ threshold
-    домен   гладкая аналитическая SDF (цилиндр вдоль z или куб)
-    выход   объёмная граница min(…) → marching cubes один раз, водонепроницаемо по построению
+    field   f(x) = Σ_i s·(1 − |x−c_i|²/R_i²)³   for |x−c_i| < R_i, otherwise 0
+    solid   f ≥ threshold
+    domain  smooth analytic SDF (cylinder along z or a box)
+    output  volume boundary min(…) → marching cubes once, watertight by construction
 
-Ключевая замена Blender-пайплайна: вместо «convert + voxel remesh + boolean intersect»
-считаем скалярное поле на регулярной сетке и берём изоповерхность
+Key replacement of the Blender pipeline: instead of «convert + voxel remesh + boolean intersect»
+we evaluate a scalar field on a regular grid and take the isosurface
 
-    g(x) = max( threshold − f(x),  sdf_domain(x) ),      g = 0 — искомая поверхность
+    g(x) = max( threshold − f(x),  sdf_domain(x) ),      g = 0 — the wanted surface
 
-— обрезка доменом получается точной (гладкая SDF интерполируется marching cubes),
-булевы операции и ремеш не нужны, поверхность замкнута сама собой.
+— the clipping by the domain comes out exact (the smooth SDF is interpolated by marching cubes),
+boolean operations and remeshing are not needed, the surface closes by itself.
 
-Параметры (JSON) — см. DEFAULTS; `target_porosity` включает подбор threshold бисекцией,
-тогда поле `threshold` в файле параметров игнорируется.
+Parameters (JSON) — see DEFAULTS; `target_porosity` enables threshold selection by bisection,
+in that case the `threshold` field in the parameter file is ignored.
 
-Выход: бинарный STL твёрдой фазы в мм, очищенный STL для мешинга, JSON-отчёт с
-пористостью, связностью твёрдого/порового пространства и толщинами (по вокселям).
+Output: binary STL of the solid phase in mm, a cleaned STL for meshing, a JSON report with
+porosity, connectivity of the solid/pore space and thicknesses (from the voxels).
 
 CLI:
     python gen_blob_foam.py --params-file params/blob_foam_d10x10.json \
@@ -43,23 +43,23 @@ from skimage import measure
 
 DEFAULTS: dict = {
     "seed": 1,
-    # домен: {"kind": "cylinder", "radius_mm": 5.0, "height_mm": 10.0}  (ось z)
+    # domain: {"kind": "cylinder", "radius_mm": 5.0, "height_mm": 10.0}  (z axis)
     #        {"kind": "box", "size_mm": [10, 10, 10]}
     "domain": {"kind": "cylinder", "radius_mm": 5.0, "height_mm": 10.0},
     "n_balls": 680,
-    # распределение радиусов шаров: uniform | lognormal | mono
+    # ball radius distribution: uniform | lognormal | mono
     "radius_mm": {"dist": "uniform", "min": 0.425, "max": 1.375},
-    "stiffness": 2.0,          # множитель поля (как s в Blender metaball)
-    "threshold": 0.53,         # изопорог суммы поля (как meta_threshold)
-    "target_porosity": None,   # если задано — threshold подбирается бисекцией под φ
-    "voxel_mm": 0.06,          # шаг сетки поля (аналог voxel_remesh_size)
-    "wall_margin_cells": 2,    # запас сетки за доменом, чтобы поверхность замкнулась
+    "stiffness": 2.0,          # field multiplier (like s in a Blender metaball)
+    "threshold": 0.53,         # isothreshold of the field sum (like meta_threshold)
+    "target_porosity": None,   # when set — threshold is fitted by bisection to φ
+    "voxel_mm": 0.06,          # field grid step (analogue of voxel_remesh_size)
+    "wall_margin_cells": 2,    # grid margin beyond the domain so that the surface closes
 }
 
 
-# --------------------------------------------------------------------------- параметры
+# --------------------------------------------------------------------------- parameters
 def load_params(path: str | None) -> dict:
-    p = json.loads(json.dumps(DEFAULTS))          # глубокая копия
+    p = json.loads(json.dumps(DEFAULTS))          # deep copy
     if path:
         user = json.loads(Path(path).read_text(encoding="utf-8"))
         for k, v in user.items():
@@ -85,7 +85,7 @@ def sample_radii(p: dict, rng: np.random.Generator, n: int) -> np.ndarray:
 
 
 def sample_centers(p: dict, rng: np.random.Generator, n: int) -> np.ndarray:
-    """Равномерно по объёму домена (цилиндр: r = R·√u по сечению, как в Blender-скрипте)."""
+    """Uniform over the domain volume (cylinder: r = R·√u over the section, as in the Blender script)."""
     dom = p["domain"]
     if dom["kind"] == "cylinder":
         R = float(dom["radius_mm"])
@@ -104,7 +104,7 @@ def sample_centers(p: dict, rng: np.random.Generator, n: int) -> np.ndarray:
     ])
 
 
-# --------------------------------------------------------------------------- сетка и поле
+# --------------------------------------------------------------------------- grid and field
 def make_grid(p: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     h = float(p["voxel_mm"])
     dom = p["domain"]
@@ -119,12 +119,12 @@ def make_grid(p: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     xs = lo[0] + h * np.arange(n[0])
     ys = lo[1] + h * np.arange(n[1])
     zs = lo[2] + h * np.arange(n[2])
-    # сетка осей с запасом: центры шаров лежат внутри домена, поэтому hi-lo покрывает поле
+    # axis grid with margin: the ball centers lie inside the domain, so hi-lo covers the field
     return xs.astype(np.float64), ys.astype(np.float64), zs.astype(np.float64), n
 
 
 def domain_sdf(X, Y, Z, p: dict) -> np.ndarray:
-    """Гладкая SDF домена: <0 внутри, >0 снаружи (точное расстояние, мм)."""
+    """Smooth SDF of the domain: <0 inside, >0 outside (exact distance, mm)."""
     dom = p["domain"]
     if dom["kind"] == "cylinder":
         R, Hh = float(dom["radius_mm"]), float(dom["height_mm"]) / 2.0
@@ -142,7 +142,7 @@ def domain_sdf(X, Y, Z, p: dict) -> np.ndarray:
 
 
 def ball_field(xs, ys, zs, centers, radii, stiffness) -> np.ndarray:
-    """Сумма полей шаров, только в локальных боксах (быстро и без лишней памяти)."""
+    """Sum of the ball fields, only inside local boxes (fast and without extra memory)."""
     f = np.zeros((len(xs), len(ys), len(zs)), dtype=np.float32)
     s = float(stiffness)
     h = xs[1] - xs[0]
@@ -181,17 +181,17 @@ def porosity_of(f, sdf, threshold) -> float:
 
 def solve_threshold(f, sdf, target: float, lo: float = 1e-6, hi: float = None,
                     iters: int = 28) -> tuple[float, float]:
-    """Бисекция по изопорогу: φ МОНОТОННО РАСТЁТ с ростом threshold (блоб ужимается).
+    """Bisection on the isothreshold: φ GROWS MONOTONICALLY with threshold (the blob shrinks).
 
-    Верхняя граница — пик поля: при threshold > peak твёрдой фазы нет (φ → 1).
+    Upper bound is the field peak: for threshold > peak there is no solid phase (φ → 1).
     """
     if hi is None:
         hi = float(f.max()) * 1.02 + 1e-6
     phi_hi = porosity_of(f, sdf, hi)
-    if phi_hi < target:                      # цель недостижима даже при обнулении твёрдого
+    if phi_hi < target:                      # the target is unreachable even with no solid at all
         return hi, phi_hi
     phi_lo = porosity_of(f, sdf, lo)
-    if phi_lo > target:                      # цель ниже минимальной пористости (всё твёрдое)
+    if phi_lo > target:                      # the target is below the minimum porosity (everything solid)
         return lo, phi_lo
     for _ in range(iters):
         mid = 0.5 * (lo + hi)
@@ -203,9 +203,9 @@ def solve_threshold(f, sdf, target: float, lo: float = 1e-6, hi: float = None,
     return t, porosity_of(f, sdf, t)
 
 
-# --------------------------------------------------------------------------- анализ
+# --------------------------------------------------------------------------- analysis
 def medial_thickness(mask: np.ndarray, h: float) -> dict:
-    """Локальная толщина = 2·EDT в скелетных вокселях (локальные максимумы EDT)."""
+    """Local thickness = 2·EDT at the skeleton voxels (local maxima of the EDT)."""
     if not mask.any():
         return {}
     edt = ndimage.distance_transform_edt(mask, sampling=h).astype(np.float32)
@@ -224,7 +224,7 @@ def medial_thickness(mask: np.ndarray, h: float) -> dict:
 
 
 def connectivity_stats(mask: np.ndarray) -> dict:
-    """Компоненты связности по 6-связности (грань-сосед), доля крупнейшей."""
+    """Connected components under 6-connectivity (face neighbours), fraction of the largest one."""
     total = int(mask.sum())
     if total == 0:
         return {"n_components": 0, "largest_fraction": 0.0, "total_voxels": 0}
@@ -264,13 +264,13 @@ def clean_stl(src: Path, dst: Path) -> dict:
 
 # --------------------------------------------------------------------------- main
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Пористая блочная пена: метаболы → STL (мм)")
+    ap = argparse.ArgumentParser(description="Porous blob foam: metaballs → STL (mm)")
     ap.add_argument("--params-file", default=None)
-    ap.add_argument("--out", required=True, help="сырой STL")
-    ap.add_argument("--clean-out", default=None, help="очищенный STL")
-    ap.add_argument("--json", default=None, help="отчёт JSON")
-    ap.add_argument("--seed", type=int, default=None, help="переопределить seed из параметров")
-    ap.add_argument("--check", action="store_true", help="QA: watertight, winding, объём, bbox; exit≠0 при провале")
+    ap.add_argument("--out", required=True, help="raw STL")
+    ap.add_argument("--clean-out", default=None, help="cleaned STL")
+    ap.add_argument("--json", default=None, help="JSON report")
+    ap.add_argument("--seed", type=int, default=None, help="override the seed from the parameters")
+    ap.add_argument("--check", action="store_true", help="QA: watertight, winding, volume, bbox; exit≠0 on failure")
     args = ap.parse_args(argv)
 
     p = load_params(args.params_file)
@@ -293,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
     f = ball_field(xs, ys, zs, centers, radii, p["stiffness"])
     t_field = time.perf_counter() - t0
 
-    # --- изопорог
+    # --- isothreshold
     if p.get("target_porosity") is not None:
         threshold, phi_solved = solve_threshold(f, sdf, float(p["target_porosity"]))
         threshold_mode = "bisection"

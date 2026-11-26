@@ -101,7 +101,7 @@ for (const pkg of packages) {
     console.error(`${pkg}: CHANGELOG.md does not start with "# Changelog"`)
     process.exit(1)
   }
-  const section = `## ${version} — ${date}\n\n- TODO: опишите изменения\n\n`
+  const section = `## ${version} — ${date}\n\n- TODO: describe the changes\n\n`
   writeFileSync(changelogFile, changelog.replace(heading[0], `${heading[0]}${section}`))
 }
 

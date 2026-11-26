@@ -4,70 +4,70 @@
   "cards": [
     {
       "id": "cfmesh-cartesian",
-      "title": "cartesianMesh — робастная hex-сетка, если snap нестабилен",
+      "title": "cartesianMesh — a robust hex mesh when snap is unstable",
       "topics": ["cfmesh", "cartesianMesh", "hex", "route"],
       "status": "verified",
-      "when": "сложная геометрия, snappy даёт плохой snap/слои, нужна предсказуемая hex-сетка",
-      "statement": "cartesianMesh (cfMesh в составе OpenFOAM v2512) строит octree-hex по surfaceFile с явным renameBoundary; устойчивее snap на сложных поверхностях, но без пристенных слоёв и с «лестницей» на границе.",
+      "when": "complex geometry, snappy gives poor snap/layers, a predictable hex mesh is needed",
+      "statement": "cartesianMesh (cfMesh inside OpenFOAM v2512) builds an octree hex mesh from surfaceFile with an explicit renameBoundary; it is more robust than snap on complex surfaces, but has no near-wall layers and leaves a staircase at the boundary.",
       "recipe": [
         "system/meshDict: surfaceFile \"constant/triSurface/fluid_patches.stl\"; maxCellSize/boundaryCellSize/minCellSize",
-        "renameBoundary.newPatchNames для inlet/outlet/walls/interface — иначе всё станет unmatched/wall",
+        "renameBoundary.newPatchNames for inlet/outlet/walls/interface — otherwise everything becomes unmatched/wall",
         "np>1: decomposePar -force → mpirun -np N cartesianMesh -parallel → reconstructParMesh -constant -mergeTol 1e-6 → rm -rf processor*",
-        "бинарник брать из установки OpenFOAM (platforms/*/bin), не из env/cfmesh-1.2.0"
+        "take the binary from the OpenFOAM installation (platforms/*/bin), not from env/cfmesh-1.2.0"
       ],
-      "evidence": ["exp-007 (12 кейсов cartesianMesh), exp-017 cases/cfmesh/system/meshDict", "OpenFOAM v2512 поставляет cartesianMesh в platforms/linux64GccDPInt32Opt/bin"],
-      "improves": ["robustness", "время построения"],
+      "evidence": ["exp-007 (12 cartesianMesh cases), exp-017 cases/cfmesh/system/meshDict", "OpenFOAM v2512 ships cartesianMesh in platforms/linux64GccDPInt32Opt/bin"],
+      "improves": ["robustness", "build time"],
       "appliesTo": ["mesh_build cfmesh"]
     },
     {
       "id": "cfmesh-pmesh",
-      "title": "pMesh — полиэдры Вороного: больше ячеек, лучше объём, хуже неортогональность",
+      "title": "pMesh — Voronoi polyhedra: more cells, better volume, worse non-orthogonality",
       "topics": ["cfmesh", "pMesh", "polyhedra", "quality"],
       "status": "verified",
-      "when": "нужна полиэдрическая сетка или точный объём домена",
-      "statement": "pMesh при тех же размерах даёт в 3.7–4.0× больше ячеек, non-ortho стабильно ~61° (project-шлюз падает на 12–14 гранях), но объём сходится точнее гексов (−0.003…−0.12 % против −0.05…−5.0 %). Параллельно не работает (argList::noParallel()).",
+      "when": "a polyhedral mesh or an accurate domain volume is needed",
+      "statement": "At the same sizes pMesh gives 3.7–4.0× more cells and non-ortho stays around 61° (the project gate fails on 12–14 faces), but the volume converges more accurately than hex (−0.003…−0.12 % versus −0.05…−5.0 %). It does not run in parallel (argList::noParallel()).",
       "recipe": [
-        "subdict meshQualitySettings { maxNonOrthogonality 60; maxSkewness 2.0; ... } — в 1.2.0 убирает грани > 60° без изменения числа ячеек (2 из 4 кейсов начинают проходить шлюз)",
-        "запуск строго последовательный",
-        "для CHT интерфейс снова несогласован (126 464 ↔ 125 622 грани) — не использовать как conformal-интерфейс"
+        "subdict meshQualitySettings { maxNonOrthogonality 60; maxSkewness 2.0; ... } — in 1.2.0 it removes faces > 60° without changing the cell count (2 of 4 cases start passing the gate)",
+        "run strictly serial",
+        "for CHT the interface is mismatched again (126 464 ↔ 125 622 faces) — do not use it as a conformal interface"
       ],
-      "evidence": ["exp-008: 3.7–4.0× ячеек, ~61°, объём точнее; meshQualitySettings помогает в 2 из 4 кейсов"],
-      "improves": ["volume error", "non-ortho (с meshQualitySettings)"],
+      "evidence": ["exp-008: 3.7–4.0× cells, ~61°, more accurate volume; meshQualitySettings helps in 2 of 4 cases"],
+      "improves": ["volume error", "non-ortho (with meshQualitySettings)"],
       "appliesTo": ["mesh_build pmesh"]
     },
     {
       "id": "cfmesh-layers-tetra",
-      "title": "Слои поверх тетра ломают согласованность — не делать",
+      "title": "Layers on top of tetra break conformity — do not do it",
       "topics": ["layers", "cfmesh", "gmsh", "tetra", "cht"],
       "status": "verified",
-      "when": "хочется добавить пристенные слои к тетра-сетке gmsh через cfMesh",
-      "statement": "cfMesh-слои поверх тетра рвут conformity и качество (интерфейс 2612 → 3272 граней, non-ortho 86.9–88.9°), а gmsh 4.15.2 3D-слоёв не строит: у поля BoundaryLayer нет SurfacesList, поэтому в объёме молча получается 0 призм (D-018). Проверенный путь для CHT: HXT (gmsh Algorithm3D=10) без слоёв либо snappy castellatedBufferLayer (exp-005), не cfMesh поверх тетра.",
+      "when": "tempted to add near-wall layers to a gmsh tetra mesh via cfMesh",
+      "statement": "cfMesh layers on top of tetra break conformity and quality (interface 2612 → 3272 faces, non-ortho 86.9–88.9°), and gmsh 4.15.2 does not build 3D layers: the BoundaryLayer field has no SurfacesList, so the volume silently gets 0 prisms (D-018). The verified path for CHT is HXT (gmsh Algorithm3D=10) without layers, or snappy castellatedBufferLayer (exp-005), not cfMesh on top of tetra.",
       "recipe": [
-        "gmsh.OCC: Mesh.Algorithm3D = 10 (HXT) — лучший результат в exp-015",
-        "слои: BoundaryLayer field (NbLayers, Ratio, hwall_n, hfar, Quads, SurfacesList)",
-        "после gmshToFoam: checkMesh; при non-ortho > 60° уменьшать первые слои, а не добавлять cfMesh-layers"
+        "gmsh.OCC: Mesh.Algorithm3D = 10 (HXT) — the best result in exp-015",
+        "layers: BoundaryLayer field (NbLayers, Ratio, hwall_n, hfar, Quads, SurfacesList)",
+        "after gmshToFoam: checkMesh; if non-ortho > 60°, reduce the first layers instead of adding cfMesh layers"
       ],
-      "evidence": ["exp-015: gmsh 4.15.2 без 3D-слоёв; cfMesh-layers поверх тетра испортили качество; HXT Algorithm3D=10 лучший"],
+      "evidence": ["exp-015: gmsh 4.15.2 without 3D layers; cfMesh layers on top of tetra degraded the quality; HXT Algorithm3D=10 best"],
       "improves": ["conformity", "maxNonOrtho"],
       "appliesTo": ["mesh_build gmsh", "mesh_check"]
     },
     {
       "id": "gmsh-route-d",
-      "title": "Route D: conformal CHT из OCC-геометрии через gmsh",
+      "title": "Route D: conformal CHT from OCC geometry via gmsh",
       "topics": ["gmsh", "occ", "cht", "conformal", "interface"],
       "status": "verified",
-      "when": "нужен согласованный интерфейс двух областей (fluid+solid) без snappy",
-      "statement": "OCC-путь: box домена + импорт solid STEP → occ.fragment → две группы объёмов fluid и solid → внешние поверхности разносятся по физическим группам sym_*, интерфейс остаётся БЕЗ группы (тогда gmshToFoam делает его внутренним) → .msh MSH2 → gmshToFoam → splitMeshRegions.",
+      "when": "a conformal interface between two regions (fluid+solid) is needed without snappy",
+      "statement": "OCC path: domain box + import of the solid STEP → occ.fragment → two volume groups, fluid and solid → the outer surfaces are assigned to physical groups sym_*, the interface stays WITHOUT a group (then gmshToFoam makes it internal) → .msh MSH2 → gmshToFoam → splitMeshRegions.",
       "recipe": [
         "box = occ.addBox(0,0,0,*DOMAIN); out,map = occ.fragment([(3,box)], tools)",
         "addPhysicalGroup(3, fluid, 1, \"fluid\"); addPhysicalGroup(3, solid, 2, \"solid\")",
-        "интерфейс: поверхности, смежные ДВУМ объёмам — без физической группы",
-        "внешние плоские грани → sym_x0/sym_x1/sym_y0/sym_y1/sym_z0/sym_z1",
-        "Mesh.MshFileVersion 2.2; MeshSizeMin = size*0.25; координаты умножить на --scale 0.001 перед write",
-        "типы патчей после splitMeshRegions ставить правкой constant/<region>/polyMesh/boundary (changeDictionary не работает)"
+        "interface: surfaces adjacent to TWO volumes — without a physical group",
+        "outer flat faces → sym_x0/sym_x1/sym_y0/sym_y1/sym_z0/sym_z1",
+        "Mesh.MshFileVersion 2.2; MeshSizeMin = size*0.25; multiply the coordinates by --scale 0.001 before write",
+        "set the patch types after splitMeshRegions by editing constant/<region>/polyMesh/boundary (changeDictionary does not work)"
       ],
-      "evidence": ["exp-016 scripts/build_pore_sym.py — проверено: h=0.3 мм, 6 плоских патчей symmetryPlane, Mesh OK", "exp-014: route D, сравнение тесселяции"],
-      "improves": ["conformity интерфейса", "maxNonOrtho"],
+      "evidence": ["exp-016 scripts/build_pore_sym.py — verified: h=0.3 mm, 6 flat symmetryPlane patches, Mesh OK", "exp-014: route D, tessellation comparison"],
+      "improves": ["interface conformity", "maxNonOrtho"],
       "appliesTo": ["mesh_build gmsh"]
     }
   ]

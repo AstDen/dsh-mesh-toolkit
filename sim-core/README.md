@@ -36,11 +36,11 @@ private library imported by relative path (`../sim-core/lib/<module>.js`) from
 `mesh-passport.json`, `case-manifest.json` and an STL passport row. They document the
 contract; validation is advisory (tools accept partial profiles).
 
-## Портативность
+## Portability
 
-`resolveConfig` возвращает `project` — имя проекта из профиля или `"defaults"`, когда профиля нет.
-`caseRoots` по умолчанию `["./cases"]`, то есть инструменты работают и в пустом каталоге; профиль
-нужен только для своих порогов, единиц и установок OpenFOAM (см. `mesh-build/docs/PORTABLE.md`).
+`resolveConfig` returns `project` — the project name from the profile, or `"defaults"` when there is no profile.
+`caseRoots` defaults to `["./cases"]`, so the tools also work in an empty directory; the profile
+is needed only for its own thresholds, units and OpenFOAM installations (see `mesh-build/docs/PORTABLE.md`).
 
 ## Versioning
 

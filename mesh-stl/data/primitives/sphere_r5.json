@@ -5,5 +5,5 @@
   "rings": 16,
   "center_mm": [0, 0, 0],
   "units": "mm",
-  "note": "Сфера R=5 мм; тесселяция segments × rings задаёт, насколько гладкой будет поверхность."
+  "note": "Sphere R=5 mm; the segments × rings tessellation sets how smooth the surface is."
 }

@@ -1,6 +1,6 @@
 {
   "name": "channel_spheres_default",
-  "comment": "Умолчание проекта: входной участок 2 d (норма m00191), r=2.5 мм, 14 уровней",
+  "comment": "Project default: 2 d inlet section, r=2.5 mm, 14 levels",
   "r_mm": 2.5,
   "W_mm": "auto",
   "levels": 14,

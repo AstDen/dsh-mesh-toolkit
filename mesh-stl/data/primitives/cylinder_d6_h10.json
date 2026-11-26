@@ -5,5 +5,5 @@
   "sections": 48,
   "center_mm": [0, 0, 0],
   "units": "mm",
-  "note": "Цилиндр R=3 мм, H=10 мм вдоль Z."
+  "note": "Cylinder R=3 mm, H=10 mm along Z."
 }

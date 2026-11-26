@@ -42,15 +42,15 @@ export function deliveryGuard(caseDir, { force = false } = {}) {
         ok: true,
         passport: null,
         freshness: null,
-        warnings: ['passport-missing-forced: кейс не проверялся mesh_check в этой сессии'],
+        warnings: ['passport-missing-forced: the case was not checked by mesh_check in this session'],
         recordedVerdict: null,
       }
     }
     return {
       ok: false,
       error: 'passport-missing',
-      message: 'нет mesh-passport.json: сначала прогоните mesh_check по этому кейсу, '
-        + 'либо передайте force:true, если паспорт недоступен для старого кейса',
+      message: 'no mesh-passport.json: run mesh_check on this case first, '
+        + 'or pass force:true if the passport is unavailable for an old case',
     }
   }
   const freshness = passportFreshness(caseDir, passport)
@@ -59,8 +59,8 @@ export function deliveryGuard(caseDir, { force = false } = {}) {
     return {
       ok: false,
       error: 'passport-not-pass',
-      message: `паспорт записан с вердиктом ${recorded ?? 'нет'}: поставка возможна только после PASS `
-        + '(перепрогоните mesh_check с подходящим minVol) или с force:true',
+      message: `the passport was recorded with verdict ${recorded ?? 'none'}: delivery is possible only after PASS `
+        + '(re-run mesh_check with a suitable minVol) or with force:true',
       status: freshness.status,
       changed: freshness.changed,
       recordedVerdict: recorded,
@@ -70,8 +70,8 @@ export function deliveryGuard(caseDir, { force = false } = {}) {
     return {
       ok: false,
       error: 'passport-stale',
-      message: `сетка изменилась после гейта (${freshness.changed.join('; ')}): `
-        + 'перепрогоните mesh_check или передайте force:true',
+      message: `the mesh changed after the gate (${freshness.changed.join('; ')}): `
+        + 're-run mesh_check or pass force:true',
       status: freshness.status,
       changed: freshness.changed,
       recordedVerdict: recorded,
@@ -90,13 +90,13 @@ export function deliveryGuard(caseDir, { force = false } = {}) {
 export function planDelivery(config, args) {
   if (!args.caseDir) throw new Error('caseDir is required, e.g. "experiments/exp-NNN/case"')
   const caseDir = resolveProjectPath(config, String(args.caseDir))
-  if (!existsSync(caseDir)) throw new Error(`нет каталога кейса: ${displayPath(config, caseDir)}`)
+  if (!existsSync(caseDir)) throw new Error(`case directory not found: ${displayPath(config, caseDir)}`)
   if (!existsSync(join(caseDir, 'constant'))) {
-    throw new Error(`в кейсе нет constant/: ${displayPath(config, caseDir)}`)
+    throw new Error(`no constant/ in the case: ${displayPath(config, caseDir)}`)
   }
 
   const name = String(args.name ?? basename(caseDir))
-  if (!NAME_RE.test(name)) throw new Error(`name должен быть безопасным именем файла (${NAME_RE}), получено "${name}"`)
+  if (!NAME_RE.test(name)) throw new Error(`name must be a safe file name (${NAME_RE}), got "${name}"`)
 
   const outDir = args.outDir
     ? resolveProjectPath(config, String(args.outDir))
@@ -107,7 +107,7 @@ export function planDelivery(config, args) {
   const scriptOrigin = existsSync(projectScript) ? 'project' : (existsSync(packagedScript) ? 'package' : null)
   const script = scriptOrigin === 'project' ? projectScript : packagedScript
   if (!scriptOrigin) {
-    throw new Error(`нет ${DELIVER_SCRIPT} в ${displayPath(config, config.projectRoot)} и нет пакетной копии ${PACKAGED_DELIVER_SCRIPT} в бандле`)
+    throw new Error(`no ${DELIVER_SCRIPT} in ${displayPath(config, config.projectRoot)} and no packaged copy ${PACKAGED_DELIVER_SCRIPT} in the bundle`)
   }
   // The packaged mesh_gate.sh writes its overlay where MESH_GATE_CACHE_DIR points, so a case-local
   // delivery never needs a writable copy of the installed bundle (or a project .cache/).
@@ -115,7 +115,7 @@ export function planDelivery(config, args) {
 
   const gateProfile = String(args.gateProfile ?? args.profile ?? config.gate?.profile ?? 'project')
   if (!['project', 'gate', 'relaxed', 'none'].includes(gateProfile)) {
-    throw new Error(`gateProfile должен быть project|gate|relaxed|none, получено "${gateProfile}"`)
+    throw new Error(`gateProfile must be project|gate|relaxed|none, got "${gateProfile}"`)
   }
 
   const minVol = args.minVol ?? config.gate?.minVol
@@ -130,7 +130,7 @@ export function planDelivery(config, args) {
 
   const warnings = []
   if (gateProfile !== 'none' && (minVol === undefined || minVol === null)) {
-    warnings.push('minVol не задан: скрипт использует свой порог 1e-14; для поровых ячеек передайте minVol явно')
+    warnings.push('minVol is not set: the script uses its own threshold 1e-14; for pore-scale cells pass minVol explicitly')
   }
   return {
     caseDir, name, outDir, script, scriptOrigin, gateProfile, gateCache,

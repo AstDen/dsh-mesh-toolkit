@@ -1,59 +1,59 @@
-# mesh-build — DSH-плагин построения объёмных сеток
+# mesh-build — DSH plugin for volume-mesh building
 
-Четыре инструмента для проекта `Mesh_3D_pore_scale`: маршруты мешинга (snappyHexMesh, cfMesh, gmsh route D),
-скаффолд рабочего кейса snappy по STL, вердикт качества по порогам проекта и поставка двумя дистрибутивами
-(OpenFOAM-кейс + Fluent `.msh`). Все команды — реальные
-команды OpenFOAM/cfMesh на этой машине, логи остаются на диске, в ответ идёт короткая сводка.
+Four tools for the `Mesh_3D_pore_scale` project: meshing routes (snappyHexMesh, cfMesh, gmsh route D),
+scaffolding a runnable snappy case from an STL, a quality verdict against the project thresholds, and
+delivery as two distributions (an OpenFOAM case + a Fluent `.msh`). Every command is a real
+OpenFOAM/cfMesh command on this machine, the logs stay on disk, and a short summary goes into the response.
 
-## Инструменты
+## Tools
 
-| Инструмент | Зачем | Аргументы |
+| Tool | What it does | Arguments |
 |---|---|---|
-| `mesh_hints` | карточки знаний: snappy, cfMesh/pMesh, gmsh route D, шлюз, поставка, отклонённые маршруты | `query`, `id`, `limit` |
-| `mesh_build` | маршрут + скаффолд кейса + шлюз | `route`, `caseDir`, `scaffold`, `stl`, `scaffoldOptions`, `np`, `splitRegions`, `gate`, `profile`, `minVol`, `overwrite`, `skipBlockMesh`, `dryRun`, `gmshScript`, `gmshArgs`, `msh` |
-| `mesh_check` | JS-шлюз по каждому региону; пишет `mesh-passport.json`, сетку не меняет | `caseDir`, `regions`, `profile`, `minVol` |
-| `mesh_deliver` | поставка прошедшей шлюз сетки: OF-кейс + `.tar.gz`, Fluent `.msh` + `.zip`, отчёт с проверками | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
+| `mesh_hints` | knowledge cards: snappy, cfMesh/pMesh, gmsh route D, the gate, delivery, rejected routes | `query`, `id`, `limit` |
+| `mesh_build` | route + case scaffold + gate | `route`, `caseDir`, `scaffold`, `stl`, `scaffoldOptions`, `np`, `splitRegions`, `gate`, `profile`, `minVol`, `overwrite`, `skipBlockMesh`, `dryRun`, `gmshScript`, `gmshArgs`, `msh` |
+| `mesh_check` | JS gate per region; writes `mesh-passport.json`, leaves the mesh untouched | `caseDir`, `regions`, `profile`, `minVol` |
+| `mesh_deliver` | delivery of a gate-passing mesh: OF case + `.tar.gz`, Fluent `.msh` + `.zip`, a report with the checks | `caseDir`, `name`, `outDir`, `gateProfile`, `minVol`, `regions`, `multiRegion`, `noCombinedMesh`, `skipAnsys`, `keepScratch`, `force`, `dryRun` |
 
 
-## Description и Topics
+## Description and topics
 
-**Description** (`package.json` → `description`): объёмные сетки для поровой шкалы — snappyHexMesh
-(hex-dominant, слои, многорегионный CHT), cfMesh cartesianMesh, gmsh OCC conformal route D, checkMesh и
-строгий шлюз качества по каждой области с корректной обработкой абсолютного `minVol`.
+**Description** (`package.json` → `description`): volume meshes for the pore scale — snappyHexMesh
+(hex-dominant, layers, multi-region CHT), cfMesh cartesianMesh, gmsh OCC conformal route D, checkMesh and a
+strict quality gate per region with correct handling of the absolute `minVol`.
 
 **Topics** (`package.json` → `keywords`): `openfoam`, `snappyhexmesh`, `cfmesh`, `gmsh`, `volume-mesh`,
 `cht`, `quality-gate`, `checkmesh`, `pore-scale`, `minvol`.
 
-**Для чата**: `description` инструментов в `index.js`, `description` + `whenToUse` в `lib/skill.js`,
-карточка `plugin-mesh-build` в `data/hints/plugin.json`; её `topics` = `keywords`.
+**For the chat**: the tool `description`s in `index.js`, `description` + `whenToUse` in `lib/skill.js`, the
+`plugin-mesh-build` card in `data/hints/plugin.json`; its `topics` = `keywords`.
 
-Без `route` инструмент показывает маршруты, профили и шаги; без `query` `mesh_hints` — каталог карточек.
+Without `route` the tool lists routes, profiles and steps; without `query`, `mesh_hints` returns the card catalog.
 
-## Установка
+## Installation
 
 ```json
-{ "action": "install_bundle", "target": "<абсолютный путь к репозиторию>/plugins/mesh-build" }
+{ "action": "install_bundle", "target": "<absolute path to the repository>/plugins/mesh-build" }
 ```
 
-Подставьте свой путь — DSH принимает только абсолютный (`$(pwd)/plugins/mesh-build` из корня проекта).
+Substitute your own path — DSH accepts only an absolute one (`$(pwd)/plugins/mesh-build` from the project root).
 
-Это инструмент DSH `plugin_manager` (требует подтверждения): он ставит `link:` в профиль и включает
-бандл, поэтому правки в `plugins/mesh-build/` видны живой сессии. Повторная активация после правок:
-`plugin_manager({ "action": "set_plugin", "target": "include:mesh-build" })`.
-Проверка без DSH:
+This is the DSH `plugin_manager` tool (it requires confirmation): it adds a `link:` to the profile and
+enables the bundle, so edits in `plugins/mesh-build/` are visible to the live session. Re-activation after
+edits: `plugin_manager({ "action": "set_plugin", "target": "include:mesh-build" })`.
+A check without DSH:
 
 ```bash
-node plugins/mesh-build/scripts/smoke.mjs   # конфиг, маршруты, карточки, скаффолд в tmp, план serial/parallel
+node plugins/mesh-build/scripts/smoke.mjs   # config, routes, cards, scaffold into tmp, serial/parallel plan
 ```
 
-Требования: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, OpenFOAM (ESI v2512; `etc/bashrc` ищется в
-стандартных каталогах установки, явный путь — `openfoamBashrc`/`MESH_BUILD_OPENFOAM_BASHRC`),
-`tools/qa/mesh_gate.sh`, `tools/deliver/make_delivery.sh`, `mpirun` для параллельного мешинга.
+Requirements: Node ≥ 20, DSH `>= 0.2.2-rc.1 < 0.3.0`, OpenFOAM (ESI v2512; `etc/bashrc` is looked up in the
+standard installation directories, an explicit path comes from `openfoamBashrc`/`MESH_BUILD_OPENFOAM_BASHRC`),
+`tools/qa/mesh_gate.sh`, `tools/deliver/make_delivery.sh`, `mpirun` for parallel meshing.
 
-## Конфигурация
+## Configuration
 
 ```json
-// ~/.config/mesh-build/config.json   (или $MESH_BUILD_CONFIG=/path/config.json)
+// ~/.config/mesh-build/config.json   (or $MESH_BUILD_CONFIG=/path/config.json)
 {
   "projectRoot": "/path/to/Mesh_3D_pore_scale",
   "caseRoot": "cases",
@@ -63,142 +63,142 @@ node plugins/mesh-build/scripts/smoke.mjs   # конфиг, маршруты, к
 }
 ```
 
-`projectRoot` можно не задавать — ищется вверх от рабочего каталога агента; `caseRoot`/`workRoot` —
-пути **относительно** корня проекта (без профиля — относительно текущего каталога, `caseRoot` по
-умолчанию `cases`).
+`projectRoot` can be omitted — it is searched upwards from the agent's working directory; `caseRoot`/`workRoot`
+are paths **relative** to the project root (without a profile — relative to the current directory, `caseRoot`
+defaults to `cases`).
 
-Переменные: `MESH_BUILD_PROJECT_ROOT`, `MESH_BUILD_PYTHON`, `MESH_BUILD_WORK_ROOT`,
+Variables: `MESH_BUILD_PROJECT_ROOT`, `MESH_BUILD_PYTHON`, `MESH_BUILD_WORK_ROOT`,
 `MESH_BUILD_CASE_ROOT`, `MESH_BUILD_NP`, `MESH_BUILD_TIMEOUT_MS`, `MESH_BUILD_CONFIG`,
-`MESH_BUILD_OPENFOAM_BASHRC` и `MESH_BUILD_OPENFOAM_ROOTS` (доп. каталоги установок через `:`).
+`MESH_BUILD_OPENFOAM_BASHRC` and `MESH_BUILD_OPENFOAM_ROOTS` (extra installation directories, colon-separated).
 
-## Маршруты (`data/engine.json`)
+## Routes (`data/engine.json`)
 
-| route | шаги | когда |
+| route | steps | when |
 |---|---|---|
-| `snappy` | blockMesh → surfaceFeatureExtract → (decomposePar → snappy -parallel → reconstruct) или snappy serial → splitMeshRegions | поровые STL, CHT по `cellZones`, hex-dominant + слои |
-| `cfmesh` | clean → decomposePar → cartesianMesh -parallel → reconstruct → clean processors (или serial) | робастная hex-сетка, когда snap нестабилен |
-| `gmsh` | `<python> <gmshScript> <gmshArgs>` → `gmshToFoam <msh> -case <case>` → splitMeshRegions | conformal CHT из OCC (route D) |
-| `check` | — | только проверка существующего кейса |
+| `snappy` | blockMesh → surfaceFeatureExtract → (decomposePar → snappy -parallel → reconstruct) or snappy serial → splitMeshRegions | pore STLs, CHT by `cellZones`, hex-dominant + layers |
+| `cfmesh` | clean → decomposePar → cartesianMesh -parallel → reconstruct → clean processors (or serial) | a robust hex mesh when snapping is unstable |
+| `gmsh` | `<python> <gmshScript> <gmshArgs>` → `gmshToFoam <msh> -case <case>` → splitMeshRegions | conformal CHT from OCC (route D) |
+| `check` | — | only check an existing case |
 
-Шаги декларативные: `{ name, run, when, timeoutMs }`, `when` ∈ `always | blockMesh | features | parallel |
-serial | splitRegions`. Плейсхолдеры: `{caseDir} {np} {msh} {python} {gmshScript} {gmshArgs}`. Логи —
-`<caseDir>/logs/plugin-<route>-NN-<step>.log`, при падении возвращается `failedStep` и `troubleshooting`
-из `failures` маршрута.
+The steps are declarative: `{ name, run, when, timeoutMs }`, `when` ∈ `always | blockMesh | features | parallel |
+serial | splitRegions`. Placeholders: `{caseDir} {np} {msh} {python} {gmshScript} {gmshArgs}`. Logs go to
+`<caseDir>/logs/plugin-<route>-NN-<step>.log`; on failure the response returns `failedStep` and `troubleshooting`
+from the route's `failures`.
 
-## Скаффолд snappy
+## The snappy scaffold
 
-`mesh_build({ scaffold: true, stl: [...], scaffoldOptions: {...} })` пишет проверенный кейс:
+`mesh_build({ scaffold: true, stl: [...], scaffoldOptions: {...} })` writes a verified case:
 
 - `system/{blockMeshDict,snappyHexMeshDict,meshQualityDict,surfaceFeatureExtractDict,decomposeParDict,controlDict,fvSchemes,fvSolution}`, `0/.keep`;
-- кейс в **метрах** (`convertToMeters 1`), STL проекта в **мм** — в `geometry{}` добавляется `scale 0.001`;
-- внешняя граница домена — `symmetry` (иначе snap сдвигает точки с плоскости, exp-006/D-013);
-- `locationsInMesh` из `locationInMesh`: `[x,y,z]` или `[{point:[x,y,z], name:"fluid"}]`, multi-region → `cellZones` → `splitMeshRegions`;
-- `minVol` абсолютный (по умолчанию `1e-14`, правило `h_min³/6`), `maxNonOrtho` 65 в `meshQualityDict`;
-- слои — только для перечисленных `layerSurfaces`;
-- если `locationInMesh` попала внутрь замкнутого твёрдого тела, сборка останавливается (`phase: "sanity"`,
-  «нет патча `world`») — точку берут скриптом `scripts/fluid-point.py`
+- the case is in **metres** (`convertToMeters 1`), the project STL in **mm** — `scale 0.001` is added to `geometry{}`;
+- the outer domain boundary is `symmetry` (otherwise snapping moves points off the plane, exp-006/D-013);
+- `locationsInMesh` from `locationInMesh`: `[x,y,z]` or `[{point:[x,y,z], name:"fluid"}]`, multi-region → `cellZones` → `splitMeshRegions`;
+- `minVol` is absolute (`1e-14` by default, the rule `h_min³/6`), `maxNonOrtho` 65 in `meshQualityDict`;
+- layers only for the listed `layerSurfaces`;
+- if `locationInMesh` lands inside a closed solid body, the build stops (`phase: "sanity"`,
+  "no `world` patch") — pick the point with `scripts/fluid-point.py`
   (`<python> scripts/fluid-point.py model.stl --clearance 0.1`).
 
-`scaffoldOptions`: `domainMin`, `domainMax` (метры), `cells` или `cellSize` (метры), `locationInMesh`,
+`scaffoldOptions`: `domainMin`, `domainMax` (metres), `cells` or `cellSize` (metres), `locationInMesh`,
 `refinementLevels {surface:level}`, `defaultLevel`, `layerSurfaces`, `nLayers`, `layerThickness`,
 `minThickness`, `symmetryDomain`, `minVol`, `maxNonOrtho`, `resolveFeatureAngle`.
 
-## Общее ядро и паспорта
+## Shared core and passports
 
-Шлюз, парсер `checkMesh`, конфиг, пути и карточки живут в `../sim-core` (пакет `sim-core`, 0.3.0);
-этот плагин — провайдер сервиса `simMesh` (`build`/`check`/`hints`) и потребитель `simHints`.
-Профиль проекта — `sim-project.json` в корне (units, caseRoots, scratch, foam, gate, geometry, cores).
-После scaffold пишется `case-manifest.json`, после шлюза — `mesh-passport.json`:
-route, cells, regions, gate, sha256/size/mtime полимеша. `mesh_check` показывает свежесть паспорта
-и расхождение записанного вердикта с текущим.
+The gate, the `checkMesh` parser, config, paths and cards live in `../sim-core` (package `sim-core`, 0.3.0);
+this plugin is a provider of the `simMesh` service (`build`/`check`/`hints`) and a consumer of `simHints`.
+The project profile is `sim-project.json` at the root (units, caseRoots, scratch, foam, gate, geometry, cores).
+After a scaffold `case-manifest.json` is written, after the gate — `mesh-passport.json`:
+route, cells, regions, gate, sha256/size/mtime of the polyMesh. `mesh_check` reports passport freshness
+and any mismatch between the recorded verdict and the current one.
 
-## Шлюз качества
+## Quality gate
 
-`mesh_check` (и автоматически после успешного `mesh_build` при `gate` ≠ false) вызывает JS-шлюз
-`sim-core/lib/gate.js`: пишет полный `meshQualityDict` (13 ключей), делает overlay
-`<case>/.mesh-gate/<target>` и запускает `checkMesh -meshQuality`. Вердикт считается **по тексту**:
-`checkMesh` возвращает 0 даже при `Failed N mesh checks`. Результат:
-`{ verdict: PASS|FAIL|ERROR, failingRegions, results[{target, pass, failKind, metrics}] }`, где `metrics` —
-`cells`, `maxNonOrtho`, `avgNonOrtho`, `maxSkewness`, `minVolume`, `violations`, слои
-(`Added N out of M cells (P%)`). `minVol` абсолютный: не задан профилем/вызовом → в словарь пишется `-1`
-(проверка отключена) и в ответе будет `disabled-minVol-not-configured`; при провале — совет
-`minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` оставлен как escape hatch на
+`mesh_check` (and automatically after a successful `mesh_build` when `gate` ≠ false) calls the JS gate
+`sim-core/lib/gate.js`: it writes the complete `meshQualityDict` (13 keys), builds the overlay
+`<case>/.mesh-gate/<target>` and runs `checkMesh -meshQuality`. The verdict is computed **from the text**:
+`checkMesh` returns 0 even on `Failed N mesh checks`. Result:
+`{ verdict: PASS|FAIL|ERROR, failingRegions, results[{target, pass, failKind, metrics}] }`, where `metrics` are
+`cells`, `maxNonOrtho`, `avgNonOrtho`, `maxSkewness`, `minVolume`, `violations`, layers
+(`Added N out of M cells (P%)`). `minVol` is absolute: not set by the profile/call → `-1` is written into the
+dictionary (check disabled) and the response carries `disabled-minVol-not-configured`; on failure — the advice
+`minVol = minVolume/12`. `gate.engine: "script"` + `gate.script` is kept as an escape hatch to
 `tools/qa/mesh_gate.sh`.
 
-## Версии OpenFOAM
+## OpenFOAM versions
 
-Установки объявляются в `sim-project.json` (`foam.installations`, `foam.default`), инструменты принимают
-`openfoam: "<id>"` или абсолютный путь к `etc/bashrc`. Без параметра берётся установка по умолчанию.
+Installations are declared in `sim-project.json` (`foam.installations`, `foam.default`); the tools accept
+`openfoam: "<id>"` or an absolute path to `etc/bashrc`. Without the argument the default installation is used.
 
 | | OpenFOAM.com (v2412…v2606) | OpenFOAM.org (v14) |
 |---|---|---|
 | cfMesh (`cartesianMesh`, `pMesh`, …) | ✅ | ❌ |
-| `surfaceFeatureExtract` | ✅ | заглушка |
+| `surfaceFeatureExtract` | ✅ | stub |
 | `surfaceFeatures` + `surfaceFeaturesDict` | ❌ | ✅ |
 | `reconstructParMesh -mergeTol` | ✅ | ❌ |
-| `locationsInMesh` (CHT-мультирегион) | ✅ | ❌ |
+| `locationsInMesh` (multi-region CHT) | ✅ | ❌ |
 | `foamRun` / `foamMultiRun` | ❌ | ✅ |
 
-Маршрут `snappy` подстраивается автоматически (выбор словаря фич, флаг `-mergeTol`), `preflight` маршрута
-`cfmesh` на org честно отказывает. Проверено на кубе 10 мм: com2512/com2606 — `maxNonOrtho 9.7073°`,
-org14 — `25.2146°` при тех же 2584 ячейках (`experiments/exp-019_openfoam-version-matrix`).
-Подробности и установка — `meshing/OPENFOAM_VERSIONS.md`.
+The `snappy` route adapts itself (choice of the feature dictionary, the `-mergeTol` flag); `preflight` of the
+`cfmesh` route refuses outright on org. Verified on a 10 mm cube: com2512/com2606 — `maxNonOrtho 9.7073°`,
+org14 — `25.2146°` with the same 2584 cells (`experiments/exp-019_openfoam-version-matrix`).
+Details and installation — `meshing/OPENFOAM_VERSIONS.md`.
 
-## Поставка (`mesh_deliver`)
+## Delivery (`mesh_deliver`)
 
-`mesh_deliver` вызывает `make_delivery.sh` и возвращает короткий JSON вместо лога. Скрипт берётся из
-проекта (`tools/deliver/make_delivery.sh`), а если его нет — из бандла (`scripts/deliver/`, plan 1.4);
-выбранный источник виден в `scriptOrigin`:
+`mesh_deliver` calls `make_delivery.sh` and returns a short JSON instead of the log. The script is taken from
+the project (`tools/deliver/make_delivery.sh`), and if it is missing — from the bundle (`scripts/deliver/`, plan 1.4);
+the chosen source is visible in `scriptOrigin`:
 
-- **OpenFOAM**: `openfoam_<name>/` с настоящей `constant/` (`polyMesh`, `triSurface`), `system/`, `0/`,
-  маркером `<name>.foam` (открывается в ParaView) и архив `.tar.gz`.
-- **ANSYS/Fluent**: `ansys_<name>/<name>.msh`, журнал `read_mesh.jou`, архив `.zip`; для CHT — по `.msh`
-  на регион, база уходит в `constant/polyMesh_combined`.
-- **Отчёт**: `delivery_<name>.{json,md}` — ячейки/патчи/объём, round-trip `.msh` → OpenFOAM,
-  смежность интерфейса, вердикт шлюза.
+- **OpenFOAM**: `openfoam_<name>/` with a real `constant/` (`polyMesh`, `triSurface`), `system/`, `0/`,
+  the `<name>.foam` marker (opens in ParaView) and a `.tar.gz` archive.
+- **ANSYS/Fluent**: `ansys_<name>/<name>.msh`, the `read_mesh.jou` journal, a `.zip` archive; for CHT — one `.msh`
+  per region, the base goes to `constant/polyMesh_combined`.
+- **Report**: `delivery_<name>.{json,md}` — cells/patches/volume, the `.msh` → OpenFOAM round-trip,
+  interface adjacency, the gate verdict.
 
-Скрипт проверяет всё реальным запуском: `checkMesh` внутри упакованного кейса, интерфейс `<a>_to_<b>` ↔
-`<b>_to_<a>` по числу граней, сумму объёмов регионов против combined, round-trip через
-`fluentMeshToFoam`/`fluent3DMeshToFoam`, строгий шлюз по каждому региону и целостность архивов.
+The script verifies everything by actually running it: `checkMesh` inside the packaged case, the `<a>_to_<b>` ↔
+`<b>_to_<a>` interface by face count, the sum of region volumes against combined, the round-trip through
+`fluentMeshToFoam`/`fluent3DMeshToFoam`, the strict gate per region and archive integrity.
 
-Предусловие — свежий `mesh-passport.json`: без паспорта инструмент вернёт `passport-missing`,
-при изменённом полимеше — `passport-stale`; `force: true` снимает запрет (шлюз поставки всё равно
-прогоняется). `minVol` передавайте явно — иначе скрипт берёт свой порог `1e-14`, который для поровых
-ячеек 0.05–0.1 мм слишком велик. Пример:
+Precondition — a fresh `mesh-passport.json`: without a passport the tool returns `passport-missing`,
+with a modified polyMesh — `passport-stale`; `force: true` lifts the restriction (the delivery gate still
+runs). Pass `minVol` explicitly — otherwise the script uses its own `1e-14` threshold, which is too large for pore
+cells of 0.05–0.1 mm. Example:
 
 ```json
 {"caseDir":"experiments/exp-018_snappy-parameter-study/cases/v13_best",
  "name":"cht_v13","minVol":1e-16,"outDir":"deliver"}
 ```
 
-Результат (проверено): multi-region 575 757 ячеек, интерфейс сходится, оба региона PASS,
-round-trip ok, 66.6 с; single-region FCC — 27 424 ячейки, 3.5 с.
+Result (verified): multi-region 575 757 cells, the interface matches, both regions PASS,
+round-trip ok, 66.6 s; single-region FCC — 27 424 cells, 3.5 s.
 
-## Портативный режим (без `sim-project.json`)
+## Portable mode (without `sim-project.json`)
 
-Инструменты работают в пустом каталоге: ответ несёт `project: "defaults"` и `configured: false`,
-кейсы по умолчанию лежат в `./cases`, профиль гейта — `project`, а `mesh_deliver` берёт пакетную
-копию `scripts/deliver/make_delivery.sh` (шлюз пишет overlay в `<outDir>/.gate`).
-Сквозной сценарий STL → snappy → gate → поставка и таблица значений по умолчанию —
-[`docs/PORTABLE.md`](docs/PORTABLE.md); карточка `mesh_hints({ id: "portable-mesh-build" })`.
+The tools work in an empty directory: the response carries `project: "defaults"` and `configured: false`,
+cases default to `./cases`, the gate profile is `project`, and `mesh_deliver` uses the bundled copy of
+`scripts/deliver/make_delivery.sh` (the gate writes its overlay into `<outDir>/.gate`).
+The end-to-end scenario STL → snappy → gate → delivery and the table of default values —
+[`docs/PORTABLE.md`](docs/PORTABLE.md); card `mesh_hints({ id: "portable-mesh-build" })`.
 
-## Карточки знаний (`data/hints/`)
+## Knowledge cards (`data/hints/`)
 
-`snappy.json` (10) — ловушки параметров; `cfmesh-gmsh.json` (4) — cartesianMesh/pMesh/слои поверх тетра/route D;
-`quality.json` (7) — шлюз, абсолютный minVol, поставка, полиэдры, ParaView, отклонённые маршруты, Fluent.
+`snappy.json` (10) — parameter traps; `cfmesh-gmsh.json` (4) — cartesianMesh/pMesh/layers over tetra/route D;
+`quality.json` (7) — the gate, absolute minVol, delivery, polyhedra, ParaView, rejected routes, Fluent.
 
-## Как расширять
+## Extending
 
-- **Маршрут**: запись в `data/engine.json` (шаги + `failures` с дословными строками ошибок). Удаление записи
-  убирает маршрут из инструмента.
-- **Знание**: карточка в `data/hints/*.json` (см. формат в mesh-stl/README).
-- **Шаблон кейса**: `lib/scaffold.js` (`writeSnappyCase`) — единственное место, где пишутся словари;
-  менять вместе с `node plugins/mesh-build/scripts/smoke.mjs`.
-- После правок — smoke и перезагрузка пакета: `plugin_manager set_plugin {target:"include:mesh-build",
-  enabled:false}` → `enabled:true`. Изменённые ESM-модули выгружаются при reload, перезапуск DSH не нужен.
+- **A route**: an entry in `data/engine.json` (steps + `failures` with verbatim error strings). Removing the entry
+  removes the route from the tool.
+- **Knowledge**: a card in `data/hints/*.json` (see the format in mesh-stl/README).
+- **The case template**: `lib/scaffold.js` (`writeSnappyCase`) — the only place where dictionaries are written;
+  change it together with `node plugins/mesh-build/scripts/smoke.mjs`.
+- After edits — smoke and a bundle reload: `plugin_manager set_plugin {target:"include:mesh-build",
+  enabled:false}` → `enabled:true`. Changed ESM modules are unloaded on reload; no DSH restart is needed.
 
-## Границы
+## Limits
 
-- Не строит геометрию (это `mesh-stl`) и не запускает решатели.
-- Долгие прогоны — в фоне: инструмент возвращает управление по `timeoutMs` шага, полный лог на диске.
-- Существующий кейс не перезаписывается без `overwrite: true`; `mesh_check` не меняет сетку, но пишет `mesh-passport.json`.
+- It does not build geometry (that is `mesh-stl`) and does not run solvers.
+- Long runs go to the background: the tool returns control at the step's `timeoutMs`, the full log stays on disk.
+- An existing case is not overwritten without `overwrite: true`; `mesh_check` does not change the mesh but writes `mesh-passport.json`.

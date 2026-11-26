@@ -1,373 +1,373 @@
-# План интеграции: dsh-mesh-toolkit ↔ dsh-openfoam-workbench
+# Integration plan: dsh-mesh-toolkit ↔ dsh-openfoam-workbench
 
-Документ-спутник нормативного [`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md). Здесь — анализ
-актуальной версии workbench, сравнение с нашим пакетом, методика переноса того, что у них сделано
-лучше, и пообъектный план работ для обеих сторон.
+Companion document to the normative [`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md). It contains an analysis
+of the current workbench version, a comparison with our package, the methodology for porting what they have done
+better, and a per-object work plan for both sides.
 
-Дата анализа: **2026-11-26**. Проверенные версии: workbench **0.9.22** установлен / **0.9.23** в
-апстриме; mesh-toolkit **0.5.4 / 0.3.6 / 0.4.4** (mesh-build / mesh-stl / sim-core).
+Analysis date: **2026-11-26**. Verified versions: workbench **0.9.22** installed / **0.9.23** in
+upstream; mesh-toolkit **0.5.4 / 0.3.6 / 0.4.4** (mesh-build / mesh-stl / sim-core).
 
 ---
 
-## 1. Что проверено и откуда взяты факты
+## 1. What was verified and where the facts come from
 
-| Источник | Что дал |
+| Source | What it gave |
 |---|---|
-| `~/.dsh/profiles/web/node_modules/@yakovlev-i-a/dsh-openfoam-workbench` (0.9.22) | `package.json` (64 инструмента, 11 скиллов, Apache-2.0, `engines.dsh ">=0.2.2-rc.1"`), `lib/*.js` ≈6.2 тыс. строк, `lib/tools/{env,case,run,build,mesh,render,papers,experience,meta}.js` |
-| GitHub API `repos/yakovlev-i-a/dsh-openfoam-workbench` | теги `v0.9.23` (2026-11-26T07:31:04Z), `v0.9.22`, `v0.9.21`; описание «63 tools, 11 skills»; README «v0.9.22 · 64 tools · 11 skills · 161 tests»; **v0.9.23 = только усиление write-gate** (фигурные скобки в значениях, все `#`-директивы критичны, инвариант числа `;`, whitelist аргументов, `clean(force:true)` через approval), 165 тестов — набор инструментов и мешинг не менялись |
-| `lib/meshlib.js`, `lib/tools/mesh.js`, `lib/tools/build.js`, `lib/registry.js`, `CORE.md`, `skills/*` | фактическое поведение примитивов, `mesh_plan`, `mesh_verify`, `mesh_stl_check`, y+-калькулятора, capability-матрицы |
-| `grep` по установленному пакету | workbench **не** ссылается на `dsh-mesh-toolkit`, не вызывает `ctx.provide(...)`; сервисы читает лениво (`ctx.get('approval')`) |
-| DSH 0.2.2-rc.5 (`@deepseek-ai/dsh-tools`, Cordis) | `ToolsService.get(name, scope)` → определение инструмента с `execute`; сервисы — `ctx.provide` / `ctx.get` |
-| наш пакет (код + `benchmark/runs/20261125-1805/REPORT.md`) | 9 семейств STL, JS-QA с паритетом 15/15, маршруты snappy/cfmesh/gmsh, шлюз качества, поставка, 35 карточек |
+| `~/.dsh/profiles/web/node_modules/@yakovlev-i-a/dsh-openfoam-workbench` (0.9.22) | `package.json` (64 tools, 11 skills, Apache-2.0, `engines.dsh ">=0.2.2-rc.1"`), `lib/*.js` ≈6.2 thousand lines, `lib/tools/{env,case,run,build,mesh,render,papers,experience,meta}.js` |
+| GitHub API `repos/yakovlev-i-a/dsh-openfoam-workbench` | tags `v0.9.23` (2026-11-26T07:31:04Z), `v0.9.22`, `v0.9.21`; description "63 tools, 11 skills"; README "v0.9.22 · 64 tools · 11 skills · 161 tests"; **v0.9.23 = write-gate hardening only** (curly braces in values, all `#` directives critical, the invariant of the number of `;`, argument whitelist, `clean(force:true)` via approval), 165 tests — the tool set and meshing did not change |
+| `lib/meshlib.js`, `lib/tools/mesh.js`, `lib/tools/build.js`, `lib/registry.js`, `CORE.md`, `skills/*` | the actual behaviour of the primitives, `mesh_plan`, `mesh_verify`, `mesh_stl_check`, the y+ calculator, the capability matrix |
+| `grep` over the installed package | workbench does **not** reference `dsh-mesh-toolkit`, does not call `ctx.provide(...)`; it reads services lazily (`ctx.get('approval')`) |
+| DSH 0.2.2-rc.5 (`@deepseek-ai/dsh-tools`, Cordis) | `ToolsService.get(name, scope)` → a tool definition with `execute`; services are `ctx.provide` / `ctx.get` |
+| our package (code + `benchmark/runs/20261125-1805/REPORT.md`) | 9 STL families, JS-QA with 15/15 parity, snappy/cfmesh/gmsh routes, quality gate, delivery, 35 cards |
 
-Версии сверены не «по памяти»: установленный пакет прочитан, теги и релизы получены через API,
-число инструментов взято из `package.json` (64) и сверено с README.
+The versions were not checked "from memory": the installed package was read, the tags and releases were obtained through the API,
+the number of tools was taken from `package.json` (64) and cross-checked with the README.
 
 ---
 
-## 2. Инструменты геометрии и мешинга у workbench
+## 2. Workbench geometry and meshing tools
 
-| Инструмент | Что делает | Замечания |
+| Tool | What it does | Remarks |
 |---|---|---|
-| `openfoam_stl_generate` | примитивы **box / sphere / cylinder / cone / pipe**, `parts[]` с `translate`/`rotate_deg`/`scale` | конус и труба — то, чего у нас нет; `parts[]` — композиция без CAD |
-| `openfoam_mesh_box_stl` | STL-коробка внешнего домена | геометрия домена, не физика |
-| `openfoam_stl_inspect` | треугольники, bbox, центроид, объём, площадь, watertight | watertight только до 200 тыс. треугольников |
-| `openfoam_stl_render` | PNG через pvpython | удобно для «глазной» проверки |
-| `openfoam_geom_verify` | watertight / положительный объём / bbox-vs-ожидание | чек-лист, без починки |
-| `openfoam_compute_first_layer` | Re → Cf → u_τ → толщина первого слоя, число слоёв, полная толщина | y+ → слои, у нас отсутствует |
-| `openfoam_mesh_plan` | домен `external` (3L/5L/3L/3L) / `internal` / `wrap` (по умолчанию) / `box`, `target_cell_size` (default L/30) → `blockMeshDict` + `snappyHexMeshDict` + словарь фич по дистрибутиву | `needs_input` при подозрении на единицы (`scaleAskAbove` = 0.1 м); в `meshQualityControls` жёстко `minVol 1e-13`, `maxNonOrtho 65`, `minTwist 0.02`; фон `maxGlobalCells 8e6` |
-| `openfoam_mesh_verify` | `checkMesh` по регионам, вердикт по строке «Mesh OK» | строгие пороги — только предупреждения («not a gate») |
-| `openfoam_mesh_stl_check` | STL патчей → bbox/площадь/объём + приближённый Хаусдорф | поймал бы обрезание геометрии (наш DEF-11) |
-| `openfoam_patch_diff`, `openfoam_dict_set`, `openfoam_check`, `openfoam_case_scaffold` | диф патчей, правка словарей, «доктор» кейса, скелет кейса (`incompressible`/`compressible`/`cht`) | `case_scaffold` читает уже существующий `polyMesh/boundary` |
+| `openfoam_stl_generate` | primitives **box / sphere / cylinder / cone / pipe**, `parts[]` with `translate`/`rotate_deg`/`scale` | the cone and the pipe are what we do not have; `parts[]` is composition without CAD |
+| `openfoam_mesh_box_stl` | STL box of the outer domain | domain geometry, not physics |
+| `openfoam_stl_inspect` | triangles, bbox, centroid, volume, area, watertight | watertight only up to 200 thousand triangles |
+| `openfoam_stl_render` | PNG via pvpython | convenient for an eyeball check |
+| `openfoam_geom_verify` | watertight / positive volume / bbox vs expectation | a checklist, without repair |
+| `openfoam_compute_first_layer` | Re → Cf → u_τ → first-layer thickness, number of layers, total thickness | y+ → layers, absent in our package |
+| `openfoam_mesh_plan` | domain `external` (3L/5L/3L/3L) / `internal` / `wrap` (default) / `box`, `target_cell_size` (default L/30) → `blockMeshDict` + `snappyHexMeshDict` + the feature dictionary per distribution | `needs_input` on unit suspicion (`scaleAskAbove` = 0.1 m); in `meshQualityControls` hardcoded `minVol 1e-13`, `maxNonOrtho 65`, `minTwist 0.02`; background `maxGlobalCells 8e6` |
+| `openfoam_mesh_verify` | `checkMesh` per region, verdict from the "Mesh OK" line | strict thresholds are warnings only ("not a gate") |
+| `openfoam_mesh_stl_check` | patch STL → bbox/area/volume + approximate Hausdorff | would have caught the geometry trimming (our DEF-11) |
+| `openfoam_patch_diff`, `openfoam_dict_set`, `openfoam_check`, `openfoam_case_scaffold` | patch diff, dictionary editing, case "doctor", case scaffold (`incompressible`/`compressible`/`cht`) | `case_scaffold` reads the already existing `polyMesh/boundary` |
 
-### 2.1. Инструкции, которые у них предписаны (скилл `openfoam-meshing`)
+### 2.1. Instructions prescribed by them (skill `openfoam-meshing`)
 
-Текст скилла задаёт жёсткий порядок и два правила, которых у нас нет как явных инструкций:
+The skill text sets a strict order and two rules that we do not have as explicit instructions:
 
 ```
-1. stl_inspect          → треугольники, bbox, watertight
-2. stl_render           → глазами проверить нормали/замкнутость
-3. compute_first_layer  → толщина первого слоя из y+
-4. mesh_plan            → domain.type обязателен (external/internal/box), first_layer_thickness
+1. stl_inspect          → triangles, bbox, watertight
+2. stl_render           → check normals/closure by eye
+3. compute_first_layer  → first-layer thickness from y+
+4. mesh_plan            → domain.type required (external/internal/box), first_layer_thickness
 5. blockMesh            → mesh_verify
 6. snappyHexMesh        → mesh_verify
-7. patch_diff           → inlet/outlet/walls вырезаны
-8. mesh_stl_check       → Хаусдорф к исходному STL
+7. patch_diff           → inlet/outlet/walls are cut out
+8. mesh_stl_check       → Hausdorff to the source STL
 ```
 
-Правила из раздела Pitfalls, которые стоит перенести к нам:
+Rules from the Pitfalls section that are worth porting to us:
 
-- «Нет `domain.type` → неверный расчётный домен» — у нас `domain` задаётся явными `domainMin/Max`,
-  то есть ошибка невозможна, но и «домен по типу» недоступен (см. A6).
-- «После 3 неудачных snappy — понижать: `strategy=coarsen` → `minimal` → `box_stl`» — прямой кандидат
-  в нашу таблицу правок `mesh_revise` (категория `nonortho`/`resolution`).
+- "No `domain.type` → a wrong computational domain" — in our package `domain` is set by explicit `domainMin/Max`,
+  so the error is impossible, but a "domain by type" is also unavailable (see A6).
+- "After 3 failed snappy runs — downgrade: `strategy=coarsen` → `minimal` → `box_stl`" — a direct candidate
+  for our `mesh_revise` revision table (category `nonortho`/`resolution`).
 
-Сравнение с нашими инструкциями (`plugins/mesh-stl/lib/skill.js`, `plugins/mesh-build/lib/skill.js`,
-35 карточек `data/hints/*.json`, `docs/PORTABLE.md`): у нас есть порядок работы и жёсткие правила
-(STL в мм, `minVol ≈ h_min³/6`, шлюз только через `mesh_check`, слои после castellation+snap,
-`symmetry` на плоскостях домена), но нет четырёх шагов, которые у них оформлены как обязательные:
+Comparison with our instructions (`plugins/mesh-stl/lib/skill.js`, `plugins/mesh-build/lib/skill.js`,
+35 cards `data/hints/*.json`, `docs/PORTABLE.md`): we have a working order and hard rules
+(STL in mm, `minVol ≈ h_min³/6`, the gate only through `mesh_check`, layers after castellation+snap,
+`symmetry` on the domain planes), but we lack four steps that they have formalised as mandatory:
 
-1. **шаг «y+ → первый слой»** перед планом сетки;
-2. **шаг «диф патчей»** (`patch_diff`): проверить, что inlet/outlet/walls действительно вырезаны;
-3. **шаг «сверка сетки с STL»** (bbox/площадь/объём/Хаусдорф);
-4. **правило понижения** после серии неудач (вместо повтора тех же настроек).
+1. **the step "y+ → first layer"** before the mesh plan;
+2. **the step "patch diff"** (`patch_diff`): check that inlet/outlet/walls are actually cut out;
+3. **the step "mesh vs STL comparison"** (bbox/area/volume/Hausdorff);
+4. **the downgrade rule** after a series of failures (instead of repeating the same settings).
 
-Это ровно пункты A5, A7, A6 и строки 16/A3 в таблицах ниже — то есть расхождение инструкций и
-расхождение кода совпадают, и закрываются они одними и теми же работами.
+These are exactly items A5, A7, A6 and rows 16/A3 in the tables below — that is, the instruction gap and
+the code gap coincide, and they are closed by the same work items.
 
 
-Сильные стороны, которых у нас нет или которые у нас слабее:
+Strengths that we do not have or that are weaker in our package:
 
-1. **Примитивы конуса и трубы** + композиция `parts[]` с трансформациями.
-2. **y+ → слои** как отдельный расчёт, связанный со скаффолдом.
-3. **Режимы домена** с множителями от габарита и `target_cell_size` → число ячеек фона.
-4. **Подозрение на единицы** (`scaleAskAbove`) — спрашивает, а не продолжает молча.
-5. **Проверка соответствия сетки STL** (bbox/площадь/объём/Хаусдорф).
-6. **Capability-матрица** по дистрибутивам, меняющая имена словарей и ключи.
-7. **Golden-кейсы + docker CI** (cavity, sphereBox, sphereCht, pitzDaily) как методика регрессии.
+1. **Cone and pipe primitives** + `parts[]` composition with transformations.
+2. **y+ → layers** as a separate calculation tied to the scaffold.
+3. **Domain modes** with multipliers from the extent and `target_cell_size` → the background cell count.
+4. **Unit suspicion** (`scaleAskAbove`) — it asks instead of continuing silently.
+5. **Verification that the mesh matches the STL** (bbox/area/volume/Hausdorff).
+6. **Capability matrix** per distribution, changing dictionary names and keys.
+7. **Golden cases + docker CI** (cavity, sphereBox, sphereCht, pitzDaily) as a regression methodology.
 
-Чего у них нет и что остаётся нашим преимуществом: параметрические поровые семейства с пресетами,
-JS-QA STL с паритетом к python, маршруты cfMesh/gmsh, **шлюз качества с профилями и абсолютным `minVol`**,
-паспорт свежести, поставка (OF-кейс + ANSYS `.msh` + отчёт), 35 карточек знаний, портативный режим.
+What they lack and what remains our advantage: parametric porous families with presets,
+JS-QA for STL with parity to python, cfMesh/gmsh routes, **a quality gate with profiles and an absolute `minVol`**,
+a freshness passport, delivery (OF case + ANSYS `.msh` + report), 35 knowledge cards, a portable mode.
 
-Отдельно: их `snappyHexMeshDict` пишет `minVol 1e-13` жёстко — на поровых ячейках это ровно та
-ловушка, из-за которой у нас в benchmark появился `minVol = h_min³/6` и совет `minVolume/12`.
-Поэтому «шлюз» мы им не отдаём: они остаются потребителем нашего вердикта.
+Separately: their `snappyHexMeshDict` hardcodes `minVol 1e-13` — on porous cells this is exactly the
+trap because of which `minVol = h_min³/6` and the `minVolume/12` advice appeared in our benchmark.
+Therefore we do not hand the "gate" over to them: they remain a consumer of our verdict.
 
 ---
 
-## 3. Методика переноса (правило выбора способа)
+## 3. Porting methodology (rule for choosing the method)
 
-Для каждого пункта из §2 выбирается **один** из трёх способов:
+For every item from §2, **one** of three methods is chosen:
 
-| Способ | Когда | Что делаем |
+| Method | When | What we do |
 |---|---|---|
-| **R — re-implement** | логика короткая, спецификация известна, код чужой (Apache-2.0 против нашего MIT) | пишем своё по спецификации, без копирования; закрываем тестом с числовым эталоном |
-| **C — contract** | функция нужна обеим сторонам, но живёт на границе | фиксируем в `WORKBENCH-CONTRACT.md` (схема/поле/enum), реализуем у себя, workbench читает |
-| **L — leave** | функция принадлежит решателю/физике | не трогаем, оставляем workbench; у нас — только приём результата |
+| **R — re-implement** | the logic is short, the specification is known, the code is someone else's (Apache-2.0 versus our MIT) | we write our own from the specification, without copying; we close it with a test against a numerical reference |
+| **C — contract** | the function is needed by both sides but lives on the boundary | we fix it in `WORKBENCH-CONTRACT.md` (schema/field/enum), implement it on our side, and workbench reads it |
+| **L — leave** | the function belongs to the solver/physics | we do not touch it, we leave it to workbench; on our side — only receiving the result |
 
-Правила, обязательные при любом способе:
+Rules mandatory for any method:
 
-1. **Никакого копирования кода** workbench: Apache-2.0 совместим с MIT, но требует сохранения
-   уведомлений; проще и чище — реализовать поведение по спецификации (все нужные формулы и пороги
-   зафиксированы в §2 этого документа).
-2. **Сначала тест, потом код**: для каждого перенесённого элемента — числовой эталон (для y+ —
-   пример из их README/тестов; для Хаусдорфа — пара STL, где расхождение известно заранее).
-3. **Обратная совместимость**: новые поля — только необязательные; существующие инструменты и их
-   ответы не меняются.
-4. **Независимость**: ни один перенос не создаёт обязательной зависимости от workbench.
+1. **No copying of workbench code**: Apache-2.0 is compatible with MIT, but requires preserving
+   the notices; it is simpler and cleaner to implement the behaviour from the specification (all the necessary formulas and thresholds
+   are fixed in §2 of this document).
+2. **Test first, code second**: for every ported element — a numerical reference (for y+ —
+   an example from their README/tests; for Hausdorff — a pair of STLs where the discrepancy is known in advance).
+3. **Backward compatibility**: new fields are optional only; the existing tools and their
+   responses do not change.
+4. **Independence**: no port creates a mandatory dependency on workbench.
 
 ---
 
-## 4. Что берём и как
+## 4. What we take and how
 
-| # | Функция | Способ | Куда | Оценка |
+| # | Function | Method | Where | Estimate |
 |---|---|---|---|---|
-| 1 | Конус и труба (внешняя/внутренняя стенка) | R | `mesh-stl/lib/shapes.js` + `primitive` | 0.5 д |
-| 2 | `parts[]` с `translate`/`rotate_deg`/`scale` | R | там же, + схема параметров | 1 д |
-| 3 | y+ → первый слой/число слоёв | R | новый `mesh_layers` (mesh-build) + привязка к `scaffoldOptions` | 0.5 д |
-| 4 | Режимы домена `external/internal/box/wrap` + `target_cell_size` | R | `mesh_build` scaffold (`domain.type`, `margins`, `targetCells`) | 1 д |
-| 5 | Подозрение на единицы (`scaleAskAbove`) | R | `precheck.js` + `needs_input`-ответ инструмента | 0.5 д |
-| 6 | STL-vs-сетка (bbox/площадь/объём/Хаусдорф) | R | новый `mesh_surface_check` | 1.5 д |
-| 7 | Capability-матрица (имена словарей/ключи) | R | `mesh-build/lib/caps.js`, использовать в scaffold | 1 д |
-| 8 | Golden-кейс регрессия в CI | R (методика) | CI: A1-куб 2584 ячейки, `mesh/a1` 32 718, E1 75 024 | 0.5 д |
-| 9 | Проверка ролей патчей | C | `mesh_patch_types` + `handoff.patches[].role` | 1 д |
-| 10 | Цикл «диагноз → правка → пересборка» | C | `mesh_revise` + `mesh-feedback/1` | 1.5 д |
-| 11 | Передача кейса | C | `handoff.json` в поставке | 1 д |
-| 12 | Сервис `meshToolkit` | C | `ctx.provide('meshToolkit', …)` | 1 д |
-| 13 | Проверка ролей и BC на стороне workbench | L | остаётся workbench | — |
-| 14 | Запуск решателя, y+ по результатам, диагноз сходимости | L | остаётся workbench | — |
-| 15 | Защитный слой записи/запуска (whitelist, approvals) | L | у нас не пишется `0/` и не запускается решатель | — |
-| 16 | Понижение стратегии после 3 неудачных snappy (`coarsen` → `minimal` → `box_stl`) | R | таблица правок `mesh_revise` (данные) | 0.5 д |
+| 1 | Cone and pipe (outer/inner wall) | R | `mesh-stl/lib/shapes.js` + `primitive` | 0.5 d |
+| 2 | `parts[]` with `translate`/`rotate_deg`/`scale` | R | same place, + parameter schema | 1 d |
+| 3 | y+ → first layer/number of layers | R | new `mesh_layers` (mesh-build) + binding to `scaffoldOptions` | 0.5 d |
+| 4 | Domain modes `external/internal/box/wrap` + `target_cell_size` | R | `mesh_build` scaffold (`domain.type`, `margins`, `targetCells`) | 1 d |
+| 5 | Unit suspicion (`scaleAskAbove`) | R | `precheck.js` + the tool's `needs_input` response | 0.5 d |
+| 6 | STL vs mesh (bbox/area/volume/Hausdorff) | R | new `mesh_surface_check` | 1.5 d |
+| 7 | Capability matrix (dictionary names/keys) | R | `mesh-build/lib/caps.js`, used in the scaffold | 1 d |
+| 8 | Golden case regression in CI | R (methodology) | CI: A1 cube 2584 cells, `mesh/a1` 32 718, E1 75 024 | 0.5 d |
+| 9 | Patch role verification | C | `mesh_patch_types` + `handoff.patches[].role` | 1 d |
+| 10 | The loop "diagnosis → revision → rebuild" | C | `mesh_revise` + `mesh-feedback/1` | 1.5 d |
+| 11 | Case handoff | C | `handoff.json` in the delivery | 1 d |
+| 12 | The `meshToolkit` service | C | `ctx.provide('meshToolkit', …)` | 1 d |
+| 13 | Role and BC verification on the workbench side | L | stays with workbench | — |
+| 14 | Solver launch, y+ from the results, convergence diagnosis | L | stays with workbench | — |
+| 15 | Write/launch guard layer (whitelist, approvals) | L | we neither write `0/` nor launch the solver | — |
+| 16 | Strategy downgrade after 3 failed snappy runs (`coarsen` → `minimal` → `box_stl`) | R | the `mesh_revise` revision table (data) | 0.5 d |
 
-Итого часть A ≈ **8–10 дней** с тестами и документацией.
+Total for part A ≈ **8–10 days** with tests and documentation.
 
 ---
 
-## 5. Видение: «полное содружество»
+## 5. Vision: "full partnership"
 
 ```
-пользователь ──задача──► dsh-openfoam-workbench (физика, BC, цели)
+user ──task──► dsh-openfoam-workbench (physics, BC, targets)
                               │  MeshRequest
                               ▼
-                    dsh-mesh-toolkit (геометрия → сетка → шлюз → поставка)
-                              │  handoff.json + кейс
+                    dsh-mesh-toolkit (geometry → mesh → gate → delivery)
+                              │  handoff.json + case
                               ▼
-                    dsh-openfoam-workbench (scaffold, openfoam_check, короткий прогон)
-                              │  MeshFeedback (y+, non-ortho, роли патчей, разрешение…)
+                    dsh-openfoam-workbench (scaffold, openfoam_check, a short run)
+                              │  MeshFeedback (y+, non-ortho, patch roles, resolution…)
                               ▼
-                    dsh-mesh-toolkit (mesh_revise: детерминированная таблица правок)
-                              │  attempt += 1, новый handoff.json
-                              └────────► повтор до PASS или лимита попыток → эскалация
+                    dsh-mesh-toolkit (mesh_revise: deterministic revision table)
+                              │  attempt += 1, a new handoff.json
+                              └────────► repeat until PASS or the attempt limit → escalation
 ```
 
-Ключевые принципы:
+Key principles:
 
-- **Роли не размываются**: сетка и её качество — наши; физика, словари решателя и прогон — их.
-- **Всё воспроизводимо файлами**: `handoff.json` + кейс на диске; сервис только ускоряет.
-- **Цикл ограничен**: `attempt` (по умолчанию 3, максимум 8) и таблица правок — детерминированные,
-  без «умных» догадок; при исчерпании — 2–4 варианта пользователю с ценой и эффектом.
-- **Обе стороны самостоятельны**: workbench без нас работает своим `mesh_plan` + `mesh_verify`;
-  мы без workbench отдаём кейс, который открывается в ParaView и в Fluent.
+- **Roles are not blurred**: the mesh and its quality are ours; the physics, the solver dictionaries and the run are theirs.
+- **Everything is reproducible through files**: `handoff.json` + the case on disk; the service only accelerates.
+- **The loop is bounded**: `attempt` (3 by default, 8 maximum) and the revision table are deterministic,
+  without "clever" guesses; when exhausted — 2–4 options to the user with the cost and the effect.
+- **Both sides are self-sufficient**: workbench without us works with its own `mesh_plan` + `mesh_verify`;
+  we, without workbench, deliver a case that opens in ParaView and in Fluent.
 
 ---
 
-## 6. Часть A — работы в dsh-mesh-toolkit
+## 6. Part A — work in dsh-mesh-toolkit
 
-### A1. `handoff.json` в поставке (C)
+### A1. `handoff.json` in the delivery (C)
 
-- Писатель `plugins/mesh-build/lib/handoff.js`: `buildHandoff({caseDir, request, passport, patches, delivery})`.
-- Пишется в `mesh_deliver` (рядом с `delivery_<name>.json`) и в `mesh_check` при `handoff:true`.
-- Поля — по схеме `mesh-handoff/1` (см. контракт §3.2); роли патчей — из `mesh_patch_types` или
-  эвристика по имени (`inlet|outlet|walls|symmetry|interface`), всё неопознанное — `unknown`.
-- Приёмка: на `mesh/a1` handoff валиден, `quality.verdict == PASS`, `units.scale == 0.001`,
-  `next[]` содержит готовый вызов `mesh_patch_types` для единственного патча `a1-cube`.
+- The writer `plugins/mesh-build/lib/handoff.js`: `buildHandoff({caseDir, request, passport, patches, delivery})`.
+- Written in `mesh_deliver` (next to `delivery_<name>.json`) and in `mesh_check` with `handoff:true`.
+- The fields follow the `mesh-handoff/1` schema (see contract §3.2); patch roles come from `mesh_patch_types` or
+  a heuristic by name (`inlet|outlet|walls|symmetry|interface`), everything unrecognised — `unknown`.
+- Acceptance: on `mesh/a1` the handoff is valid, `quality.verdict == PASS`, `units.scale == 0.001`,
+  `next[]` contains a ready call to `mesh_patch_types` for the single patch `a1-cube`.
 
 ### A2. `mesh_patch_types` (C)
 
-- Вход: `caseDir`, `roles: {inlet: [имена], outlet: [...], walls: [...], symmetry: [...], interface: [...]}`,
-  `regions?`, `profile?` (перепроверка шлюза после правки), `dryRun`.
-- Правит только `constant/<region>/polyMesh/boundary` (бэкап `.bak`), возвращает дифф
-  `{before: {name: type}, after: …}` и обновлённый handoff.
-- Отказ, если роль и тип несовместимы (`inlet` на `symmetry`), если патч не найден, если кейс
-  multi-region и регион не указан.
-- Приёмка: B1-кейс `fluid` (один патч `wall` 56 560 граней) → роли inlet/outlet/walls расставлены,
-  повторный `mesh_check` даёт те же метрики (шлюз не зависит от типов патчей).
+- Input: `caseDir`, `roles: {inlet: [names], outlet: [...], walls: [...], symmetry: [...], interface: [...]}`,
+  `regions?`, `profile?` (re-check of the gate after the edit), `dryRun`.
+- Edits only `constant/<region>/polyMesh/boundary` (a `.bak` backup), returns the diff
+  `{before: {name: type}, after: …}` and the updated handoff.
+- Refusal if the role and the type are incompatible (`inlet` on `symmetry`), if the patch is not found, if the case is
+  multi-region and the region is not specified.
+- Acceptance: B1 case `fluid` (one `wall` patch with 56 560 faces) → the inlet/outlet/walls roles are assigned,
+  a repeated `mesh_check` gives the same metrics (the gate does not depend on patch types).
 
 ### A3. `mesh_revise` (C)
 
-- Вход: `mesh-feedback/1`; выход: `{ok, attempt, changes[], handoff, caseDir}`.
-- Таблица правок — **данные** (`plugins/mesh-build/data/advice.json`), не код: категория → параметр →
-  коэффициент/шаг → потолок итераций (см. контракт §3.3).
-- Практически: `mesh_revise` переводит feedback в частичный `MeshRequest` (переопределения sizing/layers/
-  domain/route/patches) и вызывает `mesh_build` + `mesh_check` (+ `mesh_patch_types`, если категория
+- Input: `mesh-feedback/1`; output: `{ok, attempt, changes[], handoff, caseDir}`.
+- The revision table is **data** (`plugins/mesh-build/data/advice.json`), not code: category → parameter →
+  coefficient/step → iteration ceiling (see contract §3.3).
+- In practice: `mesh_revise` converts the feedback into a partial `MeshRequest` (overrides of sizing/layers/
+  domain/route/patches) and calls `mesh_build` + `mesh_check` (+ `mesh_patch_types` if the category is
   `patch-roles`).
-- Приёмка: намеренно испорченный y+ (слои выключены) → feedback(`yplus`) → T2 проходит за ≤2 попытки.
-- Отдельное правило: после 3 неудачных сборок подряд с `nonortho`/`skewness` таблица переводит
-  маршрут на более робастный (snappy → cfmesh), а не повторяет те же параметры: это дешёвая
-  страховка от «бесконечного» цикла и она же зафиксирована в их скилле.
+- Acceptance: a deliberately spoiled y+ (layers disabled) → feedback(`yplus`) → T2 passes in ≤2 attempts.
+- A separate rule: after 3 consecutive failed builds with `nonortho`/`skewness` the table switches
+  the route to a more robust one (snappy → cfmesh) instead of repeating the same parameters: this is a cheap
+  insurance against an "infinite" loop, and it is also fixed in their skill.
 
-### A4. Примитивы `cone`/`pipe` и `parts[]` (R)
+### A4. The `cone`/`pipe` primitives and `parts[]` (R)
 
 - `shapes.js`: `coneTriangles(r, h, sections)`, `pipeTriangles(rOuter, rInner, h, sections)`
-  (внутренняя стенка + два кольцевых пояса), `composeTriangles(parts)` с `translate`/`rotateDeg`/`scale`.
-- `primitive`-семейство: `shape: cone|pipe`, `parts: [{shape, params, translate, rotate_deg, scale}]`.
-- Тесты: объём конуса `πr²h/3` ±2 %, труба `π(r_o²−r_i²)h` ±2 %, watertight для `parts[]`.
+  (the inner wall + two annular bands), `composeTriangles(parts)` with `translate`/`rotateDeg`/`scale`.
+- The `primitive` family: `shape: cone|pipe`, `parts: [{shape, params, translate, rotate_deg, scale}]`.
+- Tests: cone volume `πr²h/3` ±2 %, pipe `π(r_o²−r_i²)h` ±2 %, watertight for `parts[]`.
 
-### A5. y+ → слои (R)
+### A5. y+ → layers (R)
 
-- Новый инструмент `mesh_layers` (`U_ref`, `L_ref`, `nu`, `yPlusTarget`, `expansionRatio`, `coverage`)
+- A new `mesh_layers` tool (`U_ref`, `L_ref`, `nu`, `yPlusTarget`, `expansionRatio`, `coverage`)
   → `{Re, Cf, uTau, delta, first_layer_m, n_layers, total_m}`.
-- `mesh_build` принимает `scaffoldOptions.layers: {mode: "yplus", yPlusTarget, U_ref, L_ref, nu}` и
-  подставляет `nSurfaceLayers`/`firstLayerThickness`/`expansionRatio` (сейчас слои задаются вручную).
-- Приёмка: эталон из их теста (U=10, L=0.1, ν=1.5e-5, y+=1) — числа совпадают с точностью 1e-6
-  относительно их формулы.
+- `mesh_build` accepts `scaffoldOptions.layers: {mode: "yplus", yPlusTarget, U_ref, L_ref, nu}` and
+  substitutes `nSurfaceLayers`/`firstLayerThickness`/`expansionRatio` (at present the layers are set manually).
+- Acceptance: the reference from their test (U=10, L=0.1, ν=1.5e-5, y+=1) — the numbers match to within 1e-6
+  relative to their formula.
 
-### A6. Домен и масштаб (R)
+### A6. Domain and scale (R)
 
 - `scaffoldOptions.domain: {type: "external|internal|box|wrap", margins: {upstream, downstream, lateral,
-  vertical_top, vertical_bottom}, sizeFactor}`; `external` — множители от `L = max extent`.
-- `targetCells`/`cellSize`/`cells`: при `targetCells` подбирать `cells` по габариту домена.
-- `precheck.js`: `scaleSuspicion(bboxMm, {askAbove: 100 mm})` → ответ `{needs_input: [mm|m]}` вместо
-  молчаливого обрезания.
-- Приёмка: C1-сфера (домен 40×20×20 мм, 0.5 мм) → `cells [40,20,20]` из `cellSize 5e-4` и
-  `targetCells ≈ 16 000` даёт тот же результат; STL в метрах → `needs_input`.
+  vertical_top, vertical_bottom}, sizeFactor}`; `external` — multipliers from `L = max extent`.
+- `targetCells`/`cellSize`/`cells`: with `targetCells`, choose `cells` from the domain extent.
+- `precheck.js`: `scaleSuspicion(bboxMm, {askAbove: 100 mm})` → the response `{needs_input: [mm|m]}` instead of
+  a silent trimming.
+- Acceptance: C1 sphere (domain 40×20×20 mm, 0.5 mm) → `cells [40,20,20]` from `cellSize 5e-4` and
+  `targetCells ≈ 16 000` gives the same result; STL in metres → `needs_input`.
 
 ### A7. `mesh_surface_check` (R)
 
-- Вход: `caseDir`, `stl` (эталон), `patches`, `tol` (по умолчанию 0.05).
-- `surfaceMeshTriangulate -patches …` → STL, затем bbox/площадь/объём + приближённый Хаусдорф
-  (сэмплирование центроидов эталона, `closestPtTriangle`).
-- Приёмка: E1 с обрезанным доменом (наш DEF-11) → FAIL с `bboxRel ≈ 0.5`; A1 → PASS.
+- Input: `caseDir`, `stl` (the reference), `patches`, `tol` (0.05 by default).
+- `surfaceMeshTriangulate -patches …` → STL, then bbox/area/volume + approximate Hausdorff
+  (sampling of the reference centroids, `closestPtTriangle`).
+- Acceptance: E1 with a trimmed domain (our DEF-11) → FAIL with `bboxRel ≈ 0.5`; A1 → PASS.
 
-### A8. Capability-матрица (R)
+### A8. Capability matrix (R)
 
-- `plugins/mesh-build/lib/caps.js`: по `bashrc` определять распределение/версию и набор ключей
+- `plugins/mesh-build/lib/caps.js`: determine the distribution/version and the key set from the `bashrc`
   (`scale` vs `convertToMeters`, `surfaceFeaturesDict` vs `surfaceFeatureExtractDict`,
-  имена решательских словарей, наличие `cartesianMesh`) — сейчас это размазано по коду.
-- Использовать в `scaffold.js` и в описании маршрутов; отдавать в `mesh_build` как `caps`.
+  the solver dictionary names, the presence of `cartesianMesh`) — at present this is smeared across the code.
+- Use it in `scaffold.js` and in the route descriptions; expose it in `mesh_build` as `caps`.
 
-### A9. Сервис и тесты (C)
+### A9. Service and tests (C)
 
 - `plugins/mesh-build/lib/service.js`: `ctx.provide('meshToolkit', {apiVersion: 1, capabilities, generate,
-  mesh, revise, patchTypes, gate, deliver})`, регистрация в `apply(ctx)`; ошибки — структурированные.
-- `scripts/contract-test.mjs` (в репозитории): фиктивный «workbench» на fake-ctx прогоняет T1, T3, T5
-  и проверяет, что без сервиса всё работает.
-- CI: golden-кейс регрессия (A1 2584, `mesh/a1` 32 718, E1 75 024 с допуском ±1 %), плюс новые тесты A2–A7.
+  mesh, revise, patchTypes, gate, deliver})`, registration in `apply(ctx)`; errors are structured.
+- `scripts/contract-test.mjs` (in the repository): a dummy "workbench" on a fake ctx runs T1, T3, T5
+  and checks that everything works without the service.
+- CI: golden case regression (A1 2584, `mesh/a1` 32 718, E1 75 024 with a ±1 % tolerance), plus new tests A2–A7.
 
 ---
 
-## 7. Часть B — работы в dsh-openfoam-workbench (для автора)
+## 7. Part B — work in dsh-openfoam-workbench (for the author)
 
-1. **B1. Обнаружение провайдера.** `const mesh = ctx.get('meshToolkit')` в момент вызова, проверка
-   `apiVersion === 1`, при отсутствии — обычный путь (`openfoam_mesh_plan` + `openfoam_mesh_verify`) и
-   пометка в отчёте `mesh.provider: "workbench-fallback"`.
-2. **B2. `openfoam_mesh_request`.** Собирает `mesh-request/1` из физики (y+ через
-   `openfoam_compute_first_layer`, домен, `targetCells`), вызывает `mesh.mesh(request)` либо fallback;
-   возвращает `{caseDir, handoff, verdict}`.
-3. **B3. `openfoam_mesh_feedback`.** Упаковывает диагноз в `mesh-feedback/1` (категория из enum,
-   evidence — строки лога и метрики), вызывает `mesh.revise(feedback)`, возвращает `changes[]` и новый handoff.
-4. **B4. Потребление `handoff.json`.** `openfoam_case_scaffold` на доставленном кейсе: роли патчей
-   берутся из handoff (не угадываются по именам), перед записью BC — проверка, что все роли известны;
-   иначе `needs_input`/`mesh_patch_types`. Поле `provenance: "mesh-toolkit@0.6.x"` в отчёте кейса.
-5. **B5. Диагноз после прогона.** Маппинг сбоев (non-ortho предупреждения, y+ вне диапазона,
-   «bounding box»/`patch` mismatches) в категории feedback с evidence; y+ — из `yPlus` function object
-   или `openfoam_field_stats`, если поля нет — `minor` с подсказкой добавить.
-6. **B6. Дедупликация.** При наличии провайдера `openfoam_mesh_plan` не вызывается для того же кейса;
-   приоритет и запрет двойной сборки описаны в их README/скилле.
-7. **B7. Тесты и независимость.** Contract-тесты T1–T6 в их CI с фиктивным провайдером; золотая
-   матрица без провайдера остаётся зелёной; опциональный peer `dsh-mesh-toolkit` в `package.json`
-   (не устанавливается автоматически).
-
----
-
-### 7.1. Вопросы автору workbench (для критики и решения)
-
-Эти пункты — не требования, а места, где нужен ваш выбор; они влияют на контракт
-[`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md) и на часть A у нас.
-
-1. **Роли патчей.** Согласны ли вы читать `handoff.patches[].role` в `openfoam_case_scaffold`
-   вместо эвристики по именам (`inlet`/`outlet`/`walls`)? Если да — кто владеет ретипизацией:
-   мы (`mesh_patch_types`) или вы (`openfoam_dict_set` с записью в отчёт)?
-2. **Делегирование `mesh_plan`.** Готовы ли вы добавить провайдер-режим: при наличии сервиса
-   `meshToolkit` (или файла `handoff.json`) `openfoam_mesh_plan` не пишет свои словари, а вызывает
-   `mesh.mesh(request)`; fallback — текущее поведение? Это снимает двойную сборку.
-3. **Сервис vs инструменты.** Вам удобнее Cordis-сервис `meshToolkit` (`ctx.get`) или вызов наших
-   инструментов через `ToolsService.get('mesh_build')`? Мы можем предоставить оба, но хотим
-   зафиксировать один основной путь.
-4. **Единицы.** Ваш `scaleAskAbove` (0.1 м) — перенести в `sim-project.json` как общий параметр
-   и фиксировать в `handoff.units.scale`? У нас уже есть портативный профиль без `sim-project.json`.
-5. **Категории feedback.** Достаточно ли enum `yplus|nonortho|skewness|patch-roles|resolution|
-   domain|units|layers|cells-budget|stl-quality`, или нужны ваши (`solver-divergence`, `boundedness`)?
-   Мы готовы расширять таблицу правок данными.
-6. **Golden-кейсы.** Можно ли добавить в ваш CI опциональный шаг «mesh-toolkit подключён» (наш
-   `mesh_build` + `mesh_check` на вашем cavity/sphereBox), чтобы регрессия контракта шла у вас?
-7. **Лицензии.** Мы реализуем поведение по спецификации (y+, Хаусдорф, режимы домена) без
-   копирования кода: Apache-2.0 → MIT-совместимо, но так проще. Возражений нет?
-8. **Именование.** `handoff.json` в корне кейса — не конфликтует ли с вашими артефактами
-   (например, если `deliver/` уже занят)? Мы можем положить его в `deliver/handoff.json`.
-
-## 8. Часть C — общий контракт
-
-Уже зафиксирован в [`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md): три схемы (`mesh-request/1`,
-`mesh-handoff/1`, `mesh-feedback/1`), enum ролей патчей, политика единиц, цикл с `attempt` и таблицей
-правок, API сервиса, правила совместимости, приёмочные тесты T1–T6, явные non-goals.
-
-Что нужно сделать по части C: положить JSON-схемы в `mesh-toolkit/schemas/` (у нас) и в
-`dsh-openfoam-workbench/schemas/` (у автора), добавить обеим сторонам тест «схема ↔ пример handoff»,
-и синхронизировать версию контракта при изменениях.
+1. **B1. Provider discovery.** `const mesh = ctx.get('meshToolkit')` at call time, a check of
+   `apiVersion === 1`, if absent — the ordinary path (`openfoam_mesh_plan` + `openfoam_mesh_verify`) and
+   a mark in the report `mesh.provider: "workbench-fallback"`.
+2. **B2. `openfoam_mesh_request`.** Assembles `mesh-request/1` from the physics (y+ via
+   `openfoam_compute_first_layer`, the domain, `targetCells`), calls `mesh.mesh(request)` or the fallback;
+   returns `{caseDir, handoff, verdict}`.
+3. **B3. `openfoam_mesh_feedback`.** Packs the diagnosis into `mesh-feedback/1` (the category from the enum,
+   evidence — log lines and metrics), calls `mesh.revise(feedback)`, returns `changes[]` and a new handoff.
+4. **B4. Consuming `handoff.json`.** `openfoam_case_scaffold` on the delivered case: the patch roles
+   are taken from the handoff (not guessed by name), before writing the BC — a check that all roles are known;
+   otherwise `needs_input`/`mesh_patch_types`. The field `provenance: "mesh-toolkit@0.6.x"` in the case report.
+5. **B5. Diagnosis after the run.** Mapping of failures (non-ortho warnings, y+ out of range,
+   "bounding box"/`patch` mismatches) to feedback categories with evidence; y+ — from the `yPlus` function object
+   or `openfoam_field_stats`, if the field is absent — `minor` with a hint to add it.
+6. **B6. Deduplication.** When the provider is present, `openfoam_mesh_plan` is not called for the same case;
+   the priority and the ban on double assembly are described in their README/skill.
+7. **B7. Tests and independence.** Contract tests T1–T6 in their CI with a dummy provider; the golden
+   matrix without the provider stays green; the optional peer `dsh-mesh-toolkit` in `package.json`
+   (not installed automatically).
 
 ---
 
-## 9. Независимость и совместимость
+### 7.1. Questions to the workbench author (for critique and decision)
 
-- **Нет жёсткой зависимости**: mesh-toolkit не импортирует workbench и не требует его; workbench
-  работает без mesh-toolkit (fallback + своя золотая матрица).
-- **Нет автоустановки**: только опциональный peer и документация «как включить».
-- **Файловый контракт самодостаточен**: `handoff.json` + кейс читаются человеком и любым другим
-  инструментом; сервис — ускорение.
-- **Другие инструменты**: `dsh-ansys-fluent-workbench` (будущий) читает тот же handoff и `.msh` из
-  поставки — контракт описывает роли патчей, а не имена решательских полей.
-- **Ручной режим**: пользователь может вызвать `mesh_build`/`mesh_check`/`mesh_deliver` напрямую и
-  передать кейс в workbench руками — это тот же путь, что и через сервис.
+These items are not requirements but places where your choice is needed; they affect the contract
+[`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md) and part A on our side.
+
+1. **Patch roles.** Do you agree to read `handoff.patches[].role` in `openfoam_case_scaffold`
+   instead of a heuristic by name (`inlet`/`outlet`/`walls`)? If yes — who owns the retyping:
+   us (`mesh_patch_types`) or you (`openfoam_dict_set` with a record in the report)?
+2. **Delegating `mesh_plan`.** Are you ready to add a provider mode: when the service
+   `meshToolkit` (or the file `handoff.json`) is present, `openfoam_mesh_plan` does not write its own dictionaries but calls
+   `mesh.mesh(request)`; fallback — the current behaviour? This removes double assembly.
+3. **Service vs tools.** Is it more convenient for you to use the Cordis service `meshToolkit` (`ctx.get`) or to call our
+   tools through `ToolsService.get('mesh_build')`? We can provide both, but we want
+   to fix a single main path.
+4. **Units.** Your `scaleAskAbove` (0.1 m) — should it be moved to `sim-project.json` as a shared parameter
+   and fixed in `handoff.units.scale`? We already have a portable profile without `sim-project.json`.
+5. **Feedback categories.** Is the enum `yplus|nonortho|skewness|patch-roles|resolution|
+   domain|units|layers|cells-budget|stl-quality` sufficient, or are yours needed (`solver-divergence`, `boundedness`)?
+   We are ready to extend the revision table with data.
+6. **Golden cases.** Can an optional step "mesh-toolkit connected" be added to your CI (our
+   `mesh_build` + `mesh_check` on your cavity/sphereBox), so that the contract regression runs on your side?
+7. **Licences.** We implement the behaviour from the specification (y+, Hausdorff, domain modes) without
+   copying code: Apache-2.0 → MIT-compatible, but this is simpler. Any objections?
+8. **Naming.** `handoff.json` in the case root — does it conflict with your artefacts
+   (for example, if `deliver/` is already taken)? We can put it in `deliver/handoff.json`.
+
+## 8. Part C — the shared contract
+
+Already fixed in [`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md): three schemas (`mesh-request/1`,
+`mesh-handoff/1`, `mesh-feedback/1`), the patch role enum, the unit policy, the loop with `attempt` and the
+revision table, the service API, compatibility rules, acceptance tests T1–T6, explicit non-goals.
+
+What has to be done for part C: place the JSON schemas in `mesh-toolkit/schemas/` (on our side) and in
+`dsh-openfoam-workbench/schemas/` (on the author's side), add a "schema ↔ handoff example" test to both sides,
+and synchronise the contract version on changes.
 
 ---
 
-## 10. Вехи и оценка
+## 9. Independence and compatibility
 
-| Веха | Содержание | Дни |
+- **No hard dependency**: mesh-toolkit does not import workbench and does not require it; workbench
+  works without mesh-toolkit (fallback + its own golden matrix).
+- **No auto-installation**: only an optional peer and "how to enable" documentation.
+- **The file contract is self-sufficient**: `handoff.json` + the case can be read by a human and by any other
+  tool; the service is an accelerator.
+- **Other tools**: `dsh-ansys-fluent-workbench` (future) reads the same handoff and the `.msh` from
+  the delivery — the contract describes patch roles, not solver field names.
+- **Manual mode**: the user can call `mesh_build`/`mesh_check`/`mesh_deliver` directly and
+  hand the case over to workbench by hand — this is the same path as through the service.
+
+---
+
+## 10. Milestones and estimate
+
+| Milestone | Content | Days |
 |---|---|---|
-| M1 | A1 handoff + A9 сервис (каркас) + схемы | 2 |
-| M2 | A2 `mesh_patch_types` + A3 `mesh_revise` (таблица правок) | 2 |
-| M3 | A4 примитивы + A5 y+ + A6 домен/масштаб | 2 |
-| M4 | A7 `mesh_surface_check` + A8 caps + тесты/CI | 2 |
-| M5 | совместные T1–T5 с автором workbench | 1–2 |
-| B | часть B у автора workbench | 4–5 |
-| C | схемы и синхронизация | 1–2 |
+| M1 | A1 handoff + A9 service (skeleton) + schemas | 2 |
+| M2 | A2 `mesh_patch_types` + A3 `mesh_revise` (revision table) | 2 |
+| M3 | A4 primitives + A5 y+ + A6 domain/scale | 2 |
+| M4 | A7 `mesh_surface_check` + A8 caps + tests/CI | 2 |
+| M5 | joint T1–T5 with the workbench author | 1–2 |
+| B | part B on the workbench author's side | 4–5 |
+| C | schemas and synchronisation | 1–2 |
 
-Итог: **mesh-toolkit 1.0-rc** после M4, **1.0** — после зелёных T1–T5 и установки не-автором.
+Result: **mesh-toolkit 1.0-rc** after M4, **1.0** — after green T1–T5 and installation by someone other than the author.
 
 ---
 
-## 11. Риски и как их снимаем
+## 11. Risks and how we remove them
 
-| Риск | Снятие |
+| Risk | Mitigation |
 |---|---|
-| Расхождение трактовок handoff | JSON-схемы + тест «схема ↔ пример» в обоих CI; версия контракта в handoff |
-| Долгий `mesh()` и таймауты | `caseDir` сохраняется, статус в логах, таймаут = `blocked`, повтор с `attempt+1` |
-| Двойная сборка (наш snappy vs их `mesh_plan`) | B6: приоритет провайдера, запрет второго прохода для того же кейса |
-| Лицензии (Apache-2.0 против MIT) | только re-implement по спецификации, без копирования кода |
-| Разные версии DSH/OpenFOAM | `apiVersion` + capability-матрица; при несовпадении — понятный отказ, не тихая деградация |
-| Ложный «PASS» шлюза | шлюз остаётся нашим; workbench не переопределяет вердикт, только просит ревизию |
-| Соблазн «умных» правок в цикле | таблица правок — данные с потолками итераций; каждое изменение в `changes[]` |
+| Divergence of handoff interpretations | JSON schemas + a "schema ↔ example" test in both CIs; the contract version in the handoff |
+| A long `mesh()` and timeouts | `caseDir` is preserved, status in the logs, a timeout = `blocked`, a retry with `attempt+1` |
+| Double assembly (our snappy vs their `mesh_plan`) | B6: provider priority, a ban on a second pass for the same case |
+| Licences (Apache-2.0 versus MIT) | re-implement from the specification only, without copying code |
+| Different DSH/OpenFOAM versions | `apiVersion` + the capability matrix; on a mismatch — a clear refusal, not silent degradation |
+| A false gate "PASS" | the gate stays ours; workbench does not override the verdict, it only asks for a revision |
+| The temptation of "clever" revisions in the loop | the revision table is data with iteration ceilings; every change goes into `changes[]` |
 
 ---
 
-## 12. Что считаем готовым
+## 12. What we consider done
 
-1. `mesh_check` пишет `handoff.json`, валидный по схеме, с ролями патчей и `next[]`.
-2. `mesh_patch_types` и `mesh_revise` проходят свои приёмки на реальных кейсах benchmark.
-3. Сервис `meshToolkit` отвечает на fake-ctx тесте; ошибки структурированы.
-4. T1 и T3 пройдены без workbench (у нас) и с фиктивным провайдером (у них).
-5. Документация: `WORKBENCH-CONTRACT.md` + этот план + раздел «Портативный режим»/README без
-   обещаний, которых код не выполняет.
+1. `mesh_check` writes a `handoff.json` that is valid against the schema, with patch roles and `next[]`.
+2. `mesh_patch_types` and `mesh_revise` pass their acceptance on real benchmark cases.
+3. The `meshToolkit` service responds in the fake-ctx test; the errors are structured.
+4. T1 and T3 are passed without workbench (on our side) and with a dummy provider (on theirs).
+5. Documentation: `WORKBENCH-CONTRACT.md` + this plan + the "Portable mode" section/README without
+   promises that the code does not keep.

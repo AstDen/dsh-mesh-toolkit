@@ -93,7 +93,7 @@ if (existsSync(qaStl)) {
   const qa = qaFile(config, qaStl)
   assert.ok(!qa.error, `qa failed: ${qa.error}`)
   assert.equal(qa.expectedBodies, null, `qa invented a body expectation: ${qa.expectedBodies}`)
-  assert.ok(!(qa.problems ?? []).some((p) => String(p).startsWith('тел:')), `body problem reported: ${qa.problems}`)
+  assert.ok(!(qa.problems ?? []).some((p) => String(p).startsWith('bodies:')), `body problem reported: ${qa.problems}`)
   console.log(`qa bodies    : expectedBodies=${qa.expectedBodies}, shells=${qa.bodies}, verdict ${qa.verdict}`)
 } else {
   console.log(`qa skipped: ${qaStl} not found`)

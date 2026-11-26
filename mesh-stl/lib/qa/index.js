@@ -39,21 +39,21 @@ export function qaStl(file, options = {}) {
   const cleaned = analyze(clean.vertices, clean.faces)
 
   const warnings = []
-  if (raw.duplicateFaceGroups > 0) warnings.push(`duplicate faces: ${raw.duplicateFaceGroups} групп`)
+  if (raw.duplicateFaceGroups > 0) warnings.push(`duplicate faces: ${raw.duplicateFaceGroups} groups`)
   if (raw.nonManifoldEdges > 0) {
-    warnings.push(`non-manifold: ${raw.nonManifoldEdges} рёбер с >2 гранями (касание поверхностей нулевой толщины: `
-      + 'snappy это мешит, но оболочка не является замкнутой; держите зазор >= 2*MeshSizeMin, D-007)')
+    warnings.push(`non-manifold: ${raw.nonManifoldEdges} edges with >2 faces (zero-thickness surface contact: `
+      + 'snappy meshes it, but the shell is not closed; keep the gap >= 2*MeshSizeMin, D-007)')
   }
   if (raw.degenerateFaces > 0) {
-    warnings.push(`degenerate faces: ${raw.degenerateFaces} (объём не искажают, но ломают is_watertight)`)
+    warnings.push(`degenerate faces: ${raw.degenerateFaces} (they do not distort the volume but break is_watertight)`)
   }
   if (cleaned.bodies !== null && options.expectBodies != null && cleaned.bodies !== Number(options.expectBodies)) {
-    warnings.push(`тел ${cleaned.bodies}, ожидалось ${options.expectBodies} (1 + число замкнутых полостей)`)
+    warnings.push(`bodies ${cleaned.bodies}, expected ${options.expectBodies} (1 + number of closed voids)`)
   }
   if (raw.degenerateFaces > 0) {
     const flag = raw.isWatertight ? 'True' : 'False'
-    warnings.push(`сырой STL: ${raw.degenerateFaces} вырожденных граней, is_watertight=${flag} -> `
-      + 'нужен шаг чистки (--clean-out)')
+    warnings.push(`raw STL: ${raw.degenerateFaces} degenerate faces, is_watertight=${flag} -> `
+      + 'a cleanup step is needed (--clean-out)')
   }
 
   const report = {

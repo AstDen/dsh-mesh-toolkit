@@ -1,5 +1,5 @@
 {
-  "_comment": "Тестовый кейс: цилиндр D=150 мм, H=500 мм, шары d=20 мм (моно). Зазор шар-шар 0.5 мм (под шейку-цилиндр), зазор шар-стенка 1.0 мм (правило «зазор >= 2*MeshSizeMin», D-007).",
+  "_comment": "Test case: cylinder D=150 mm, H=500 mm, mono-disperse spheres d=20 mm. Sphere-sphere gap 0.5 mm (for a cylindrical neck), sphere-wall gap 1.0 mm (rule \"gap >= 2*MeshSizeMin\", D-007).",
   "container": {
     "type": "cylinder",
     "center_xy_mm": [

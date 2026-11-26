@@ -2,5 +2,5 @@
   "name": "strat10",
   "domain_mm": [10.0, 10.0, 20.0],
   "interface_z_mm": 8.0,
-  "note": "демонстрационный стратифицированный канал 10x10x20 мм, граница на z = 8 мм"
+  "note": "demo stratified channel 10x10x20 mm, interface at z = 8 mm"
 }
