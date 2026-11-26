@@ -10,6 +10,7 @@ Status marks follow the project convention: ✅ observed with a real run · 🟡
 
 | String | Cause | Fix |
 |---|---|---|
+| `service "meshToolkit" has been registered at <mesh-stl>` | both bundles are enabled and one of them predates 1.0.1, so each tried to register the shared service | update to **1.0.1 or newer** (`dsh plugin --profile <p> add "git+…#v1.0.1"`), then restart the plugin graph; the service is now single-instance per app |
 | `meshToolkit.<method> is not provided by any installed package` / `"error": "not-provided"` | a consumer asked the `meshToolkit` service for a method the installed version does not have | upgrade the package that ships the method; `ensureToolkit` never throws |
 | `versionInfo { reported: "0.7.2", onDisk: "0.7.5", stale: true }` ✅ | the live process still runs older modules: a version-only bump does not evict the ESM cache | toggle the plugin off/on, and if the changed module is `sim-core`, restart DSH |
 | `error: 'OpenFOAM is not configured: no bashrc detected'` | no `foam` block in the profile and no installation in the default locations | `mesh_capabilities()` shows what was found; set `foam.installations` + `foam.default` |

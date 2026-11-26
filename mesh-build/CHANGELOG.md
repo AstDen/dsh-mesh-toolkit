@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 — 2026-11-26
+
+- TODO: describe the changes
+
 ## 1.0.0 — 2026-11-26
 
 First stable release: the geometry-and-mesh half of an agent-driven pore-scale workflow.

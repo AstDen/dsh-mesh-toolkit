@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 — 2026-11-26
+
+- TODO: describe the changes
+
 ## 1.0.0 — 2026-11-26
 
 First stable release of the STL half: nine generator families (FCC cell, channel with spheres, double-layer

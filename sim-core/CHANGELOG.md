@@ -1,5 +1,13 @@
 # Changelog — sim-core
 
+## 1.0.1 — 2026-11-26
+
+Fix: enabling both bundles in one DSH profile failed to load the second one —
+`service "meshToolkit" has been registered at <mesh-stl>`. `sim-core/lib/toolkit.js` now keeps one service
+per application root and treats `ctx.provide` as best-effort: the second bundle reuses the registered object
+(and its methods land in the same map) instead of registering a duplicate. Found by installing the published
+1.0.0 bundle through the plugin details route; the unit and contract suites never covered a double `apply`.
+
 ## 1.0.0 — 2026-11-26
 
 First stable release of the shared library: layered config with `sim-project.json` discovery and portable-mode

@@ -116,6 +116,40 @@ const { scaleSuspicion } = await lib('mesh-build', 'lib/domain.js')
   check('lib', 'S6', 'the service is a singleton on one context', ensureToolkit(ctx) === service)
 }
 
+// S7: two bundles, one app. Cordis throws `service "meshToolkit" has been registered at <mesh-stl>` when the
+// second plugin provides a name that is already taken, so the real bundle pair must load with one object.
+{
+  const root = {}
+  const store = new Map()
+  const makeCtx = (name) => ({
+    root,
+    name,
+    get: (service) => store.get(service)?.value ?? null,
+    provide: (service, value) => {
+      if (store.has(service)) throw new Error(`service "${service}" has been registered at <${store.get(service).owner}>`)
+      store.set(service, { value, owner: name })
+      return { dispose: () => store.delete(service) }
+    },
+  })
+  const stlCtx = makeCtx('mesh-stl')
+  const buildCtx = makeCtx('mesh-build')
+  const stlService = ensureToolkit(stlCtx)
+  stlService.register('generate', async () => ({ ok: true }), { plugin: 'mesh-stl' })
+  let second = null
+  let failure = null
+  try {
+    second = ensureToolkit(buildCtx)
+    second.register('gate', async () => ({ ok: true }), { plugin: 'mesh-build' })
+  } catch (error) {
+    failure = error
+  }
+  const methods = second ? second.providers().map((p) => p.method) : []
+  check('lib', 'S7', 'both bundles share one meshToolkit service', failure === null && second === stlService && store.size === 1,
+    failure ? failure.message : `object shared, methods [${methods.join(',')}]`)
+  check('lib', 'S8', 'the second bundle contributes its methods to the same service',
+    methods.includes('generate') && methods.includes('gate'), `[${methods.join(',')}]`)
+}
+
 // T-handoff: the schema is validated, not trusted.
 {
   const handoff = buildHandoff({

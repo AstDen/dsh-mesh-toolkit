@@ -24,11 +24,42 @@ const METHOD_HINT = {
 }
 
 /**
+ * One service per application, even when both bundles are enabled.
+ *
+ * Both `mesh-stl` and `mesh-build` call `ensureToolkit`, and Cordis throws
+ * `service "meshToolkit" has been registered at <mesh-stl>` on the second `provide`. The service is
+ * therefore kept on the root context (shared by every plugin of the app) and `provide` is best-effort:
+ * whoever arrives second reuses the first object instead of registering a duplicate, and its methods
+ * land in the same map, so the service keeps working for whichever package is installed alone.
+ */
+const SERVICE_SLOT = Symbol.for('dsh.mesh-toolkit/service')
+const SERVICE_REGISTRY = new WeakMap()
+
+function serviceHost(ctx) {
+  const root = ctx && typeof ctx === 'object' ? ctx.root : null
+  if (root && typeof root === 'object') {
+    let host = SERVICE_REGISTRY.get(root)
+    if (!host) { host = {}; SERVICE_REGISTRY.set(root, host) }
+    return host
+  }
+  const host = globalThis
+  if (!host[SERVICE_SLOT]) host[SERVICE_SLOT] = {}
+  return host[SERVICE_SLOT]
+}
+
+function existingService(ctx) {
+  const looked = typeof ctx?.get === 'function' ? ctx.get(TOOLKIT_SERVICE) : null
+  if (looked) return looked
+  const host = serviceHost(ctx)
+  return host.service ?? null
+}
+
+/**
  * Get or create the service on a Cordis context.
  * `ctx` may be a real context or a test double exposing `get`/`provide`.
  */
 export function ensureToolkit(ctx) {
-  const existing = typeof ctx?.get === 'function' ? ctx.get(TOOLKIT_SERVICE) : null
+  const existing = existingService(ctx)
   if (existing) return existing
 
   /** @type {Map<string, {fn: Function, plugin: string|null, version: string|null, tool: string|null}>} */
@@ -95,7 +126,21 @@ export function ensureToolkit(ctx) {
     deliver: (args, exec) => call('deliver', args, exec),
   }
 
-  if (typeof ctx?.provide === 'function') ctx.provide(TOOLKIT_SERVICE, service)
+  const host = serviceHost(ctx)
+  host.service = service
+  if (typeof ctx?.provide === 'function') {
+    try {
+      ctx.provide(TOOLKIT_SERVICE, service)
+    } catch (error) {
+      // A second bundle in the same app: reuse the registration that is already there.
+      const registered = existingService(ctx)
+      if (registered) {
+        host.service = registered
+        return registered
+      }
+      throw error
+    }
+  }
   return service
 }
 
