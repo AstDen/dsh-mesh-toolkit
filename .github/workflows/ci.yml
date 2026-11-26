@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: checks (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: node --check (all .js/.mjs)
+        run: |
+          mapfile -t files < <(find . \( -name '*.js' -o -name '*.mjs' \) -not -path '*/node_modules/*' | sort)
+          for file in "${files[@]}"; do
+            node --check "$file" || { echo "syntax error: $file"; exit 1; }
+          done
+          echo "checked ${#files[@]} files"
+
+      - name: python syntax (packaged generators)
+        run: python3 -m compileall -q mesh-stl/generators benchmark/scripts
+
+      - name: shell syntax (packaged scripts)
+        run: |
+          for file in $(find mesh-build/scripts -name '*.sh' | sort); do
+            bash -n "$file" || { echo "shell syntax error: $file"; exit 1; }
+          done
+
+      - name: catalogue and versions
+        run: |
+          node scripts/check-catalogue.mjs
+          node scripts/check-versions.mjs
+
+      - name: smoke (both packages, no DSH)
+        run: |
+          node mesh-stl/scripts/smoke.mjs
+          node mesh-build/scripts/smoke.mjs
+
+      - name: JS QA parity vs python reference
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check trimesh numpy
+          node mesh-stl/scripts/qa-parity.mjs
+
+      - name: package tarballs are complete
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          npm pack --pack-destination "$work" --cache "$work/cache" ./mesh-stl >/dev/null
+          npm pack --pack-destination "$work" --cache "$work/cache" ./mesh-build >/dev/null
+          stl_tgz="$(ls "$work"/mesh-stl-*.tgz)"
+          build_tgz="$(ls "$work"/mesh-build-*.tgz)"
+          tar tzf "$stl_tgz" | grep -q '^package/generators/pore_cell/gen_fcc_cell.py$' || { echo "mesh-stl tarball lost generators/"; exit 1; }
+          tar tzf "$stl_tgz" | grep -q '^package/lib/qa/index.js$' || { echo "mesh-stl tarball lost lib/qa/"; exit 1; }
+          tar tzf "$build_tgz" | grep -q '^package/scripts/deliver/make_delivery.sh$' || { echo "mesh-build tarball lost scripts/deliver/"; exit 1; }
+          tar tzf "$build_tgz" | grep -q '^package/docs/PORTABLE.md$' || { echo "mesh-build tarball lost docs/"; exit 1; }
+          echo "tarballs OK"

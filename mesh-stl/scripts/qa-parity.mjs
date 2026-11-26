@@ -28,7 +28,15 @@ import { writeBinaryStl } from '../lib/qa/clean.js'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '..')
 const REPO_ROOT = resolve(PACKAGE_ROOT, '..', '..')
-const QA_SCRIPT = join(REPO_ROOT, 'tools', 'qa', 'stl_qa.py')
+// The python reference lives in the research project (tools/qa/stl_qa.py) and,
+// when this package is checked out on its own (CI, the published repository), in
+// the copy shipped next to the CAD generator.
+const QA_CANDIDATES = [
+  join(REPO_ROOT, 'tools', 'qa', 'stl_qa.py'),
+  join(REPO_ROOT, 'mesh-stl', 'generators', 'cad', 'py_qa.py'),
+  join(PACKAGE_ROOT, 'generators', 'cad', 'py_qa.py'),
+]
+const QA_SCRIPT = process.env.MESH_STL_QA_SCRIPT || QA_CANDIDATES.find((file) => existsSync(file)) || QA_CANDIDATES[0]
 const BENCH_DIR = join(REPO_ROOT, 'benchmark', 'runs', '20261125-1805')
 
 const args = process.argv.slice(2)

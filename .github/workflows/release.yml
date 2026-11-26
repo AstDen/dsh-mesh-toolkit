@@ -1,0 +1,78 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)publish, e.g. v0.5.4
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: verify checks before publishing
+        run: |
+          node scripts/check-catalogue.mjs
+          node scripts/check-versions.mjs
+          node mesh-stl/scripts/smoke.mjs
+          node mesh-build/scripts/smoke.mjs
+
+      - name: pack the three packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for pkg in mesh-build mesh-stl sim-core; do
+            npm pack --pack-destination dist --cache "$RUNNER_TEMP/npm-cache" "./$pkg" >/dev/null
+          done
+          ls -l dist
+
+      - name: resolve tag and notes
+        id: meta
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          notes="docs/RELEASE-${tag}.md"
+          if [ -f "$notes" ]; then
+            echo "notes=$notes" >> "$GITHUB_OUTPUT"
+          else
+            echo "notes=RELEASE_NOTES.md" >> "$GITHUB_OUTPUT"
+            {
+              echo "## ${tag}"
+              echo
+              echo "See each package CHANGELOG for details:"
+              echo
+              for pkg in mesh-build mesh-stl sim-core; do
+                echo "- \`${pkg}/CHANGELOG.md\`"
+              done
+            } > RELEASE_NOTES.md
+          fi
+
+      - name: create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          notes="${{ steps.meta.outputs.notes }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.tgz --clobber
+            gh release edit "$tag" --notes-file "$notes"
+          else
+            gh release create "$tag" dist/*.tgz --title "${tag#v}" --notes-file "$notes"
+          fi
+          gh release view "$tag" --json tagName,assets --jq '.tagName, (.assets[].name)'
