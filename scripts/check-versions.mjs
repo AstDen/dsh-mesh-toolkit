@@ -73,6 +73,8 @@ if (!banner) {
 } else {
   const [, bannerVersion, build, stl, core] = banner
   if (bannerVersion !== build) problems.push(`README banner version ${bannerVersion} != mesh-build ${build}`)
+  const rootVersion = readJson(join(ROOT, 'package.json')).version
+  if (rootVersion !== bannerVersion) problems.push(`root package.json ${rootVersion} != README banner ${bannerVersion} (the root manifest is the installed package)`)
   for (const [pkg, value] of [
     ['mesh-build', build],
     ['mesh-stl', stl],

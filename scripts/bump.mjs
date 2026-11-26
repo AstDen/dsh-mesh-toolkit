@@ -103,10 +103,25 @@ for (const pkg of packages) {
     process.exit(1)
   }
   const section = `## ${version} — ${date}\n\n- TODO: describe the changes\n\n`
-  writeFileSync(changelogFile, changelog.replace(heading[0], `${heading[0]}${section}`))
+  // idempotent: re-running with the same version must not insert a second heading
+  if (changelog.includes(`## ${version} — `)) {
+    console.log(`${pkg}: CHANGELOG already has ${version}`)
+  } else {
+    writeFileSync(changelogFile, changelog.replace(heading[0], `${heading[0]}${section}`))
+  }
 }
 
 if (!dryRun) {
+  // the repository root is the installable package, so its version travels with the trees
+  const rootFile = join(ROOT, 'package.json')
+  const rootManifest = JSON.parse(readFileSync(rootFile, 'utf8'))
+  const rootVersion = next.get('mesh-build') ?? rootManifest.version
+  if (rootManifest.version !== rootVersion) {
+    rootManifest.version = rootVersion
+    writeFileSync(rootFile, `${JSON.stringify(rootManifest, null, 2)}\n`)
+    console.log(`root package.json → ${rootVersion}`)
+  }
+
   const readmeFile = join(ROOT, 'README.md')
   const readme = readFileSync(readmeFile, 'utf8')
   const banner = readme.match(/^> \*\*([^*]+)\*\* · packages: mesh-build (\S+) · mesh-stl (\S+) · sim-core (\S+)/m)

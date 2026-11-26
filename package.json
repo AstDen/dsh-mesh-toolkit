@@ -1,6 +1,6 @@
 {
   "name": "mesh-toolkit",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "description": "Agent-driven volume meshing for OpenFOAM: STL QA, snappyHexMesh/cfMesh/gmsh, a quality gate that means something, a mesh passport, one-command delivery to OpenFOAM and Ansys Fluent, and a handoff file other plugins can read.",
   "type": "module",
   "license": "MIT",
