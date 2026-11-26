@@ -1,0 +1,31 @@
+{
+  "shape": "box",
+  "size_mm": [
+    10,
+    10,
+    10
+  ],
+  "center_mm": [
+    0,
+    0,
+    0
+  ],
+  "units": "mm",
+  "note": "10 mm box: the simplest check of a meshing route (volume 1000 mm³, area 600 mm²).",
+  "parts": [
+    {
+      "shape": "box",
+      "size_mm": [
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "shape": "sphere",
+      "radius_mm": 3.5,
+      "segments": 48,
+      "rings": 24
+    }
+  ]
+}

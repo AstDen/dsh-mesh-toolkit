@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "case": "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case",
+  "caseName": "case",
+  "route": "snappy",
+  "regions": [],
+  "units": "mm",
+  "dimension": 3,
+  "cells": 148288,
+  "gate": {
+    "profile": "project",
+    "thresholds": {
+      "name": "project",
+      "maxNonOrtho": 60,
+      "maxInternalSkewness": 2,
+      "maxBoundarySkewness": 4,
+      "minFaceWeight": 0.1,
+      "minVolRatio": 0.05,
+      "minDeterminant": 0.001,
+      "minLayerCoverage": 0.8,
+      "minVol": 1e-14,
+      "minTetQuality": 1e-16
+    },
+    "minVol": null,
+    "maxNonOrtho": 26.4119,
+    "aveNonOrtho": null,
+    "maxSkewness": 0.366894,
+    "minVolume": 2.5425e-11,
+    "facesOverThreshold": null,
+    "failedChecks": null,
+    "verdict": "PASS",
+    "engine": "js"
+  },
+  "regionGate": [
+    {
+      "region": "base",
+      "profile": "project",
+      "thresholds": {
+        "name": "project",
+        "maxNonOrtho": 60,
+        "maxInternalSkewness": 2,
+        "maxBoundarySkewness": 4,
+        "minFaceWeight": 0.1,
+        "minVolRatio": 0.05,
+        "minDeterminant": 0.001,
+        "minLayerCoverage": 0.8,
+        "minVol": 1e-14,
+        "minTetQuality": 1e-16
+      },
+      "minVol": 1e-14,
+      "maxNonOrtho": 26.4119,
+      "aveNonOrtho": 1.61499,
+      "maxSkewness": 0.366894,
+      "minVolume": 2.5425e-11,
+      "facesOverThreshold": null,
+      "failedChecks": null,
+      "verdict": "PASS",
+      "engine": "js"
+    }
+  ],
+  "meshHash": {
+    "base": {
+      "constant/polyMesh/boundary": {
+        "size": 1231,
+        "mtimeMs": 1795692399384,
+        "sha256": "b88d7bab84c66313c283a75edc28b41d078e5a48e199b77d59bca80ff54be3ee"
+      },
+      "constant/polyMesh/points": {
+        "size": 5469746,
+        "mtimeMs": 1795692399184,
+        "sha256": "854fc7c46cd7a17be45b00dd2f2be6a962e68bf9ac59b169d3c71efd6c28eb0f"
+      },
+      "constant/polyMesh/owner": {
+        "size": 2856562,
+        "mtimeMs": 1795692399384,
+        "sha256": "a997ee70d8d9098219ea08c0a0de1442acf9befb81c8e872d98734e6f92a3d3e"
+      },
+      "constant/polyMesh/neighbour": {
+        "size": 2762156,
+        "mtimeMs": 1795692399215,
+        "sha256": "cdb3fd1500b869cdd49a313b84f8c32990fb4587fa9a662f87a64aa8930da817"
+      },
+      "constant/polyMesh/faces": {
+        "size": 12972952,
+        "mtimeMs": 1795692399347,
+        "sha256": "a5e9a373544cbda37077c3b0a60bcc2ed78bfea22794e9d29e9317504a43b8d2"
+      }
+    },
+    "regions": {},
+    "boundarySha256": "b88d7bab84c66313c283a75edc28b41d078e5a48e199b77d59bca80ff54be3ee",
+    "pointsSha256": "854fc7c46cd7a17be45b00dd2f2be6a962e68bf9ac59b169d3c71efd6c28eb0f",
+    "cellsSha256": "c8323d25d598cee21f7feb03bf01e6c94c0d60cabcc272b3a264034a58cf017f"
+  },
+  "layers": null,
+  "logs": [
+    ".cache/tk/.cache/demo2/case/logs/checkMesh-base.log"
+  ],
+  "generator": "mesh-build@1.0.0-rc.2",
+  "environment": {
+    "id": "com2512",
+    "distribution": null,
+    "version": null,
+    "bashrc": "/usr/lib/openfoam/openfoam2512/etc/bashrc"
+  },
+  "createdAt": "2026-11-26T18:26:42+07:00"
+}

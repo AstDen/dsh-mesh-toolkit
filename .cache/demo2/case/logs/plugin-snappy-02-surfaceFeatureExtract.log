@@ -1,0 +1,95 @@
+$ surfaceFeatureExtract -case '/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case'
+
+exit code: 0
+
+--- stdout ---
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2512                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _bd2b6720-20260127 OPENFOAM=2512 version=2512
+Arch   : "LSB;label=32;scalar=64"
+Exec   : surfaceFeatureExtract -case /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case
+Date   : Nov 26 2026
+Time   : 18:26:27
+Host   : ast-daniil
+PID    : 660
+I/O    : uncollated
+Case   : /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+memory pool : not available
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+
+Note: Feature line extraction only valid on closed manifold surfaces
+
+Reading surfaceFeatureExtractDict
+
+Surfaces     : pore-demo.stl
+Output       : pore-demo
+Load options : offset
+Write options: writeObj=yes writeVTK=off
+
+Statistics:
+Triangles    : 2220 in 1 region(s)
+Vertices     : 1114
+Bounding Box : (-5 -5 -5) (5 5 5)
+
+Constructing feature set from included angle 150
+Selecting edges based purely on geometric tests: no
+Removing all non-manifold edges (edges with > 2 connected faces) unless they cross multiple regions
+
+Initial Feature set:
+    points : 8
+    edges  : 12
+    of which
+        region edges   : 0
+        external edges : 12
+        internal edges : 0
+
+Final Feature set:
+    points : 8
+    of which
+        convex             : 8
+        concave            : 0
+        mixed              : 0
+        non-feature        : 0
+    edges  : 12
+    of which
+        external edges     : 12
+        internal edges     : 0
+        flat edges         : 0
+        open edges         : 0
+        multiply connected : 0
+
+Writing extendedFeatureEdgeMesh to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo.extendedFeatureEdgeMesh"
+
+Writing extendedEdgeMesh components to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo"
+Writing 8 convex feature points to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_convexFeaturePts.obj"
+Writing 0 concave feature points to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_concaveFeaturePts.obj"
+Writing 0 mixed feature points to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_mixedFeaturePts.obj"
+Writing 0 mixed feature point structure to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_mixedFeaturePtsStructure.obj"
+Writing 12 external edges to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_externalEdges.obj"
+Writing 0 internal edges to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_internalEdges.obj"
+Writing 0 flat edges to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_flatEdges.obj"
+Writing 0 open edges to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_openEdges.obj"
+Writing 0 multiple edges to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_multipleEdges.obj"
+Writing 0 region edges to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_regionEdges.obj"
+Writing 12 edge directions to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/extendedFeatureEdgeMesh/pore-demo_edgeDirections.obj"
+
+Writing featureEdgeMesh to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/triSurface/pore-demo.eMesh"
+ExecutionTime = 0 s  ClockTime = 0 s
+
+End
+
+
+--- stderr ---
+

@@ -1,0 +1,5 @@
+; Чтение и проверка сетки demo в ANSYS Fluent (TUI, batch)
+/file/read-case "demo.msh"
+/mesh/check
+/mesh/quality
+/exit yes

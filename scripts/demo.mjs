@@ -91,7 +91,11 @@ const geometry = await call('stl_generate', {
   },
 })
 const generated = geometry.files?.find((file) => file.role === 'solid')
-if (geometry.failure || !generated) fail(`stl_generate: ${JSON.stringify(geometry.failure ?? geometry.missingOutputs).slice(0, 400)}`)
+if (geometry.failure || geometry.error || !generated) {
+  // never let the diagnostic itself throw: a portable run may fail before `missingOutputs` exists
+  const why = geometry.failure ?? geometry.error ?? geometry.missingOutputs ?? geometry
+  fail(`stl_generate: ${JSON.stringify(why).slice(0, 600)}`)
+}
 const stlQa = generated.qa ?? {}
 console.log(`   ${generated.display} · ${stlQa.triangles} triangles · ${stlQa.bodies} closed shells · bbox ${JSON.stringify(stlQa.bboxMm)} mm`)
 

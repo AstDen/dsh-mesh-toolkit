@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2512                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _bd2b6720-20260127 OPENFOAM=2512 version=2512
+Arch   : "LSB;label=32;scalar=64"
+Exec   : fluentMeshToFoam /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/ansys_demo/demo.msh
+Date   : Nov 26 2026
+Time   : 18:26:45
+Host   : ast-daniil
+PID    : 2585
+I/O    : uncollated
+Case   : /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/.scratch_demo/rt_demo
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+memory pool : not available
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Dimension of grid: 3
+Number of points: 161812
+Number of cells: 148288
+number of faces: 458136
+Reading points
+Reading mixed faces
+Reading mixed faces
+Reading mixed faces
+Other readCellGroupData: 1 1 24340 1 0
+Reading mixed cells
+Read zone1:1 name:fluid-1 patchTypeID:fluid
+Reading zone data
+Read zone1:2 name:interior-1 patchTypeID:interior
+Reading zone data
+Read zone1:10 name:world patchTypeID:symmetry
+Reading zone data
+Read zone1:11 name:pore-demo patchTypeID:wall
+Reading zone data
+
+
+FINISHED LEXING
+
+
+dimension of grid: 3
+Creating shapes for 3-D cells
+
+
+--> FOAM FATAL ERROR: (openfoam-2512)
+unrecognised 3-D cell shape: 7
+
+    From int main(int, char**)
+    in file fluentMeshToFoam.L at line 1139.
+
+FOAM aborting
+
+[stack trace]
+=============
+#1  Foam::error::simpleExit(int, bool) in /usr/lib/openfoam/openfoam2512/platforms/linux64GccDPInt32Opt/lib/libOpenFOAM.so
+#2  ? in /usr/lib/openfoam/openfoam2512/platforms/linux64GccDPInt32Opt/bin/fluentMeshToFoam
+#3  ? in /lib/x86_64-linux-gnu/libc.so.6
+#4  __libc_start_main in /lib/x86_64-linux-gnu/libc.so.6
+#5  ? in /usr/lib/openfoam/openfoam2512/platforms/linux64GccDPInt32Opt/bin/fluentMeshToFoam
+=============

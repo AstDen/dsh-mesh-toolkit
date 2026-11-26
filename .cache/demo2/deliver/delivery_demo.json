@@ -1,0 +1,46 @@
+{
+  "name": "demo",
+  "mode": "single_region",
+  "source_case": "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case",
+  "deliverables": {
+    "openfoam": {
+      "dir": "openfoam_demo",
+      "paraview_marker": "openfoam_demo/demo.foam",
+      "archive": "openfoam_demo.tar.gz",
+      "has_constant_dir": true
+    },
+    "ansys": {
+      "dir": "ansys_demo",
+      "msh": "ansys_demo/demo.msh",
+      "journal": "ansys_demo/read_mesh.jou",
+      "archive": "ansys_demo.zip",
+      "note": "полиэдрические ячейки: fluentMeshToFoam их не читает, локальная сверка выполнена через fluent3DMeshToFoam"
+    }
+  },
+  "mesh": {
+    "cells": 148288,
+    "boundary_patches": 2,
+    "total_volume_m3": 0.000440003,
+    "max_nonortho_deg": 26.4119,
+    "checkmesh_rc": 0
+  },
+  "ansys_roundtrip": {
+    "status": "ok",
+    "tool": "fluent3DMeshToFoam",
+    "cells": 148288,
+    "boundary_patches": 2,
+    "total_volume_m3": 0.000440003,
+    "max_nonortho_deg": 26.4119
+  },
+  "quality_gate": {
+    "profile": "project",
+    "min_vol": "1e-14",
+    "rc": 0,
+    "pass": true
+  },
+  "sizes_mb": {
+    "openfoam_demo.tar.gz": 4.86,
+    "ansys_demo.zip": 5.08,
+    "ansys_demo/demo.msh": 26.19
+  }
+}

@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2512                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _bd2b6720-20260127 OPENFOAM=2512 version=2512
+Arch   : "LSB;label=32;scalar=64"
+Exec   : fluent3DMeshToFoam /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/ansys_demo/demo.msh
+Date   : Nov 26 2026
+Time   : 18:26:46
+Host   : ast-daniil
+PID    : 2603
+I/O    : uncollated
+Case   : /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/.scratch_demo/rt_demo
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+memory pool : not available
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Dimension of grid: 3
+Number of points: 161812
+Number of cells: 148288
+Number of faces: 458136
+PointGroup: 3 start: 0 end: 161811.  Reading points...done.
+FaceGroup: 2 start: 0 end: 439963.  Reading mixed faces...done.
+FaceGroup: 10 start: 439964 end: 455051.  Reading mixed faces...done.
+FaceGroup: 11 start: 455052 end: 458135.  Reading mixed faces...done.
+CellGroup: 1 start: 0 end: 148287 type: 1
+Zone: 1 name: fluid-1 type: fluid.  Reading zone data...done.
+Zone: 2 name: interior-1 type: interior.  Reading zone data...done.
+Zone: 10 name: world type: symmetry.  Reading zone data...done.
+Zone: 11 name: pore-demo type: wall.  Reading zone data...done.
+
+FINISHED LEXING
+
+Creating patch 0 for zone: 10 name: world type: symmetry
+Creating patch 1 for zone: 11 name: pore-demo type: wall
+Creating cellZone 0 name: fluid-1 type: fluid
+Creating faceZone 0 name: interior-1 type: interior
+faceZone from Fluent indices: 0 to: 439963 type: interior
+patch 0 from Fluent indices: 439964 to: 455051 type: symmetry
+patch 1 from Fluent indices: 455052 to: 458135 type: wall
+
+Writing mesh to "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/.scratch_demo/rt_demo/constant/region0"
+
+End
+

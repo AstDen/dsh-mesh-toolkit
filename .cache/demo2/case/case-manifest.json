@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "solver": "foamRun (incompressibleFluid)",
+  "algorithm": "snappyHexMesh",
+  "compressible": false,
+  "phases": 1,
+  "turbulence": null,
+  "units": "m",
+  "dimension": 3,
+  "patches": [
+    {
+      "name": "pore-demo",
+      "type": "wall",
+      "role": "surface"
+    },
+    {
+      "name": "world",
+      "type": "symmetry",
+      "role": "domain"
+    }
+  ],
+  "createdBy": "mesh-build@1.0.0-rc.2",
+  "createdAt": "2026-11-26T18:26:26+07:00"
+}

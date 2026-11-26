@@ -1,0 +1,5 @@
+── mesh_gate: openfoam_demo · профиль project (nonOrtho ≤ 60°, internalSkew ≤ 2, boundarySkew ≤ 4)
+   cells=148288  maxNonOrtho={26.4119}°  avg={1.61499}°  faces>60°=0
+   maxSkew=0.366894  minVol=2.5425e-11 (порог minVol=1e-14, minTetQ=1e-16)  maxConcave=  verdict=OK
+   log: /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/delivery_gate_demo.log
+   json: /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/.gate_demo.json

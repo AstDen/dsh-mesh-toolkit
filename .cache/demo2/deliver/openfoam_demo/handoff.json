@@ -1,0 +1,179 @@
+{
+  "schemaVersion": "mesh-handoff/1",
+  "requestId": null,
+  "attempt": 0,
+  "producer": {
+    "plugin": "mesh-build",
+    "version": "1.0.0-rc.2",
+    "openfoam": {
+      "distribution": null,
+      "version": null,
+      "bashrc": "/usr/lib/openfoam/openfoam2512/etc/bashrc"
+    }
+  },
+  "units": {
+    "stl": "mm",
+    "case": "m",
+    "scale": 0.001,
+    "key": "scale",
+    "source": "system/snappyHexMeshDict"
+  },
+  "geometry": {
+    "kind": "stl",
+    "family": null,
+    "stl": "constant/triSurface/pore-demo.stl",
+    "sha256": "2f7d89f1cc64d6ed40a306b2db5f11612d2cbdec0bed2620c7ad25070564a0c6",
+    "bbox_m": {
+      "min": [
+        -0.035,
+        -0.035,
+        -0.035
+      ],
+      "max": [
+        0.055,
+        0.035,
+        0.035
+      ]
+    },
+    "volume_m3": null,
+    "qa": null,
+    "stls": [
+      {
+        "name": "pore-demo.stl",
+        "file": "constant/triSurface/pore-demo.stl",
+        "bytes": 111084,
+        "sha256": "2f7d89f1cc64d6ed40a306b2db5f11612d2cbdec0bed2620c7ad25070564a0c6"
+      }
+    ]
+  },
+  "mesh": {
+    "route": null,
+    "selection": {
+      "cellSize_m": null,
+      "cells": [
+        59,
+        46,
+        46
+      ],
+      "levels": {
+        "pore-demo": [
+          1,
+          2
+        ]
+      },
+      "defaultLevel": null
+    },
+    "cells": 148288,
+    "points": null,
+    "faces": null,
+    "regions": [],
+    "layers": {
+      "nLayers": null,
+      "coverage": null
+    }
+  },
+  "quality": {
+    "profile": "project",
+    "minVol": 1e-14,
+    "verdict": "PASS",
+    "maxNonOrtho": 26.4119,
+    "violations": [],
+    "passport": null
+  },
+  "patches": [
+    {
+      "region": null,
+      "name": "world",
+      "type": "symmetry",
+      "role": "symmetry",
+      "nFaces": 15088,
+      "area_m2": null
+    },
+    {
+      "region": null,
+      "name": "pore-demo",
+      "type": "wall",
+      "role": "wall",
+      "nFaces": 3084,
+      "area_m2": null
+    }
+  ],
+  "roles": {
+    "inlet": [],
+    "outlet": [],
+    "wall": [
+      "pore-demo"
+    ],
+    "symmetry": [
+      "world"
+    ],
+    "cyclic": [],
+    "empty": [],
+    "interface": [],
+    "wedge": [],
+    "unknown": []
+  },
+  "domain": {
+    "type": "box",
+    "bbox_m": {
+      "min": [
+        -0.035,
+        -0.035,
+        -0.035
+      ],
+      "max": [
+        0.055,
+        0.035,
+        0.035
+      ]
+    },
+    "locationInMesh": [
+      -0.02,
+      0,
+      0
+    ]
+  },
+  "recommendations": {
+    "suggestedFamily": "incompressible",
+    "suggestedSolverSetup": {
+      "algorithm": "SIMPLE",
+      "turbulence": "laminar"
+    },
+    "yPlus": {
+      "target": null,
+      "firstLayer_m": null
+    },
+    "notes": [
+      "patches are not split into inlet/outlet yet (2 patch(es) — wall: pore-demo; symmetry: world): retype before a flow run (mesh_patch_types, plan A2; until then foamDictionary -entry boundary.<patch>.type)"
+    ]
+  },
+  "files": {
+    "case": ".",
+    "polyMesh": "constant/polyMesh",
+    "handoff": "handoff.json",
+    "delivery": "deliver/delivery_demo.json"
+  },
+  "history": [
+    {
+      "event": "delivered",
+      "at": "2026-11-26T11:26:52.294Z",
+      "name": "demo"
+    }
+  ],
+  "next": [
+    {
+      "tool": "mesh_patch_types",
+      "args": {
+        "caseDir": ".",
+        "roles": {
+          "inlet": [],
+          "outlet": [],
+          "walls": [
+            "pore-demo"
+          ]
+        }
+      }
+    }
+  ],
+  "createdAt": "2026-11-26T11:26:52.349Z"
+}

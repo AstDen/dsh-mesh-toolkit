@@ -1,0 +1,16 @@
+{
+  "case": "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/openfoam_demo",
+  "profile": "project",
+  "thresholds": {"maxNonOrtho": 60, "maxInternalSkewness": 2, "maxBoundarySkewness": 4, "minVol": 1e-14, "minTetQuality": 1e-16},
+  "cells": 148288,
+  "maxNonOrtho": 26.4119,
+  "aveNonOrtho": 1.61499,
+  "facesOverThreshold": 0,
+  "maxSkewness": 0.366894,
+  "minVolume": 2.5425e-11,
+  "maxConcavity": null,
+  "failedChecks": 0,
+  "verdict": "OK",
+  "checkMeshRc": 0,
+  "log": "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/delivery_gate_demo.log"
+}

@@ -1,0 +1,12 @@
+[deliver] режим: single (одна сетка /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case/constant/polyMesh)
+[deliver] openfoam: constant/ + system/ из /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case
+[deliver] openfoam: поля 0/ скопированы
+[deliver] openfoam: checkMesh rc=0, cells=148288, patches=2, V=0.000440003, nonOrtho=26.4119, minCellV=2.5425e-11
+[deliver] ansys: demo.msh (26.2 МБ)
+[deliver] ansys[demo]: fluentMeshToFoam не прочитал .msh (ожидаемо для полиэдров) → /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/.roundtrip_fluentMeshToFoam_demo.log
+[deliver] ansys: round-trip (fluent3DMeshToFoam) совпал: cells=148288, patches=2, V=0.000440003
+[deliver] gate(project, minVol=1e-14): rc=0 · maxNonOrtho={26.4119}° faces>60°=0
+[deliver] archive: openfoam_demo.tar.gz (4,9M, записей 46)
+[deliver] archive: ansys_demo.zip (5,1M, .msh в архиве: 1)
+{"name": "demo", "mode": "single_region", "source_case": "/mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/case", "deliverables": {"openfoam": {"dir": "openfoam_demo", "paraview_marker": "openfoam_demo/demo.foam", "archive": "openfoam_demo.tar.gz", "has_constant_dir": true}, "ansys": {"dir": "ansys_demo", "msh": "ansys_demo/demo.msh", "journal": "ansys_demo/read_mesh.jou", "archive": "ansys_demo.zip", "note": "полиэдрические ячейки: fluentMeshToFoam их не читает, локальная сверка выполнена через fluent3DMeshToFoam"}}, "mesh": {"cells": 148288, "boundary_patches": 2, "total_volume_m3": 0.000440003, "max_nonortho_deg": 26.4119, "checkmesh_rc": 0}, "ansys_roundtrip": {"status": "ok", "tool": "fluent3DMeshToFoam", "cells": 148288, "boundary_patches": 2, "total_volume_m3": 0.000440003, "max_nonortho_deg": 26.4119}, "quality_gate": {"profile": "project", "min_vol": "1e-14", "rc": 0, "pass": true}, "sizes_mb": {"openfoam_demo.tar.gz": 4.86, "ansys_demo.zip": 5.08, "ansys_demo/demo.msh": 26.19}}
+[deliver] готово: режим=single, rc=0 → /mnt/HDD-2Tb-PC-Danii/Science_Projects/Mesh_3D_pore_scale/.cache/tk/.cache/demo2/deliver/delivery_demo.md
