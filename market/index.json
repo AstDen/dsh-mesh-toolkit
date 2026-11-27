@@ -63,12 +63,12 @@
       },
       "versions": [
         {
-          "version": "1.1.0",
-          "publishTimestamp": 1795757334,
+          "version": "1.1.1",
+          "publishTimestamp": 1795759119,
           "source": {
             "type": "git",
             "url": "https://github.com/AstDen/dsh-mesh-toolkit",
-            "commit": "a422bef94a725ab10d148160a7ba535488b6b456"
+            "commit": "43854236ae9b2761abda67ae4e7ca7ec3380e88a"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.1 <0.3.0"
