@@ -1,5 +1,9 @@
 # Changelog — sim-core
 
+## 1.2.0 — 2026-11-27
+
+- TODO: describe the changes
+
 ## 1.1.1 — 2026-11-27
 
 - `parseCheckMesh` returns `layersFaces` from `Extruding N out of M faces (P%)`, and new `parseLayerFaces(text)`

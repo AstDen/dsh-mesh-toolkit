@@ -90,57 +90,71 @@ export function gateCase(config, caseDir, options = {}) {
 
   let layerOutcome = applyLayerCoverage(results)
   let tightened = null
+  let usedMeasured = false
   if (derived && result.verdict === 'FAIL') {
+    // A derived `h_min^3/6` describes the intended cell; snappy also makes thinner boundary cells, and
+    // one face pyramid below the threshold marks the mesh illegal. The evidence is the run itself:
+    // retry at checkMesh's own advice (`minVolume / 12`) and, if that is still on the edge, once more at
+    // half of it. Two attempts at most — beyond that the mesh really has a bad face, and a FAIL is honest.
     const failing = results.filter((item) => item.verdict === 'FAIL')
     const onlyVolume = failing.length > 0 && failing.every((item) => item.failKind === 'minVol-threshold')
-    const suggestion = failing
-      .map((item) => item.minVolSuggestion)
+    const advice = failing
+      .map((item) => (Number.isFinite(item.minVolSuggestion) && item.minVolSuggestion > 0
+        ? item.minVolSuggestion
+        : (Number(item.metrics?.minVolume) > 0 ? Number(item.metrics.minVolume) / 12 : NaN)))
       .filter((value) => Number.isFinite(value) && value > 0 && value < derived.minVol)
-    if (onlyVolume && suggestion.length === failing.length) {
-      const retry = coreGateCase({
-        config,
-        caseDir,
-        regions: options.regions,
-        profile: options.profile ?? config.gate?.profile,
-        minVol: Math.min(...suggestion),
-        engine: options.engine,
-        script: options.script,
-        writeFields: options.writeFields ?? null,
-        timeoutMs: config.timeoutMs,
-        maxOutputChars: config.maxOutputChars,
-        openfoamBashrc: config.openfoamBashrc,
-      })
-      tightened = Math.min(...suggestion)
-      result.verdict = retry.verdict
-      result.pass = retry.pass
-      result.failingRegions = retry.failingRegions
-      result.targets = retry.targets
-      results.length = 0
-      for (const target of retry.targets) {
-        results.push({
-          region: target.region,
-          pass: target.pass,
-          verdict: target.verdict,
-          profile: target.profile,
-          engine: target.engine,
-          failKind: target.failKind ?? null,
-          minVol: target.minVol ?? null,
-          minVolSource: 'derived-then-tightened',
-          minVolDerivation: derived.note,
-          minVolSuggestion: target.suggestion?.minVol ?? null,
-          thresholds: target.thresholds ?? null,
-          metrics: target.metrics ?? null,
-          layers: target.layers ?? null,
-          advisory: target.advisory ?? [],
-          log: target.log ? displayPath(config, target.log) : null,
-          writeFields: target.writeFields ?? null,
-          writtenFields: target.writtenFields ?? [],
-          stderrTail: target.stderrTail ?? '',
-          error: target.error,
-          hint: target.hint,
+    if (onlyVolume && advice.length === failing.length) {
+      const attempts = [Math.min(...advice), Math.min(...advice) / 2]
+      for (let attempt = 0; attempt < attempts.length; attempt += 1) {
+        const retry = coreGateCase({
+          config,
+          caseDir,
+          regions: options.regions,
+          profile: options.profile ?? config.gate?.profile,
+          minVol: attempts[attempt],
+          engine: options.engine,
+          script: options.script,
+          writeFields: options.writeFields ?? null,
+          timeoutMs: config.timeoutMs,
+          maxOutputChars: config.maxOutputChars,
+          openfoamBashrc: config.openfoamBashrc,
         })
+        tightened = attempts[attempt]
+        usedMeasured = true
+        result.verdict = retry.verdict
+        result.pass = retry.pass
+        result.failingRegions = retry.failingRegions
+        result.targets = retry.targets
+        results.length = 0
+        for (const target of retry.targets) {
+          results.push({
+            region: target.region,
+            pass: target.pass,
+            verdict: target.verdict,
+            profile: target.profile,
+            engine: target.engine,
+            failKind: target.failKind ?? null,
+            minVol: target.minVol ?? null,
+            minVolSource: 'derived-then-measured',
+            minVolDerivation: derived.note,
+            minVolSuggestion: target.suggestion?.minVol ?? null,
+            thresholds: target.thresholds ?? null,
+            metrics: target.metrics ?? null,
+            layers: target.layers ?? null,
+            advisory: target.advisory ?? [],
+            log: target.log ? displayPath(config, target.log) : null,
+            writeFields: target.writeFields ?? null,
+            writtenFields: target.writtenFields ?? [],
+            stderrTail: target.stderrTail ?? '',
+            error: target.error,
+            hint: target.hint,
+          })
+        }
+        layerOutcome = applyLayerCoverage(results) ?? layerOutcome
+        if (retry.verdict === 'PASS') break
+        const stillVolume = results.filter((item) => item.verdict === 'FAIL')
+        if (!stillVolume.length || !stillVolume.every((item) => item.failKind === 'minVol-threshold')) break
       }
-      layerOutcome = applyLayerCoverage(results) ?? layerOutcome
     }
   }
   if (derived && !tightened) {

@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
 
-> **1.1.1** · packages: mesh-build 1.1.1 · mesh-stl 1.1.1 · sim-core 1.1.1
+> **1.2.0** · packages: mesh-build 1.2.0 · mesh-stl 1.2.0 · sim-core 1.2.0
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Twelve tools, 40 searchable knowledge
@@ -201,7 +201,9 @@ generator and QA-verifies every output; `stl_check` cleans and registers.
 
 **mesh-build** — routes `snappy`, `cfmesh`, `gmsh`, `check`, `ops`, `blockmesh`; `mesh_build` with
 `scaffold: true` writes a runnable snappy case plus `case-manifest.json`, otherwise
-builds an existing case; after the gate it writes `mesh-passport.json` (route, cells,
+builds an existing case; the scaffold takes `domain` modes, `targetCells`, `refinementRegions`,
+`nCellsBetweenLevels` and — when no `locationInMesh` is given — picks a fluid point itself
+(`lib/fluidpoint.js`, no python, reported as `locationInMeshSource: "auto …"`); after the gate it writes `mesh-passport.json` (route, cells,
 regions, thresholds, sha256/size/mtime of the polyMesh). `mesh_check` reports
 `PASS/FAIL/ERROR`, threshold violations and passport freshness, and records the
 verdict in `mesh-passport.json`. `mesh_deliver` packages a PASSed case: an OpenFOAM

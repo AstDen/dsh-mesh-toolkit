@@ -370,6 +370,43 @@ function applyOp({ rung, feedback, handoff, sizing, surfaces, attempt }) {
       actions.push({ op: rung.op, action: `coarsen ${cells.join('x')} -> ${next.join('x')} to fit ${maxCells} cells (factor ${factor.toFixed(3)})` })
       break
     }
+    case 'layers.thickness': {
+      // D-9 second rung for `layers`: the ratio alone did not help, so make the first layer thinner
+      // and grow more gently. `firstLayerThickness` stays absolute (m) — relative mode divides it by
+      // the background cell, which the caller does not know here, so the ratio is the safe knob.
+      const current = Number(handoff?.mesh?.layers?.expansionRatio ?? 1.5)
+      const next = Math.max(1.02, Number((current * Number(rung.ratioFactor ?? 0.7)).toFixed(3)))
+      request.scaffoldOptions.layerSurfaces = surfaces
+      request.scaffoldOptions.nLayers = Number(handoff?.mesh?.layers?.nLayers ?? 3)
+      request.scaffoldOptions.expansionRatio = next
+      request.scaffoldOptions.minThickness = Number(rung.minThicknessFactor ?? 0.5) * Number(handoff?.mesh?.layers?.minThickness ?? 0.0005)
+      actions.push({ op: rung.op, action: `expansionRatio ${current} -> ${next}, minThickness ${request.scaffoldOptions.minThickness}` })
+      break
+    }
+    case 'snap.smooth': {
+      // D-9 second rung for `skewness`: more snap iterations before touching levels.
+      request.snapControls = {
+        nSolveIter: Number(rung.nSolveIter ?? 8),
+        nRelaxIter: Number(rung.nRelaxIter ?? 8),
+      }
+      actions.push({ op: rung.op, action: `snapControls nSolveIter ${request.snapControls.nSolveIter}, nRelaxIter ${request.snapControls.nRelaxIter}` })
+      break
+    }
+    case 'layers.yplusRelax': {
+      // D-9 second rung for `yplus`: relax the target and recompute the layer stack with the tool.
+      const current = Number(feedback?.evidence?.yPlusMax ?? 0)
+      const target = Number(feedback?.evidence?.yPlusTarget ?? 1)
+      request.scaffoldOptions.layerSurfaces = surfaces
+      request.scaffoldOptions.yPlusTarget = Number((target * Number(rung.yPlusFactor ?? 2)).toPrecision(3))
+      actions.push({ op: rung.op, action: `y+ target ${target} -> ${request.scaffoldOptions.yPlusTarget} (measured ${current}), recompute with mesh_first_layer` })
+      break
+    }
+    case 'domain.mode': {
+      // D-9 second rung for `domain`: the margins were wrong, so switch the domain mode outright.
+      request.scaffoldOptions.domain = { type: String(rung.mode ?? 'wrap') }
+      actions.push({ op: rung.op, action: `domain mode -> ${request.scaffoldOptions.domain.type}` })
+      break
+    }
     case 'geometry.inspect': {
       return {
         actions: [{ op: rung.op, action: 'STL inspection: run stl_check (cleanup:true) on the geometry, then rebuild from the cleaned file' }],

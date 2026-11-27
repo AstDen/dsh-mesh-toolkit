@@ -75,6 +75,8 @@ const SCAFFOLD_KEYS = [
   'locationInMesh', 'locationsInMesh',
   'refinementLevels', 'defaultLevel', 'layerSurfaces', 'nLayers', 'layerThickness',
   'minThickness', 'symmetryDomain', 'minVol', 'maxNonOrtho', 'resolveFeatureAngle', 'expansionRatio', 'minTwist',
+  'nCellsBetweenLevels', 'refinementRegions', 'relaxedMaxNonOrtho',
+  'autoFluidPoint', 'autoFluidClearanceMm', 'autoFluidSeed',
   'advanced',
 ]
 
@@ -496,6 +498,12 @@ export function apply(ctx, rawConfig) {
 
       // Scaffold warnings (domain mode, target cells, STL outside the domain, cell budget) belong to the
       // answer: they used to stay inside `written.scaffold` and never reached the caller.
+      // D-8: when no locationInMesh was given the scaffold picked one from the geometry — say so.
+      if (written.scaffold?.locationInMeshSource?.startsWith('auto')) {
+        payload.locationInMeshSource = written.scaffold.locationInMeshSource
+        payload.locationInMesh = written.scaffold.locations?.map((l) => l.point) ?? null
+        payload.fluidPoint = written.scaffold.fluidPoint
+      }
       const scaffoldWarnings = written.scaffold?.warnings ?? []
       if (scaffoldWarnings.length) payload.warnings = [...new Set([...(payload.warnings ?? []), ...scaffoldWarnings])]
 

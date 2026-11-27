@@ -1,13 +1,8 @@
 # Changelog
 
-## 1.1.1 — 2026-11-27
+## 1.2.0 — 2026-11-27
 
-- **D-1:** the duplicated snappy card file was removed — its ten cards matched `mesh-build`'s file byte for
-  byte, and the merged catalogue can only have one owner per id. `stl_hints` now serves 12 cards from 2 files;
-  those snappy cards stay reachable through `mesh_hints` (56 unique ids).
-- `scripts/check-catalogue.mjs` (repository root) fails when two packages claim the same card id, so the
-  duplication cannot come back.
-- No geometry, QA or cleanup behaviour changed.
+- TODO: describe the changes
 
 ## 1.0.1 — 2026-11-26
 

@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.2.0 — 2026-11-27
+
+Second half of the plan S3 defect sprint (audit `AUDIT-implementation-map-2026-11-26.md`, items D-2, D-3, D-4, D-8, D-9)
+plus the follow-up found while proving D-6 on a real mesh.
+
+- **D-3 — `nCellsBetweenLevels` was hard-coded to 4.** `scaffoldOptions.nCellsBetweenLevels` (integer 1..10) now
+  reaches `snappyHexMeshDict`; anything else is refused with `nCellsBetweenLevels must be an integer 1..10 (got …)`.
+- **D-2 — no `refinementRegions` block.** `scaffoldOptions.refinementRegions` takes `{name, type: 'box'|'sphere',
+  min/max | centre/radius, mode: 'inside'|'outside', level}` and writes `searchableBox`/`searchableSphere` entries
+  next to `advanced.directional`. A region that does not intersect the domain, a box with `min >= max`, a
+  non-positive radius or an unknown mode is refused with the index of the offending entry.
+- **D-4 — the relaxed snap pass was switched off.** `relaxed { maxNonOrtho 180; }` never relaxed anything; the
+  default is now `min(89, maxNonOrtho + 15)` (80 with the built-in 65), overridable with
+  `scaffoldOptions.relaxedMaxNonOrtho`.
+- **D-8 — a fluid point only from python.** New `lib/fluidpoint.js` (`suggestFluidPoint`, deterministic lattice +
+  nearest-triangle classification, no numpy): when `scaffold: true` runs without `locationInMesh`, the scaffold
+  picks the point itself, the answer carries `locationInMeshSource: 'auto (lattice+nearest-triangle)'` and
+  `fluidPoint {point_mm, clearance_mm}`, and a warning states where the point is. `autoFluidPoint: false` keeps the
+  old explicit requirement; `autoFluidClearanceMm` (0.1 mm) and `autoFluidSeed` tune it.
+- **D-9 — one rung per advice category.** Seven categories now have a second measured rung (`layers.thickness`,
+  `snap.smooth`, `layers.yplusRelax`, `domain.mode` are new ops, `resolution`/`cells-budget` gain a second step);
+  `domain` ceiling raised to 2 so the second rung is reachable.
+- **Gate retry, measured (follow-up to D-6).** `h_min^3/6` describes the intended cell, but snappy also makes
+  thinner boundary cells: a single illegal face pyramid proved it on a plain 10 mm cube at 40 000 target cells
+  (`h_min` 1.11 mm → `minVol 4.6e-11`, one face below). The wrapper now retries at checkMesh's own advice
+  (`minVolume / 12`) and, if the mesh is still on the edge, once more at half of it — at most two attempts,
+  `minVolSource: 'derived-then-measured'`. Measured: `4.6e-11` FAIL (1 illegal face), `2e-11` PASS; the retry lands
+  on `2.3e-11` and the case PASSes.
+- **Tests**: `test/refinement.test.mjs` (8), `test/fluidpoint.test.mjs` (6), `test/ladders.test.mjs` (8) — suite
+  **93 tests, 91 pass, 0 fail, 2 skipped** (the two skips need `MESH_TUTORIALS_ROOT`).
+
 ## 1.1.1 — 2026-11-27
 
 Defect sprint on the gate (plan S3; audit `AUDIT-implementation-map-2026-11-26.md`, items D-6, D-7, D-10, D-1).
