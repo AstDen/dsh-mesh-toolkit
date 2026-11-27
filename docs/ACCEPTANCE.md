@@ -135,11 +135,52 @@ the OpenFOAM case, and its quality is comfortably inside the usual Fluent accept
 comparable to our `maxNonOrtho`/`maxSkewness`: Fluent's orthogonal quality is a different functional of the
 face and cell centroids, so 0.389 here and 26.41° there describe the same mesh, not a disagreement.
 
+## Fifth run: a solver run on a plugin-built mesh (2026-11-27)
+
+The mesh in this run was produced by the plugin alone (no hand edits to `polyMesh`), then solved with
+`solver-ready` dictionaries from the workbench plugin. Geometry: `channel-spheres` preset
+`channel_spheres_L3` (`contact: gap`, `gap_mm: 0.5`, `r_mm: 1.6`, `outlet_mode: plenum`) — a 2.2627 x 2.2627
+x 20.5255 mm channel with six 1.6 mm spheres, porosity 0.7556, `fluid.stl` watertight, one body, 79.4102 mm³.
+
+Mesh (`mesh_build`, route `snappy`, OpenFOAM.com v2512, `targetCells 120000`, automatic `locationInMesh`):
+
+| Quantity | Value |
+|---|---|
+| cells / points / faces | 290 099 / 355 920 / 934 730 |
+| max non-orthogonality / average | 31.8237° / 3.1924° |
+| max skewness / min cell volume | 1.75506 / 8.87841e-15 m³ |
+| gate (`profile: project`) | **PASS**, `minVol 7.4e-16`, `minVolSource: derived-then-measured` |
+| patches | `world` (symmetry) 13 500, `inlet` 2 322, `outlet` 1 580, `walls` 36 150, `interface` 33 645, `interface_necks` 386 |
+| mesh time | 59.8 s (serial) |
+
+Solver (`simpleFoam`, laminar, `U_inlet = (0 0 0.05)` m/s, `p_outlet = 0`, `nu = 1.5e-5` m²/s, SIMPLE with
+`residualControl p 1e-4 / U 1e-5`): **351 iterations, 227 s, 0.642 s per iteration on one core**, stopped by
+`SIMPLE solution converged in 351 iterations`.
+
+| Quantity | Value |
+|---|---|
+| final initial residuals | Ux 1.010e-5, Uy 1.010e-5, Uz 8.809e-6, p 4.360e-6 |
+| continuity error (global, last iteration) | 4.108e-7 |
+| inlet / outlet flux (`flowRatePatch`) | −2.55838e-7 / +2.55838e-7 m³/s (**balanced**) |
+| inlet / outlet patch area | 5.12249e-6 / 2.05224e-6 m² |
+| max |U| | 0.737958 m/s at a throat between spheres |
+| p range | 4.83934e-4 … 2.43865 m²/s² (Δp ≈ 2.44) |
+
+Interpretation: a mesh that passes the gate is also a mesh a real solver accepts — the run converged without
+limiters, the mass balance is exact, and the velocity maximum sits in the narrowest throat (0.5 mm gap,
+gap Reynolds number ≈ 4, so the laminar choice is consistent). Three traps surfaced on the way, all recorded
+in `docs/TROUBLESHOOTING.md`: a boundary plane that coincides with `domainMax` is absorbed into the `world`
+patch (no `outlet` patch at all), `mesh_build` writes a *placeholder* `fvSolution` (`solvers { }`) that a
+solver cannot use, and a relative `casePath` handed to a workbench tool resolves against `caseRoots`, silently
+creating a second case. The full experiment record lives in the project repository
+(`experiments/exp-027_solver-test/`).
+
 ## What this run does not cover
 
 - A real DSH host enabling the bundle through `install_bundle` (the peers were symlinked instead) — the
   plugin-market route is documented in `docs/QUICKSTART.md` and was exercised separately with
   `dsh plugin --profile test add`.
 - Windows/macOS, and any machine without OpenFOAM (the demo needs a mesher).
-- A *solver* run on the delivered mesh (only mesh reading and the mesh check were exercised; no boundary
-  conditions, no flow).
+- A *physical* study on a delivered mesh: the fifth run solved a laminar channel case (351 iterations,
+  mass balance exact) but did not validate any physics (no mesh-independence study, no turbulence, no
+  comparison with experiment).
