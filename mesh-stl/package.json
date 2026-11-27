@@ -1,6 +1,6 @@
 {
   "name": "mesh-stl",
-  "version": "1.0.1",
+  "version": "1.1.1",
   "private": true,
   "description": "DSH plugin for pore-scale STL geometry: generate from verified families (FCC cell, channel with spheres, double-layer burner, packings, CadQuery CAD), run the STL contract QA (watertight, winding, mm units), clean up and write passports to stl/registry.csv.",
   "type": "module",

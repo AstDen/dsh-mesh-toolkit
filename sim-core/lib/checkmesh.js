@@ -41,6 +41,8 @@ export function thresholdViolations(text) {
 export function parseCheckMesh(log) {
   const text = String(log ?? '').replace(/\u001b\[[0-9;]*m/g, '')
   const layer = text.match(/Added (\d+) out of (\d+) cells \(([\d.]+)%\)/)
+  // snappyHexMesh reports layers twice: cells (final) and faces (per extrusion pass)
+  const layerFaces = text.match(/Extruding (\d+) out of (\d+) faces \(([\d.]+)%\)/)
   return {
     cells: firstInt(text, [/^\s*cells:\s*(\d+)/m, /\bcells=(\d+)/]),
     points: firstInt(text, [/^\s*points:\s*(\d+)/m, /\bpoints=(\d+)/]),
@@ -65,6 +67,9 @@ export function parseCheckMesh(log) {
     fatal: /FOAM FATAL (ERROR|IO ERROR)/.test(text),
     violations: thresholdViolations(text),
     layers: layer ? { added: Number(layer[1]), outOf: Number(layer[2]), percent: Number(layer[3]) } : null,
+    layersFaces: layerFaces
+      ? { extruded: Number(layerFaces[1]), outOf: Number(layerFaces[2]), percent: Number(layerFaces[3]) }
+      : null,
   }
 }
 
@@ -89,4 +94,15 @@ export function verdictOf(metrics) {
   if (metrics.violations.length > 0) return 'FAIL'
   if (metrics.meshOk) return 'PASS'
   return 'UNKNOWN'
+}
+
+/**
+ * The layer-extrusion line snappyHexMesh prints — `Extruding N out of M faces (P%)`.
+ * checkMesh reports layers as cells (`Added … cells`), so face coverage only exists in the
+ * snappy log; both shapes are needed to judge `minLayerCoverage`.
+ * @param {string} text snappyHexMesh log
+ */
+export function parseLayerFaces(text) {
+  const m = String(text ?? '').match(/Extruding (\d+) out of (\d+) faces \(([\d.]+)%\)/)
+  return m ? { extruded: Number(m[1]), outOf: Number(m[2]), percent: Number(m[3]) } : null
 }

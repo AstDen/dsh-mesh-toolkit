@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.1.1 — 2026-11-27
+
+Defect sprint on the gate (plan S3; audit `AUDIT-implementation-map-2026-11-26.md`, items D-6, D-7, D-10, D-1).
+
+- **D-6 — an absolute `minVol` was never right for every mesh.** New `lib/minvol.js`: `deriveMinVol(caseDir)` takes
+  `h_min` from the handoff (`selection.cellSize_m / 2^maxLevel`, `source: 'handoff-cellSize'`) and falls back to
+  `system/meshQualityDict` (`source: 'case-meshQualityDict'`); `minVolFromSetup` does the same from a scaffold
+  (`source: 'scaffold-cellSize'`). Measured run: derived `1.76e-11` flagged healthy snappy boundary cells
+  (`minVol 1.76e-11 looks too strict: try 8.7e-13`), so the wrapper now makes **one measured tightening pass** —
+  when the only failures are `minVol-threshold` it re-runs the gate at the reported suggestion
+  (`minVolSource: 'derived-then-tightened'`, `minVolDerivation` kept) instead of inventing a safety factor.
+  Verified: the layered 10 mm case PASSes at `8.7e-13`, the same case re-checked by `mesh_check` derives `1e-14`
+  from its own dictionary.
+- **D-7 — layer coverage was never measured.** `parseCheckMesh` now also returns `layersFaces`
+  (`Extruding N out of M faces (P%)`); new `parseLayerFaces(text)` in `sim-core/lib/checkmesh.js` reads it from a
+  snappy log, because `checkMesh` only reports `Added … cells`. Measured: `2756/2768` faces = `99.57 %`.
+- **D-10 — `minLayerCoverage` decided nothing.** New `layerCoverageCheck({layersFaces, required})` in
+  `sim-core/lib/gate.js` (`disabled` / `no-faces` / `ok` / `below`), wired into `gateTarget` and into the
+  `mesh-build` wrapper, which now also returns `layers {faces, cells, required, status}`. Low-coverage proof on a
+  real mesh: `FAIL … layer coverage 10% < 80% (Extruding 100 out of 1000 faces)`.
+- **D-1 — the same card lived in two packages.** `mesh-stl/data/hints/snappy.json` moved out (owner:
+  `mesh-build`); `scripts/check-catalogue.mjs` now fails on an id with two owners. Catalogue: 56 unique cards,
+  `stl_hints` 12, `mesh_hints` 44.
+- `mesh_check` merges the snappy cell summary into the gate's face block instead of replacing it, and reports
+  `minVol`/`minVolSource` at the top level and per target.
+- Unit suite 71 tests (69 pass, 2 skipped), `mesh-build/test/gate-defects.test.mjs` covers all four defects.
+
 ## 1.1.0 — 2026-11-26
 
 OpenFOAM 2606/14 tutorials become a runnable oracle (`PLAN-tutorial-2606`, branch `tutorial-2606`).

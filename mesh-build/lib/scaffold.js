@@ -625,6 +625,9 @@ export function writeSnappyCase(config, caseDir, options) {
         }
         return domainMin.map((v, i) => Math.max(1, Math.ceil((domainMax[i] - v) / size)))
       })()
+  // The background cell that snappy will see: uniform when it comes from cellSize/targetCells,
+  // the smallest axis spacing when the caller passed an explicit `cells` triple.
+  const backgroundCellM = Math.min(...[0, 1, 2].map((i) => (domainMax[i] - domainMin[i]) / cells[i]))
   const warnings = [...domainNotes]
   for (const location of locations) {
     if (!inside(location.point, domainMin, domainMax)) {
@@ -745,6 +748,7 @@ export function writeSnappyCase(config, caseDir, options) {
     })),
     locations,
     cells,
+    cellSize_m: backgroundCellM,
     patchType,
     minVol,
     np,

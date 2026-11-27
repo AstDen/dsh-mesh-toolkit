@@ -2,10 +2,9 @@
 // Catalogue sanity for the knowledge cards.
 //
 // Every card must be loadable, carry an id/title/statement, non-empty topics and
-// evidence, and use a known status. Ids must be unique INSIDE a package. A few
-// ids are deliberately shared between mesh-stl and mesh-build (mesh-stl ships a
-// copy of the snappy cards); the merged catalogue collapses them at runtime, so
-// cross-package duplicates are reported, not rejected.
+// evidence, and use a known status. Ids must be unique INSIDE a package and ACROSS
+// packages: one card has exactly one owner, and the other package borrows it at runtime
+// (mesh-stl declares no snappy cards of its own any more — see S3 / D-1).
 //
 // Exit 0 = catalogue OK, exit 1 = problems (printed to stderr).
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -69,7 +68,7 @@ for (const pkg of PACKAGES) {
 const [left, right] = PACKAGES.map((pkg) => idsByPackage.get(pkg) ?? new Map())
 const shared = [...left.keys()].filter((id) => right.has(id))
 if (shared.length > 0) {
-  console.log(`shared across packages (collapsed by the merged catalogue): ${shared.length} — ${shared.join(', ')}`)
+  problems.push(`cards with two owners (each id belongs to one package): ${shared.length} — ${shared.join(', ')}`)
 }
 console.log(`merged catalogue: ${new Set([...left.keys(), ...right.keys()]).size} unique cards`)
 

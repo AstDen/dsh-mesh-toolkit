@@ -15,6 +15,7 @@ import {
   normalizeConfig, readJson, resolveProjectPath, tail, versionInfo,
 } from './lib/common.js'
 import { gateCase } from './lib/gate.js'
+import { minVolFromSetup } from './lib/minvol.js'
 import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
 // Imported from the module itself: the shared index.js may already be cached by another
 // plugin in the live DSH process, and a cached module cannot gain new named exports.
@@ -23,6 +24,7 @@ import {
   catalogRoutes, loadEngine, makeContext, planRoute, preflight, renderCommand, runRoute,
 } from './lib/routes.js'
 import { readCasePatches } from './lib/patches.js'
+import { parseLayerFaces } from '../sim-core/lib/checkmesh.js'
 import { runBash } from '../sim-core/lib/process.js'
 import { applyRoleAssignments, applyRetype, listCaseRegions, planRetype } from './lib/patchtypes.js'
 import { loadAdvice, planRevision } from './lib/revise.js'
@@ -508,9 +510,19 @@ export function apply(ctx, rawConfig) {
 
       // --- optional gate ---
       if (args.gate !== false) {
+        // D-6: the scaffold knows h_min, so the first gate run does not have to fall back to -1.
+        const setupMinVol = args.minVol ?? args.scaffoldOptions?.minVol ?? null
+        const derivedGateMinVol = setupMinVol === null || setupMinVol === undefined
+          ? minVolFromSetup({
+            cellSize_m: written.scaffold?.cellSize_m,
+            levels: Object.fromEntries((written.scaffold?.surfaces ?? []).map((s) => [s.name, s.level])),
+          })
+          : null
         payload.gate = gateCase(config, caseDir, {
           profile: args.profile ?? config.gate?.profile,
-          minVol: args.minVol ?? args.scaffoldOptions?.minVol,
+          minVol: setupMinVol,
+          derivedMinVol: derivedGateMinVol,
+          layerFaces: snappyLog ? parseLayerFaces(readFileSync(snappyLog, 'utf8')) : null,
         })
         payload.verdict = payload.gate.verdict
         try {
@@ -1231,16 +1243,26 @@ export function apply(ctx, rawConfig) {
         return { error: `no constant/ directory in ${displayPath(config, caseDir)}` }
       }
       const writeFields = typeof args.writeFields === 'string' && args.writeFields.trim() ? args.writeFields.trim() : null
+      const snappyLog = findSnappyLog(config, caseDir)
+      const snappyText = snappyLog ? readFileSync(snappyLog, 'utf8') : null
       const gate = gateCase(config, caseDir, {
         profile: args.profile ?? config.gate?.profile,
         minVol: args.minVol,
         regions: Array.isArray(args.regions) ? args.regions.map(String) : undefined,
         writeFields,
+        layerFaces: snappyText ? parseLayerFaces(snappyText) : null,
       })
-      const snappyLog = findSnappyLog(config, caseDir)
-      if (snappyLog) {
+      if (snappyLog && snappyText) {
         try {
-          gate.layers = parseSnappyLayers(readFileSync(snappyLog, 'utf8'))
+          // D-7: keep the face-coverage block the gate produced and add the cell-count view,
+          // instead of replacing one with the other.
+          const cellLayers = parseSnappyLayers(snappyText)
+          gate.layers = {
+            ...(gate.layers ?? {}),
+            added: cellLayers.added,
+            total: cellLayers.total,
+            coveragePct: cellLayers.coveragePct,
+          }
         } catch { /* ignore */ }
       }
       // Record the verdict: mesh_deliver requires a fresh PASS passport, so the gate that
@@ -1345,6 +1367,8 @@ export function apply(ctx, rawConfig) {
         failingRegions: gate.failingRegions,
         regions: gate.regions,
         layers: gate.layers ?? null,
+        minVol: gate.results?.[0]?.minVol ?? null,
+        minVolSource: gate.results?.[0]?.minVolSource ?? null,
         advisory: gate.advisory,
         passport: passport ? {
           status: freshness.status,
@@ -1359,7 +1383,10 @@ export function apply(ctx, rawConfig) {
           target: r.region,
           pass: r.pass,
           failKind: r.failKind ?? null,
+          minVol: r.minVol ?? null,
+          minVolSource: r.minVolSource ?? null,
           minVolSuggestion: r.minVolSuggestion ?? null,
+          layers: r.layers ?? null,
           advisory: r.advisory ?? [],
           metrics: r.metrics,
           log: r.log,

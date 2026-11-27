@@ -44,6 +44,32 @@ export function resolveThresholds(profileName, profiles = {}, overrides = {}) {
 }
 
 /** Render a complete meshQualityDict body. */
+/**
+ * Judge layer coverage against `minLayerCoverage` from the gate profile.
+ *
+ * `Extruding N out of M faces` is the honest number: a cell can count as "added" while the
+ * surface under it barely grew. Without a threshold or without a layer summary the check
+ * reports `disabled` / `no-faces` instead of inventing a verdict.
+ * @param {{layersFaces?: {extruded: number, outOf: number, percent: number}|null, required?: number|null}} input
+ */
+export function layerCoverageCheck({ layersFaces = null, required = null } = {}) {
+  const threshold = Number(required)
+  const has = layersFaces && Number(layersFaces.outOf) > 0
+  if (!Number.isFinite(threshold) || threshold <= 0) {
+    return { status: 'disabled', percent: has ? Number(layersFaces.percent) : null, required: null }
+  }
+  if (!has) return { status: 'no-faces', percent: null, required: threshold }
+  const percent = Number(layersFaces.percent)
+  if (percent + 1e-9 >= threshold * 100) return { status: 'ok', percent, required: threshold }
+  return {
+    status: 'below',
+    percent,
+    required: threshold,
+    message: `layer coverage ${percent}% < ${Number((threshold * 100).toPrecision(4))}%`
+      + ` (Extruding ${layersFaces.extruded} out of ${layersFaces.outOf} faces)`,
+  }
+}
+
 export function meshQualityDict(thresholds, minVol, minTetQuality) {
   const values = {
     ...DICT_FIXED,
@@ -329,7 +355,7 @@ export function gateTarget(options) {
     writeFields: writeFields ?? null,
   })
   const metrics = parseCheckMesh(run.text)
-  const verdict = verdictOf(metrics)
+  let verdict = verdictOf(metrics)
   let failKind = failKindOf(metrics, verdict)
   let suggestion = null
   if (failKind === 'minVol-threshold' && Number.isFinite(metrics.minVolume) && metrics.minVolume > 0) {
@@ -344,6 +370,13 @@ export function gateTarget(options) {
       + 'Set sim-project.json gate.minVol or pass minVol; the rule of thumb is h_min³/6.')
   }
   if (suggestion) advisory.push(`minVol ${effectiveMinVol} looks too strict: try ${suggestion.minVol}.`)
+  // D-10: `minLayerCoverage` lives in the profiles but used to decide nothing.
+  const layerCheck = layerCoverageCheck({ layersFaces: metrics.layersFaces, required: thresholds.minLayerCoverage })
+  if (layerCheck.status === 'below') {
+    verdict = 'FAIL'
+    failKind = 'layers'
+    advisory.push(`${layerCheck.message}; the gate profile asks for minLayerCoverage ${layerCheck.required}.`)
+  }
   if (synthesized.length) {
     advisory.push(`${synthesized.join(', ')} missing from the case: a minimal copy was synthesized in the overlay `
       + '(it cannot change mesh metrics) — write real ones before a solver run.')
@@ -362,6 +395,7 @@ export function gateTarget(options) {
     verdict,
     pass: verdict === 'PASS',
     metrics,
+    layers: { faces: metrics.layersFaces ?? null, cells: metrics.layers ?? null, required: layerCheck.required, status: layerCheck.status },
     failKind,
     suggestion,
     synthesized,

@@ -2,9 +2,9 @@
   "schema": "mesh-capabilities-matrix/1",
   "generated": "2026-11-26",
   "method": [
-    "Utilities: a live `command -v` probe in the bashrc of the specific build (one bash call, probeScript in lib/caps.js).",
-    "snappyHexMesh keys: a live `grep -c <key>` probe against the build's own annotated dictionary `etc/caseDicts/annotated/snappyHexMeshDict` — that is the documentation of this build, not a version table; for org14 it was additionally cross-checked against the sources (`src/mesh/snappyHexMesh/...`).",
-    "Every value below was re-checked on 2026-11-26 on the installed builds: com2606 (env/openfoam/com2606), com2512 (/usr/lib/openfoam/openfoam2512), org14 (env/openfoam/org14)."
+    "Utilities: a live `command -v` probe inside the bashrc of that build (one bash call, probeScript in lib/caps.js).",
+    "snappyHexMesh keys: a live `grep -c <key>` against the build's own `etc/caseDicts/annotated/snappyHexMeshDict` — that build's documentation, not a version table; for org14 it was additionally checked against the sources (`src/mesh/snappyHexMesh/...`).",
+    "Every value below was re-checked on 2026-11-26 against the installed builds: com2606 (env/openfoam/com2606), com2512 (/usr/lib/openfoam/openfoam2512), org14 (env/openfoam/org14)."
   ],
   "definitions": {
     "utilities": [
@@ -221,17 +221,17 @@
       },
       "evidence": {
         "utilities": "command -v in env/openfoam/org14/opt/openfoam14/etc/bashrc (2026-11-26): PDRblockMesh, foamyHexMesh, foamyQuadMesh, refineHexMesh, setSet, surfaceMeshExtract and all of cfMesh are absent; surfaceFeatureExtract exists but is a stub (exp-019)",
-        "snappyKeys": "src/mesh/snappyHexMesh: gapLevel — refinementSurfaces.H:86/104 and meshRefinementRefine.C:1788 (present!), gapLevelIncrement — refinementSurfaces.H:104; insidePoints — refinementParameters.C:84, outsidePoints — refinementParameters.C:94; gapMode/curvatureLevel/leakLevel/useLeakClosure/levelIncrement/locationsInMesh — 0 files. The org14 annotated dictionary lists only gapLevelIncrement (lines 184, 219)"
+        "snappyKeys": "src/mesh/snappyHexMesh: gapLevel — refinementSurfaces.H:86/104 and meshRefinementRefine.C:1788 (present!); gapLevelIncrement — refinementSurfaces.H:104; insidePoints — refinementParameters.C:84, outsidePoints — refinementParameters.C:94; gapMode/curvatureLevel/leakLevel/useLeakClosure/levelIncrement/locationsInMesh — 0 files. The org14 annotated dictionary has only gapLevelIncrement (lines 184, 219)"
       },
       "supportedButUndocumented": []
     }
   },
   "notes": [
     "gapLevel and gapLevelIncrement exist in BOTH lines — the plan's matrix (§3) is right only about gapMode.",
-    "outsidePoints (selecting cells outside the surface) also exists in org14 — the key is not com-only; it is not documented in the com2606 annotated dictionary, therefore declared=false and a live dictionary probe returns false.",
-    "PDRblockMesh, foamyHexMesh, foamyQuadMesh, refineHexMesh, setSet, surfaceMeshExtract and all of cfMesh are com-only; org14 has neither the binaries nor the routes.",
-    "locationsInMesh with region names is com-only; org14 has no such class at all (0 files in src).",
-    "distributionType (distributedTriSurfaceMesh) is com2606-only: 2512 has no such key in its tutorials, 2606 does (the distributedTriSurfaceMesh case).",
-    "surfaceFeatures + system/surfaceFeaturesDict are org14-only; surfaceFeatureExtract in org14 is a stub (rc=0, writes no files, exp-019)."
+    "outsidePoints (select cells outside) also exists in org14 — the key is not com-only; it is undocumented in the com2606 annotated dictionary, so declared=false and the live dictionary probe reports false.",
+    "PDRblockMesh, foamyHexMesh, foamyQuadMesh, refineHexMesh, setSet, surfaceMeshExtract and all of cfMesh are com-only; org14 has them neither as binaries nor as routes.",
+    "locationsInMesh with region names is com-only; the class does not exist in org14 at all (0 files in src).",
+    "distributionType (distributedTriSurfaceMesh) is com2606 only: the key is absent from the 2512 tutorials and present in 2606 (case distributedTriSurfaceMesh).",
+    "surfaceFeatures + system/surfaceFeaturesDict are org14 only; surfaceFeatureExtract on org14 is a stub (rc=0, writes no files, exp-019)."
   ]
 }

@@ -1,5 +1,16 @@
 # Changelog — sim-core
 
+## 1.1.1 — 2026-11-27
+
+- `parseCheckMesh` returns `layersFaces` from `Extruding N out of M faces (P%)`, and new `parseLayerFaces(text)`
+  reads that line out of a snappyHexMesh log — `checkMesh` only prints the cell form (`Added … cells`), so face
+  coverage needs both.
+- `layerCoverageCheck({layersFaces, required})`: `disabled` / `no-faces` / `ok` / `below` with the exact message
+  `layer coverage 10% < 80% (Extruding 100 out of 1000 faces)`. `gateTarget` turns `below` into `FAIL` with
+  `failKind: 'layers'` and returns `layers {faces, cells, required, status}` — `minLayerCoverage` lived in every
+  profile and decided nothing (D-10).
+- `buildOverlay(...)` unchanged; no metric changed, so existing passports stay comparable.
+
 ## 1.1.0 — 2026-11-26
 
 - `checkMesh -writeFields` in the JS gate: `runCheckMesh({writeFields})` adds the flag, and
