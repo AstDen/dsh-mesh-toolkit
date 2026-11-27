@@ -75,7 +75,7 @@ const SCAFFOLD_KEYS = [
   'locationInMesh', 'locationsInMesh',
   'refinementLevels', 'defaultLevel', 'layerSurfaces', 'nLayers', 'layerThickness',
   'minThickness', 'symmetryDomain', 'minVol', 'maxNonOrtho', 'resolveFeatureAngle', 'expansionRatio', 'minTwist',
-  'nCellsBetweenLevels', 'refinementRegions', 'relaxedMaxNonOrtho',
+  'nCellsBetweenLevels', 'refinementRegions', 'relaxedMaxNonOrtho', 'allowClipping',
   'autoFluidPoint', 'autoFluidClearanceMm', 'autoFluidSeed',
   'advanced',
 ]
@@ -202,7 +202,9 @@ export function apply(ctx, rawConfig) {
           if (bound.error) return jsonSafe(bound.error)
           return jsonSafe(withPortable(await def.execute(args, bound.config), bound.config))
         } catch (error) {
-          return jsonSafe({ error: error.message, tool: def.name })
+          // Keep the shape the other refusals use (`ok: false` + a phase), so a caller can branch
+          // on the answer instead of parsing prose.
+          return jsonSafe({ ok: false, phase: 'error', error: error.message, tool: def.name })
         }
       },
     })
@@ -531,6 +533,7 @@ export function apply(ctx, rawConfig) {
           minVol: setupMinVol,
           derivedMinVol: derivedGateMinVol,
           layerFaces: snappyLog ? parseLayerFaces(readFileSync(snappyLog, 'utf8')) : null,
+          snappyText: snappyLog ? readFileSync(snappyLog, 'utf8') : null,
         })
         payload.verdict = payload.gate.verdict
         try {
@@ -889,9 +892,11 @@ export function apply(ctx, rawConfig) {
 
       if (args.recheck) {
         const before = previous?.quality ?? null
+        const recheckSnappyLog = findSnappyLog(config, caseDir)
         const gate = gateCase(config, caseDir, {
           profile: args.profile ?? config.gate?.profile,
           minVol: args.minVol ?? before?.minVol ?? undefined,
+          snappyText: recheckSnappyLog ? readFileSync(recheckSnappyLog, 'utf8') : null,
         })
         const metrics = gate.results?.[0]?.metrics ?? {}
         summary.recheck = {
@@ -1261,6 +1266,7 @@ export function apply(ctx, rawConfig) {
         regions: Array.isArray(args.regions) ? args.regions.map(String) : undefined,
         writeFields,
         layerFaces: snappyText ? parseLayerFaces(snappyText) : null,
+        snappyText,
       })
       if (snappyLog && snappyText) {
         try {
@@ -1397,6 +1403,7 @@ export function apply(ctx, rawConfig) {
           minVolSource: r.minVolSource ?? null,
           minVolSuggestion: r.minVolSuggestion ?? null,
           layers: r.layers ?? null,
+          mesher: r.mesher ?? null,
           advisory: r.advisory ?? [],
           metrics: r.metrics,
           log: r.log,

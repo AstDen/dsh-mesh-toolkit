@@ -42,6 +42,7 @@ export function gateCase(config, caseDir, options = {}) {
     timeoutMs: config.timeoutMs,
     maxOutputChars: config.maxOutputChars,
     openfoamBashrc: config.openfoamBashrc,
+    snappyText: options.snappyText ?? null,
   })
   const results = result.targets.map((target) => ({
     region: target.region,
@@ -56,6 +57,7 @@ export function gateCase(config, caseDir, options = {}) {
     thresholds: target.thresholds ?? null,
     metrics: target.metrics ?? null,
     layers: target.layers ?? null,
+    mesher: target.mesher ?? null,
     advisory: target.advisory ?? [],
     log: target.log ? displayPath(config, target.log) : null,
     writeFields: target.writeFields ?? null,
@@ -118,6 +120,7 @@ export function gateCase(config, caseDir, options = {}) {
           timeoutMs: config.timeoutMs,
           maxOutputChars: config.maxOutputChars,
           openfoamBashrc: config.openfoamBashrc,
+          snappyText: options.snappyText ?? null,
         })
         tightened = attempts[attempt]
         usedMeasured = true
@@ -141,6 +144,7 @@ export function gateCase(config, caseDir, options = {}) {
             thresholds: target.thresholds ?? null,
             metrics: target.metrics ?? null,
             layers: target.layers ?? null,
+            mesher: target.mesher ?? null,
             advisory: target.advisory ?? [],
             log: target.log ? displayPath(config, target.log) : null,
             writeFields: target.writeFields ?? null,

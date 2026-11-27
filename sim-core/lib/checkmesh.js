@@ -106,3 +106,39 @@ export function parseLayerFaces(text) {
   const m = String(text ?? '').match(/Extruding (\d+) out of (\d+) faces \(([\d.]+)%\)/)
   return m ? { extruded: Number(m[1]), outOf: Number(m[2]), percent: Number(m[3]) } : null
 }
+
+/**
+ * snappyHexMesh's own verdict, which the gate has to respect: the mesher prints
+ * `Finished meshing with N illegal faces (concave, zero area or negative cell
+ * pyramid volume)` and `Snapped mesh : cells:N`. A non-zero illegal-face count
+ * means the mesher kept cells it considers broken; no later threshold (and no
+ * minVol auto-tuning) may turn that into a PASS.
+ */
+export function parseSnappyLog(text) {
+  if (typeof text !== 'string') return { illegalFaces: null, cells: null, snapped: false }
+  const illegal = text.match(/Finished meshing with (\d+) illegal faces/)
+  const cells = text.match(/Snapped mesh : cells:(\d+)/)
+  return {
+    illegalFaces: illegal ? Number(illegal[1]) : null,
+    cells: cells ? Number(cells[1]) : null,
+    snapped: /Snapped mesh\s*:/.test(text),
+  }
+}
+
+/**
+ * A mesher verdict that overrides every threshold-based pass: illegal faces in
+ * the snappy log are a hard failure.
+ */
+export function mesherCheck(snappy) {
+  const parsed = typeof snappy === 'string' ? parseSnappyLog(snappy) : (snappy ?? {})
+  const illegalFaces = Number.isFinite(parsed.illegalFaces) ? parsed.illegalFaces : null
+  if (illegalFaces === null || illegalFaces <= 0) {
+    return { status: 'ok', illegalFaces, cells: parsed.cells ?? null }
+  }
+  return {
+    status: 'illegal-faces',
+    illegalFaces,
+    cells: parsed.cells ?? null,
+    message: `snappyHexMesh finished with ${illegalFaces} illegal faces (concave, zero area or negative cell-pyramid volume)`,
+  }
+}

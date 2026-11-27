@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.1 — 2026-11-27
+
+Found by a real solver test (exp-027: a `simpleFoam` run on a plugin-built channel mesh).
+
+- **A clipped STL is refused.** Scaffolding with an STL that sticks out of `domainMin`/`domainMax` now throws
+  `… — refusing to mesh: a clipped surface yields a mesh that passes checkMesh but has no inlet/outlet; enlarge the
+  domain or pass scaffoldOptions.allowClipping: true if the cut is deliberate`. In exp-027 that situation produced
+  242 699 cells, `Finished meshing with 438787 illegal faces` and a gate **PASS** with only `world` + `walls` left —
+  a mesh that cannot carry a flow. `allowClipping: true` keeps the old behaviour and the warning.
+- **The scaffold now writes a real laminar solver skeleton**: `controlDict` gets `application simpleFoam`,
+  `endTime 1000`, `writeInterval 100`; `fvSchemes` gets full `div`/`grad`/`laplacian`/`interpolation`/`snGrad` blocks
+  (`div(phi,U) Gauss linearUpwind grad(U)`, `div((nuEff*dev2(T(grad(U))))) Gauss linear`); `fvSolution` gets
+  `solvers { p GAMG GaussSeidel 1e-07 0.1; U smoothSolver symGaussSeidel 1e-08 0.1 }`, `SIMPLE` with
+  `nNonOrthogonalCorrectors 1` and `residualControl`, plus `relaxationFactors`. The run payload carries
+  `solverSkeleton` saying what is and is not written. Previously the case had `solvers { }`/`SIMPLE { }` and
+  `application snappyHexMesh`, so a solver run needed the workbench's `force: true` pass; now that pass only adds
+  `0/U` and `0/p`. Verified: 10 `simpleFoam` iterations ran straight on a scaffolded case (exit 0).
+- **Tool errors keep one shape**: a refusal is `{ ok: false, phase: 'error', error, tool }` (was `{ error, tool }`).
+- Tests: 103 pass / 0 fail / 2 skipped (`mesh-build/test/mesher-verdict.test.mjs` covers the snappy log parser, the
+  skeleton text and the clipping refusal).
+
 ## 1.3.0 — 2026-11-27
 
 Final item of the plan S3 defect sprint (audit `AUDIT-implementation-map-2026-11-26.md`, D-5): the y+ layer formula.

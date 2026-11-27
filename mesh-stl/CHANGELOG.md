@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 — 2026-11-27
+
+No functional change; versioned together with the rest of the toolkit.
+
 ## 1.3.0 — 2026-11-27
 
 - No functional change: `mesh-stl` is versioned together with `mesh-build` and `sim-core` so that one number

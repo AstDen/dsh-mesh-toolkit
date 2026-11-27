@@ -585,14 +585,14 @@ method scotch;
 
 function controlDict() {
   return `${FOAM_HEADER('controlDict')}
-application     snappyHexMesh;
+application     simpleFoam;
 startFrom       startTime;
 startTime       0;
 stopAt          endTime;
-endTime         1;
+endTime         1000;
 deltaT          1;
 writeControl    timeStep;
-writeInterval   1;
+writeInterval   100;
 purgeWrite      0;
 writeFormat     ascii;
 writePrecision  6;
@@ -605,20 +605,90 @@ runTimeModifiable true;
 
 function fvSchemes() {
   return `${FOAM_HEADER('fvSchemes')}
-ddtSchemes { default steadyState; }
-gradSchemes { default Gauss linear; }
-divSchemes { default none; }
-laplacianSchemes { default Gauss linear corrected; }
-interpolationSchemes { default linear; }
-snGradSchemes { default corrected; }
+ddtSchemes
+{
+    default         steadyState;
+}
+
+gradSchemes
+{
+    default         Gauss linear;
+}
+
+divSchemes
+{
+    default         none;
+    div(phi,U)      Gauss linearUpwind grad(U);
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear corrected;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         corrected;
+}
 `
 }
 
+/**
+ * A *working* steady laminar skeleton, not just a placeholder: `simpleFoam`
+ * runs on it as soon as 0/U and 0/p exist. The fields themselves are not
+ * written here (the mesh scaffold has no inlet/outlet knowledge) - the
+ * workbench's openfoam_case_scaffold writes them and skips these dictionaries
+ * because they already exist.
+ */
 function fvSolution() {
   return `${FOAM_HEADER('fvSolution')}
-solvers { }
-SIMPLE { }
-relaxationFactors { }
+solvers
+{
+    p
+    {
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       1e-07;
+        relTol          0.1;
+    }
+
+    U
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-08;
+        relTol          0.1;
+    }
+}
+
+SIMPLE
+{
+    nNonOrthogonalCorrectors 1;
+
+    residualControl
+    {
+        p               1e-4;
+        U               1e-5;
+    }
+}
+
+relaxationFactors
+{
+    fields
+    {
+        p               0.3;
+    }
+    equations
+    {
+        U               0.7;
+    }
+}
 `
 }
 
@@ -737,9 +807,20 @@ export function writeSnappyCase(config, caseDir, options) {
     throw new Error(`refinementLevels key "${unknownKeys.join('", "')}" does not match any STL surface `
       + `(have: ${[...knownNames].join(', ') || 'none'}); the surface name is the STL file stem`)
   }
+  // A clipped surface is the defect that produced a mesh with no inlet/outlet at all (exp-027
+  // attempt 1: 438 787 illegal faces, gate still PASS). Refuse it; `allowClipping: true` is the
+  // documented escape hatch for a deliberate cut.
+  const clipped = []
   for (const surface of surfaces) {
     const outside = stlOutsideDomainWarning(surface.name, readStlBboxMm(surface.file), domainMin, domainMax)
-    if (outside) warnings.push(outside)
+    if (!outside) continue
+    if (options.allowClipping === true) warnings.push(outside)
+    else clipped.push(outside)
+  }
+  if (clipped.length) {
+    throw new Error(`${clipped.join('; ')} — refusing to mesh: a clipped surface yields a mesh that passes `
+      + 'checkMesh but has no inlet/outlet; enlarge the domain or pass scaffoldOptions.allowClipping: true '
+      + 'if the cut is deliberate')
   }
   const budget = cellBudgetWarning(cells, Number(options.maxCells ?? 5_000_000))
   if (budget) warnings.push(budget)
@@ -848,6 +929,8 @@ export function writeSnappyCase(config, caseDir, options) {
     minVol,
     np,
     advanced,
+    solverSkeleton:
+      'simpleFoam, steady laminar (system/fvSchemes and system/fvSolution are usable as written; 0/U and 0/p are not written - take them from the workbench openfoam_case_scaffold or write your own)',
     units: { case: 'm', stl: 'mm (scale 0.001 in snappy geometry)' },
   }
 }

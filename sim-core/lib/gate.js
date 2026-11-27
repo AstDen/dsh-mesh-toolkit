@@ -18,7 +18,7 @@ import {
   cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
-import { failKindOf, parseCheckMesh, verdictOf } from './checkmesh.js'
+import { failKindOf, parseCheckMesh, verdictOf, mesherCheck } from './checkmesh.js'
 import { BUILTIN_GATE_PROFILES } from './project.js'
 import { q, runBash } from './process.js'
 import { tail } from './util.js'
@@ -305,6 +305,7 @@ export function gateTarget(options) {
   const {
     config, caseDir: requestedCaseDir, region = null, profile = null, minVol = null, overrides = {},
     openfoamBashrc, timeoutMs, maxOutputChars, engine, script, logName = null, writeFields = null,
+    snappyText = null,
   } = options
   // Always work with an absolute case path: `checkMesh` runs with cwd = caseDir,
   // so a relative path would be resolved twice (case/case/.mesh-gate).
@@ -377,6 +378,16 @@ export function gateTarget(options) {
     failKind = 'layers'
     advisory.push(`${layerCheck.message}; the gate profile asks for minLayerCoverage ${layerCheck.required}.`)
   }
+  // The mesher counts illegal faces against ITS OWN minVol (the case dictionary), which for pore
+  // meshes is usually far stricter than the gate's measured threshold — so a non-zero count is
+  // reported, never a verdict on its own (case3 of exp-027 solved fine with 83 246 of them).
+  // The defect that actually produced a broken mesh (exp-027 attempt 1) was a clipped STL, and
+  // that is refused earlier, in the scaffold.
+  const mesher = mesherCheck(snappyText)
+  if (mesher.status !== 'ok') {
+    advisory.push(`${mesher.message}; this is snappy's own count at its dictionary minVol — the verdict `
+      + 'below comes from checkMesh at the threshold shown in `minVol`.')
+  }
   if (synthesized.length) {
     advisory.push(`${synthesized.join(', ')} missing from the case: a minimal copy was synthesized in the overlay `
       + '(it cannot change mesh metrics) — write real ones before a solver run.')
@@ -396,6 +407,7 @@ export function gateTarget(options) {
     pass: verdict === 'PASS',
     metrics,
     layers: { faces: metrics.layersFaces ?? null, cells: metrics.layers ?? null, required: layerCheck.required, status: layerCheck.status },
+    mesher,
     failKind,
     suggestion,
     synthesized,

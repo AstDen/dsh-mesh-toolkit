@@ -1,5 +1,15 @@
 # Changelog — sim-core
 
+## 1.3.1 — 2026-11-27
+
+- `lib/checkmesh.js` gained `parseSnappyLog(text)` (`illegalFaces`, `cells`, `snapped`) and `mesherCheck(snappy)`
+  (`status: 'ok' | 'illegal-faces'`, message).
+- `lib/gate.js` now carries a `mesher` block on every target result and adds an advisory when snappyHexMesh reported
+  illegal faces: *"… this is snappy's own count at its dictionary minVol — the verdict below comes from checkMesh at
+  the threshold shown in `minVol`"*. It is deliberately **not** a verdict: snappy's internal `minVol` is far stricter
+  than the measured gate threshold, and a working pore mesh reported 83 246 such faces while solving normally.
+- The scaffold refusal that fixes the real defect lives in `mesh-build` (see its 1.3.1 entry).
+
 ## 1.3.0 — 2026-11-27
 
 - No functional change in the gate, the handoff or the service contract: 1.3.0 fixes the y+ layer formula in
