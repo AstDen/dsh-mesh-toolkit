@@ -7,7 +7,7 @@
  * @module mesh-build/lib/routes
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { displayPath, q, readJson, runBash, tail } from './common.js'
 import { probeCaps } from './caps.js'
 
@@ -62,8 +62,10 @@ export function probeInstallation(config) {
 /** Placeholder context plus runtime flags. */
 export function makeContext(config, args, caseDir) {
   const features = probeInstallation(config)
+  // Absolute: every step runs with cwd = caseDir and also passes `-case {caseDir}`, so a relative path
+  // would be resolved twice (`<case>/<case>`, seen with topoSet: "cannot open root directory").
   return {
-    caseDir,
+    caseDir: resolve(caseDir),
     config,
     args,
     np: Math.max(1, Math.floor(Number(args.np) || config.np || 1)),
@@ -102,7 +104,18 @@ function enabled(when, ctx) {
     case 'parallelNoMergeTol': return np > 1 && ctx.mergeTol === false
     case 'serial': return np <= 1
     case 'splitRegions': return args.splitRegions === true
-    default: throw new Error(`engine.json: unknown step condition "${when}"`)
+    default:
+      // `dict:<case-relative path>`: the step runs only when its own dictionary exists. This is how the
+      // mesh-surgery whitelist (TW-07) stays honest: a missing dictionary means "not requested", and the
+      // preflight still refuses a route whose utilities are absent from the build.
+      if (typeof when === 'string' && when.startsWith('dict:')) {
+        return existsSync(join(ctx.caseDir, when.slice(5)))
+      }
+      if (typeof when === 'string' && when.startsWith('args:')) {
+        const value = args[when.slice(5)]
+        return value !== undefined && value !== null && value !== '' && value !== false
+      }
+      throw new Error(`engine.json: unknown step condition "${when}"`)
   }
 }
 

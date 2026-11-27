@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
 
-> **1.0.1** · packages: mesh-build 1.0.1 · mesh-stl 1.0.1 · sim-core 1.0.1
+> **1.1.0** · packages: mesh-build 1.1.0 · mesh-stl 1.0.1 · sim-core 1.1.0
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Twelve tools, 40 searchable knowledge
@@ -14,7 +14,7 @@
 |---|---|---|
 | [`sim-core/`](sim-core/) | config layering, `sim-project.json`, path resolver, checkMesh parser, JS quality gate, passports, shared cards | library, no tools |
 | [`mesh-stl/`](mesh-stl/) | STL families and portable primitives, in-plugin JS contract QA (python `stl_qa.py` as parity reference), cleanup, passport row | `stl_hints` · `stl_generate` · `stl_check` |
-| [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D on any OpenFOAM build, JS quality gate, mesh passport, OF+Fluent delivery, capability probe, patch roles, feedback-driven revisions, y+ layers, surface fidelity | `mesh_hints` · `mesh_build` · `mesh_check` · `mesh_deliver` · `mesh_capabilities` · `mesh_patch_types` · `mesh_revise` · `mesh_first_layer` · `mesh_surface_check` |
+| [`mesh-build/`](mesh-build/) | snappyHexMesh / cfMesh / gmsh route D on any OpenFOAM build, tutorial-case runner, JS quality gate, mesh passport, OF+Fluent delivery, capability matrix, patch roles, feedback-driven revisions, y+ layers, surface fidelity | `mesh_hints` · `mesh_build` · `mesh_tutorial` · `mesh_check` · `mesh_deliver` · `mesh_capabilities` · `mesh_patch_types` · `mesh_revise` · `mesh_first_layer` · `mesh_surface_check` |
 
 Thin wrappers over the project's real generators and OpenFOAM binaries. No invented
 metrics: every number comes from a real run, full logs stay on disk, the tool returns
@@ -23,13 +23,16 @@ a compact JSON summary. Plugins talk to each other through Cordis services
 
 ## Status
 
-**1.0.0** — accepted on a clean machine with no project, no checkout and no project venv
-(`docs/ACCEPTANCE.md`: `doctor` READY, `demo` OK in 25.5 s from the release tarball).
+**1.1.0** — the OpenFOAM `tutorials/mesh` set as a mesh oracle: `mesh_tutorial` lists, replays
+and compares 51 tutorial cases on v2606 (9 on org14) without a shell, plus a capability
+matrix of utilities × dictionary keys × build. **1.0.0** was accepted on a clean machine with
+no project, no checkout and no project venv (`docs/ACCEPTANCE.md`: `doctor` READY, `demo` OK
+in 25.5 s from the release tarball).
 
 Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
 **gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 
-**12 tools · 40 cards in the merged `mesh_hints` catalogue · 22 in `stl_hints` · 2 skills · 3 services · smoke and live tested
+**13 tools · 66 cards in files / 56 unique ids in the merged `mesh_hints` catalogue · 22 in `stl_hints` · 2 skills · 3 services · smoke and live tested**
 
 ## 60 seconds
 
@@ -196,7 +199,7 @@ plain JS, no Python, no project data). `geometry.scriptRoots` keeps generators o
 the project; presets resolve from `@package/...`. `stl_generate` runs the real
 generator and QA-verifies every output; `stl_check` cleans and registers.
 
-**mesh-build** — routes `snappy`, `cfmesh`, `gmsh`, `check`; `mesh_build` with
+**mesh-build** — routes `snappy`, `cfmesh`, `gmsh`, `check`, `ops`, `blockmesh`; `mesh_build` with
 `scaffold: true` writes a runnable snappy case plus `case-manifest.json`, otherwise
 builds an existing case; after the gate it writes `mesh-passport.json` (route, cells,
 regions, thresholds, sha256/size/mtime of the polyMesh). `mesh_check` reports
@@ -241,6 +244,44 @@ geometry 20 · mesh 25 · robustness 20 · ergonomics 20 · performance 15.
 [benchmark/PROMPT.md](benchmark/PROMPT.md) is the shorter two-task variant (primitives
 and packings) for a quick evaluation pass.
 
+## Tutorials as an oracle
+
+`mesh_tutorial` turns the OpenFOAM `tutorials/mesh` set into a regression oracle. It reads
+the tutorial `Allrun` (or `Allmesh`) as a list of executable steps — `runApplication`,
+`runParallel`, `mkdir`, `cp`, `restore0Dir`, `cleanTimeDirectories`, `foamDictionary -set`,
+`setSet` heredocs, `(cd X && ...)`, `USE_ARC=true runApplication ...` — and **never** through
+a shell. Anything outside that subset (loops, `if`, `wmake`, `canCompile`) lands in
+`manual[]` with its reason and line number instead of being skipped silently.
+
+| action | what it does |
+|---|---|
+| `list` | measured catalogue: **51 cases / 51 `controlDict`s on v2606** (45 runnable, 6 manual), **9/9 on org14**, with `requires[]` per sub-case |
+| `run` | copies the case into `out` (inside the project), executes the steps with `logs/<NN>_<util>.log`, then the gate and patch report, and writes `tutorial-manifest.json`; `steps: "mesh-only" \| "all" \| [names]`; `np` must match `decomposeParDict` |
+| `compare` | diff against a previous manifest: cells ±5 %, `maxNonOrtho` ±2°, patch set |
+
+Measured on v2606 (full table in `experiments/exp-025_tutorial-2606/metrics.csv`):
+
+| case | cells | maxNonOrtho | gate |
+|---|---|---|---|
+| `snappyHexMesh/flange` | 19 186 | 50.9531 | PASS |
+| `snappyHexMesh/sphere_multiRegion` | 8 000 | 0 | PASS |
+| `snappyHexMesh/block_with_curvature` | 9 413 | 25.2394 | PASS |
+| `snappyHexMesh/insidePoints` (np=6) | 1 000 | 0 | PASS |
+| `snappyHexMesh/sphere_gapClosure` (np=8, collated) | 25 042 | 48.0336 | PASS |
+| `PDRblockMesh/box0` | 54 960 | 55.9662 | PASS |
+| `extrudeMesh/polyline` | 51 400 | 32.4679 | PASS |
+| `polyDualMesh/missingCorner` | 38 498 | 34.9906 | PASS |
+| `foamyQuadMesh/square` | 14 349 | 26.7160 | PASS |
+| `foamyQuadMesh/jaggedBoundary` | 42 361 | 50.5075 | PASS |
+
+Cross-build parity: `flange`, `sphere_multiRegion` and `block_with_curvature` give
+`cellsDelta 0`, `nonOrthoDelta 0` on com2512 vs com2606. `--keep-going` is there for
+tutorials that fail on purpose (`motorBike_leakDetection`: the first `snappyHexMesh` exits 1
+to report the leak, the second pass closes it). Two meshers stand outside the set:
+`foamyHexMesh/flange` and `simpleShapes` hit `SIGFPE` inside
+`conformalVoronoiMesh::dualCellLargestSurfaceProtrusion` on v2606, and
+`distributedTriSurfaceMesh` needs more RAM than a 31 GiB machine has free.
+
 ## Limits
 
 - No solvers and no Fluent run: the delivery builds the `.msh` and the journal, it does
@@ -256,6 +297,12 @@ and packings) for a quick evaluation pass.
   it in the run report.
 - cfMesh layers over tetrahedra and `polyDualMesh` for CHT were rejected — see the
   `rejected-routes` and `cfmesh-layers-tetra` cards.
+- Tutorial cases are an oracle, not project geometry: they are not delivered, and their
+  verdicts live in `exp-025`, not in `experiments/*/deliver/`.
+- `foamyHexMesh/flange` and `foamyHexMesh/simpleShapes` hit `SIGFPE` inside the mesher on
+  v2606 (not a timeout); `distributedTriSurfaceMesh` needs a machine with more free RAM.
+- Tutorial `Allrun` files are shell, so 6 of 56 cases carry `manual[]` steps and are not
+  replayed end to end; `list` names them instead of guessing.
 
 ## Layout
 

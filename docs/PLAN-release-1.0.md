@@ -192,6 +192,7 @@ a check of `0/`, `system/fvSchemes`, `openfoam_check` with no errors. In CI — 
 | M3 (days 7–9) | 3.1–3.5 | "mesh → solvable case" in 2 tool calls per the contract — 🟡 our half done (handoff, roles, revise, contract tier); the workbench half (Part B) is theirs |
 | 1.0.0-rc.1 | M1+M2 + QUICKSTART/TROUBLESHOOTING | public pre-release — ✅ tagged 2026-11-26 |
 | 1.0.0 (✅ tagged 2026-11-26) | + M3 + acceptance on someone else's machine | GA — accepted on a clean user (`docs/ACCEPTANCE.md`, two install channels); Part B stays with the workbench author |
+| 1.1.0 | tutorial-2606 branch ported (plan S1: `mesh_tutorial`, capability matrix, `advanced` keys, `writeFields`, routes `ops`/`blockmesh`, 16 cards) | oracle evidence reproduced from the published tree (`docs/RELEASE-1.1.0.md`); defects D-1…D-10 stay scheduled for 1.1.1 / 1.2.0 |
 
 ## Risks
 

@@ -116,7 +116,7 @@ Notes that save a round trip:
 ## 4. Check it works
 
 ```bash
-node <repo>/scripts/contract-test.mjs             # 37/37 here: library + tools + OpenFOAM + workbench tiers
+node <repo>/scripts/contract-test.mjs             # 39/39 here: library + tools + OpenFOAM + workbench tiers
 node <repo>/scripts/contract-test.mjs --no-mesh   # library only, no OpenFOAM needed
 ```
 
@@ -136,6 +136,30 @@ mesh_patch_types({ caseDir: "cases/fcc", roles: { walls: ["fcc-cell"], symmetry:
 The full two-sided contract is [`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md); the author-side checklist is
 Part B of [`PLAN-workbench-integration.md`](PLAN-workbench-integration.md).
 
+## 6. Tutorials as an oracle
+
+The OpenFOAM tutorials are the cheapest independent check that a mesher did what it claims.
+`mesh_tutorial` reads a tutorial `Allrun` as steps (no shell), replays it in a copy and writes a
+manifest you can diff later:
+
+```
+mesh_tutorial({ action: "list" })                                  // 51 cases on v2606, 9 on org14
+mesh_tutorial({ action: "run", case: "snappyHexMesh/flange",
+                out: "cases/tut-flange", steps: "mesh-only", np: 1 })
+mesh_tutorial({ action: "compare", manifest: "cases/tut-flange/tutorial-manifest.json",
+                baseline: "experiments/exp-025_tutorial-2606/cases/tut-01_flange/tutorial-manifest.json" })
+```
+
+Measured on v2606: `flange` → PASS, 19 186 cells, `maxNonOrtho 50.9531`; `sphere_multiRegion` → 8 000 / 0;
+`block_with_curvature` → 9 413 / 25.2394. A `compare` that reports `cellsDelta 0` across com2512 and
+com2606 means the dictionaries were understood the same way by both builds.
+
+Outside the project there is no `sim-project.json`, so pass the bashrc explicitly — set `MESH_OPENFOAM_BASHRC`
+or give an absolute path (`--build /abs/etc/bashrc`); a plain id such as `--build com2606` only resolves where
+`foam.installations` is declared. `steps: "mesh-only"` skips solvers; `keepGoing: true` keeps replaying after a step that a tutorial makes
+fail on purpose (`motorBike_leakDetection`). What does not reproduce: `foamyHexMesh/flange` and
+`simpleShapes` (SIGFPE inside the mesher) and `distributedTriSurfaceMesh` (needs more RAM than 31 GiB).
+
 ## Where to go next
 
 | need | doc |
@@ -145,3 +169,4 @@ Part B of [`PLAN-workbench-integration.md`](PLAN-workbench-integration.md).
 | running without this research project | [`PORTABLE.md`](PORTABLE.md) |
 | changing the packages, releases, CI | [`PACKAGING.md`](PACKAGING.md) |
 | which route to mesh with, and what it costs | `mesh_hints()` cards, or [`WORKBENCH-CONTRACT.md`](WORKBENCH-CONTRACT.md) §5 |
+| replaying an OpenFOAM tutorial | `mesh_tutorial` above, and [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) § Tutorials |

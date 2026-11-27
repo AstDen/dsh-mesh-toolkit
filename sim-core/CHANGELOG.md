@@ -1,5 +1,14 @@
 # Changelog — sim-core
 
+## 1.1.0 — 2026-11-26
+
+- `checkMesh -writeFields` in the JS gate: `runCheckMesh({writeFields})` adds the flag, and
+  `collectWrittenFields`/`fieldStats` read the field back from the overlay (uniform or
+  `nonuniform List<scalar>`: count/min/max/avg). `gateTarget` returns `writeFields` + `writtenFields`.
+- `buildOverlay(caseDir, region, {copyZero})`: with `writeFields`, `0/` is copied instead of linked — otherwise
+  the written field landed in the real case. Found by running `mesh_check writeFields='(nonOrthoAngle)'` on a
+  tutorial case and inspecting where the field appeared.
+
 ## 1.0.1 — 2026-11-26
 
 Fix: enabling both bundles in one DSH profile failed to load the second one —

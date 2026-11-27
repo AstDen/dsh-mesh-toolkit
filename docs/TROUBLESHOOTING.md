@@ -43,6 +43,19 @@ Status marks follow the project convention: ✅ observed with a real run · 🟡
 | `error: 'blockMeshDict or polyMesh/points not found — pass cellSize explicitly'` | `mesh_build` asked for a cell size it could not infer | pass `scaffoldOptions.cellSize` (m) or `targetCells` |
 | `error: 'unknown family: <id>'` | typo in `stl_generate({ family })` | `stl_generate({})` with no family lists the nine families and their presets |
 
+## Tutorials (`mesh_tutorial`)
+
+| String | Cause | Fix |
+|---|---|---|
+| `FOAM FATAL ERROR: Locations in mesh 1((...)) connect to one of the locations outside mesh 1((...))` ✅ | a tutorial that fails on purpose: `motorBike_leakDetection` reports the leak on the first pass and closes it on the second | run it with `keepGoing: true`; the failed step lands in `failedSteps` and the gate judges the final mesh |
+| `SIGFPE` with `conformalVoronoiMesh::dualCellLargestSurfaceProtrusion` in `03_foamyHexMesh.log` ✅ | known crash inside `foamyHexMesh` on v2606 for `foamyHexMesh/flange` and `simpleShapes`; `timedOut` is `false`, so it is not the runner | not fixable from the plugin: the cases are marked non-reproducible; do not disable `FOAM_SIGFPE` for a reproduced number |
+| `list` shows a case with `manual: N` steps ✅ | the `Allrun` uses shell outside the interpreted subset (loops, `if`, `wmake`, `canCompile`) | the runner names the steps instead of guessing; replay the case by hand or pick another one |
+| `unknown OpenFOAM installation "com2606"; available: (none declared in sim-project.json)` ✅ | outside a project there are no `foam.installations`, so an id cannot resolve | set `MESH_OPENFOAM_BASHRC` (or pass an absolute bashrc path) instead of an id |
+| `decomposeParDict has 8 subdomains but np 4` | `np` was passed that does not match the case | omit `np` (the runner reads `decomposeParDict`) or pass the matching number; a sequential plan ignores `np` by design |
+| `There are not enough slots available in the system to satisfy the 8 slots` ✅ | `decomposeParDict` asks for more subdomains than there are cores | the runner probes `mpirun --version` and adds `--oversubscribe`, as OpenFOAM's `RunFunctions` does; if you still see it, the MPI build was not detected |
+| gate says "no mesh" on a foamy case, `constant/polyMesh` is empty ✅ | `foamyHexMesh` writes into time directories (`80` → `81` → `82`), and the tutorial's own `checkMesh -latestTime` reads the last one | `mesh_tutorial` promotes the last time directory into `constant/polyMesh` and records `meshFromTimeDir` in the manifest, so the substitution is visible |
+| `0/nonOrthoAngle` appeared in the case after `mesh_check({writeFields})` ✅ | `checkMesh -writeFields` writes into the `-case` it is pointed at; the gate overlay used to symlink `0/` | fixed: the overlay copies `0/` when `writeFields` is requested; update if you still see the field in the real case |
+
 ## Quality gate
 
 | String | Cause | Fix |

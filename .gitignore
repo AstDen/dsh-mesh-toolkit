@@ -8,3 +8,4 @@ node_modules
 
 # README media: frames are intermediate, the GIF is committed
 docs/img/frames/
+.cache/

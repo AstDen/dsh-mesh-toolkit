@@ -25,6 +25,19 @@ CONTRACT_TEST_STL=/path/to/a1-cube.stl node scripts/contract-test.mjs   # OpenFO
 
 The OpenFOAM tier needs one closed STL fixture; without it the tier prints `SKIP fixture missing`.
 
+## Unit tests and the tutorial fixtures
+
+`npm test` runs `node --test mesh-build/test/*.test.mjs` (67 tests). Two of them need a real
+OpenFOAM installation and skip otherwise, so a bare runner stays green:
+
+| variable | what it enables | example |
+|---|---|---|
+| `MESH_TUTORIALS_ROOT` | the `blockMeshDict` round-trip against `tutorials/mesh` | `.../openfoam2606/tutorials/mesh` |
+| `MESH_OPENFOAM_BASHRC` | `blockMesh`/`checkMesh` inside those tests | `.../openfoam2606/etc/bashrc` |
+
+With both set the suite is **67/67 with 0 skipped**; the measured run on this machine is in
+`docs/RELEASE-1.1.0.md`.
+
 ## Publication channel: git installation (the decision)
 
 The packages are **not published to npm** at this stage, and here is why — verified against the code, not by feel:

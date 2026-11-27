@@ -200,6 +200,128 @@
         "constant/polyMesh or constant/<region>/polyMesh"
       ],
       "steps": []
+    },
+    {
+      "id": "ops",
+      "title": "Mesh surgery (whitelist steps): topoSet, subsetMesh, createPatch, createBaffles, stitchMesh, refineMesh, renumberMesh, collapseEdges, setSet, surfaceMeshExtract, mergeOrSplitBaffles, combinePatchFaces",
+      "when": "a tutorial case or a hand-written pipeline needs mesh operations after blockMesh and before checkMesh",
+      "software": "OpenFOAM.com 2606 (setSet/surfaceMeshExtract/refineHexMesh are com-only)",
+      "evidence": [
+        "exp-025"
+      ],
+      "requires": [
+        "topoSet"
+      ],
+      "steps": [
+        {
+          "name": "setSet",
+          "run": "setSet -batch system/setSetBatch -case {caseDir}",
+          "when": "dict:system/setSetBatch"
+        },
+        {
+          "name": "topoSet",
+          "run": "topoSet -case {caseDir}",
+          "when": "dict:system/topoSetDict"
+        },
+        {
+          "name": "topoSet-dict",
+          "run": "topoSet -dict {topoSetDict} -case {caseDir}",
+          "when": "args:topoSetDict"
+        },
+        {
+          "name": "subsetMesh",
+          "run": "subsetMesh {subsetCellSet} -overwrite -case {caseDir}",
+          "when": "args:subsetCellSet"
+        },
+        {
+          "name": "createBaffles",
+          "run": "createBaffles -overwrite -case {caseDir}",
+          "when": "dict:system/createBafflesDict"
+        },
+        {
+          "name": "createPatch",
+          "run": "createPatch -overwrite -case {caseDir}",
+          "when": "dict:system/createPatchDict"
+        },
+        {
+          "name": "stitchMesh",
+          "run": "stitchMesh {stitchPatches} -overwrite -case {caseDir}",
+          "when": "args:stitchPatches"
+        },
+        {
+          "name": "refineMesh",
+          "run": "refineMesh -overwrite -case {caseDir}",
+          "when": "dict:system/refineMeshDict"
+        },
+        {
+          "name": "refineHexMesh",
+          "run": "refineHexMesh -overwrite -case {caseDir}",
+          "when": "dict:system/refineHexMeshDict"
+        },
+        {
+          "name": "collapseEdges",
+          "run": "collapseEdges -overwrite -case {caseDir}",
+          "when": "dict:system/collapseDict"
+        },
+        {
+          "name": "mergeOrSplitBaffles",
+          "run": "mergeOrSplitBaffles -overwrite -case {caseDir}",
+          "when": "dict:system/mergeOrSplitBafflesDict"
+        },
+        {
+          "name": "combinePatchFaces",
+          "run": "combinePatchFaces {combinePatches} -overwrite -case {caseDir}",
+          "when": "args:combinePatches"
+        },
+        {
+          "name": "surfaceMeshExtract",
+          "run": "surfaceMeshExtract -case {caseDir}",
+          "when": "dict:system/surfaceMeshExtractDict"
+        },
+        {
+          "name": "renumberMesh",
+          "run": "renumberMesh -overwrite -case {caseDir}",
+          "when": "args:renumber"
+        },
+        {
+          "name": "checkMesh",
+          "run": "checkMesh -case {caseDir}",
+          "when": "always"
+        }
+      ],
+      "failures": [
+        "step silently skipped: its dictionary is missing — the `when: \"dict:...\"` conditions are the only gate",
+        "setSet/surfaceMeshExtract/refineHexMesh are OpenCFD-only: on org14 the preflight refuses route ops"
+      ]
+    },
+    {
+      "id": "blockmesh",
+      "title": "blockMesh from an explicit spec (no STL): vertices, blocks, edges, boundary, mergePatchPairs",
+      "when": "structured hex blocks, tutorials, a background mesh before snappy, or an extruded/polyDual start surface",
+      "software": "any OpenFOAM (blockMesh is core)",
+      "evidence": [
+        "exp-025"
+      ],
+      "requires": [
+        "blockMesh"
+      ],
+      "steps": [
+        {
+          "name": "blockMesh",
+          "run": "blockMesh -case {caseDir}",
+          "when": "always",
+          "timeoutMs": 900000
+        },
+        {
+          "name": "checkMesh",
+          "run": "checkMesh -case {caseDir}",
+          "when": "always"
+        }
+      ],
+      "failures": [
+        "blockMeshDict from a spec must keep `geometry{}` when vertices/faces are projected (`project (x y z) ( surface )`)",
+        "a spec cannot express named vertices (name v0 project ...), projectCurve edges or transform{} — use the tutorial runner for those cases (blockMesh/pipe)"
+      ]
     }
   ]
 }

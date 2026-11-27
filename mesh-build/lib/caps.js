@@ -10,10 +10,12 @@
  *
  * The result is cached per bashrc: the answer changes only when the installation changes.
  */
+import { join } from 'node:path'
 import { runBash } from '../../sim-core/lib/process.js'
-import { tail } from './common.js'
+import { readJson, tail } from './common.js'
 
 export const CAPS_SCHEMA = 'mesh-caps/1'
+export const CAPS_MATRIX_SCHEMA = 'mesh-capabilities-matrix/1'
 export const CAPS_VERSION = 1
 
 /** Executables worth probing (route and scaffold decisions hang off them). */
@@ -21,10 +23,19 @@ export const PROBED_COMMANDS = [
   'blockMesh', 'snappyHexMesh', 'checkMesh', 'decomposePar', 'reconstructParMesh', 'splitMeshRegions',
   'surfaceFeatureExtract', 'surfaceFeatures', 'cartesianMesh', 'pMesh', 'tetMesh', 'foamyHexMesh',
   'gmshToFoam', 'foamRun', 'foamMultiRun', 'simpleFoam', 'chtMultiRegionFoam',
+  // utilities the tutorial pipeline and the engine whitelist can schedule (mesh surgery, extrude, polyDual)
+  'surfaceMeshExtract', 'PDRblockMesh', 'foamyQuadMesh', 'refineHexMesh', 'setSet', 'redistributePar',
+  'collapseEdges', 'extrudeMesh', 'polyDualMesh', 'topoSet', 'subsetMesh', 'createPatch', 'createBaffles',
+  'stitchMesh', 'refineMesh', 'moveDynamicMesh', 'extrude2DMesh', 'extrudeToRegionMesh',
 ]
 
 /** Keys whose presence in the annotated dictionaries decides a dictionary spelling. */
-const SNAPPY_KEYS = ['minMedialAxisAngle', 'minMedianAxisAngle', 'locationsInMesh', 'relativeSizes', 'castellatedBufferLayer']
+const SNAPPY_KEYS = [
+  'minMedialAxisAngle', 'minMedianAxisAngle', 'locationsInMesh', 'relativeSizes', 'castellatedBufferLayer',
+  // OpenCFD-only options: the build's own annotated dictionary is the live evidence for them.
+  'gapLevel', 'gapLevelIncrement', 'gapMode', 'curvatureLevel', 'leakLevel', 'useLeakClosure',
+  'levelIncrement', 'insidePoints', 'outsidePoints', 'layerFields',
+]
 const BLOCKMESH_KEYS = ['scale', 'convertToMeters']
 
 const PROBE_CACHE = new Map()
@@ -147,6 +158,7 @@ export function probeCaps(config) {
     version: parsed.version,
     project: parsed.project,
     commands: parsed.tools,
+    probed: PROBED_COMMANDS.slice(),
     features,
     dictKeys,
     dicts: parsed.dicts,
@@ -183,7 +195,80 @@ export function capsSentence(caps) {
   return parts.join(' · ')
 }
 
+/** Declared capability matrix, shipped as data/capabilities.json (utilities x key x build). */
+let MATRIX_CACHE = null
+
+export function loadCapabilitiesMatrix(dataDir) {
+  const file = join(dataDir, 'capabilities.json')
+  if (MATRIX_CACHE && MATRIX_CACHE.file === file) return MATRIX_CACHE.matrix
+  let matrix = null
+  try {
+    matrix = readJson(file)
+  } catch {
+    matrix = null
+  }
+  MATRIX_CACHE = { file, matrix }
+  return matrix
+}
+
+/**
+ * Merge the declared matrix with the live probe of *this* installation.
+ *
+ * The live probe wins (it is the running binary), the matrix supplies the keys the probe does not
+ * cover and the evidence trail; every disagreement is reported instead of hidden.
+ */
+export function capabilityMatrix(caps, matrix) {
+  if (!caps?.ok) return null
+  if (!matrix?.builds) return { ok: false, reason: 'no data/capabilities.json' }
+  const bare = (value) => String(value ?? '').replace(/^v/i, '')
+  const entries = Object.entries(matrix.builds)
+  const match = entries.find(([, build]) => bare(build.version) === bare(caps.version))
+    ?? entries.find(([, build]) => build.distribution === caps.distribution)
+  if (!match) return { ok: false, reason: `no matrix row for ${caps.distribution} ${caps.version}` }
+  const [name, build] = match
+  const utilities = {}
+  const snappyKeys = {}
+  const disagreements = []
+  for (const util of matrix.definitions?.utilities ?? []) {
+    const declared = build.utilities?.[util] ?? null
+    const wasProbed = Boolean(caps.probed?.includes(util))
+    // commands is a {name: absolute path} map from `command -v` (absent = tool missing), so the
+    // VALUE decides: hasOwnProperty alone reported probed-but-missing tools as live=true.
+    const live = wasProbed ? Boolean(caps.commands?.[util]) : null
+    utilities[util] = live === null ? declared : live
+    if (declared !== null && live !== null && declared !== live) {
+      disagreements.push({ kind: 'utility', name: util, declared, live })
+    }
+  }
+  for (const key of matrix.definitions?.snappyKeys ?? []) {
+    const declared = build.snappyKeys?.[key] ?? null
+    const probed = caps.keys?.snappy?.[key]
+    const value = typeof probed === 'boolean' ? probed : declared
+    snappyKeys[key] = value
+    if (typeof probed === 'boolean' && declared !== null && declared !== probed) {
+      disagreements.push({ kind: 'snappyKey', name: key, declared, live: probed })
+    }
+  }
+  const present = (map) => Object.entries(map).filter(([, v]) => v === true).map(([k]) => k)
+  return {
+    schema: CAPS_MATRIX_SCHEMA,
+    build: name,
+    distribution: build.distribution,
+    version: build.version,
+    install: build.install ?? null,
+    values: { utilities, snappyKeys },
+    supported: { utilities: present(utilities), snappyKeys: present(snappyKeys) },
+    disagreements,
+    // Keys the build accepts but its own annotated dictionary never documents (com2606: outsidePoints,
+    // present in the com source line snappyVoxelMeshDriver.C:473, absent from the 2606 template).
+    supportedButUndocumented: build.supportedButUndocumented ?? [],
+    evidence: build.evidence ?? null,
+    notes: matrix.notes ?? [],
+  }
+}
+
 /** Drop the cache (tests, or after installing another OpenFOAM). */
 export function clearCapsCache() {
   PROBE_CACHE.clear()
+  MATRIX_CACHE = null
 }

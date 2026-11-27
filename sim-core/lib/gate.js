@@ -152,8 +152,12 @@ function linkOrCopy(target, path, isDir) {
 /**
  * Build (or rebuild) the checkMesh overlay for a case or one of its regions.
  * Symlinks the mesh, copies `system`, links the matching `0` data.
+ *
+ * `copyZero` copies `0/` instead of linking it: `checkMesh -writeFields` writes the field into the
+ * *time* directory it is pointed at, and through a symlink that lands in the real case's `0/`
+ * (observed: flange → `<case>/0/nonOrthoAngle`). The overlay is disposable, the case is not.
  */
-export function buildOverlay(caseDir, region = null) {
+export function buildOverlay(caseDir, region = null, { copyZero = false } = {}) {
   const target = region ? `region-${safeName(region)}` : 'base'
   const root = join(caseDir, '.mesh-gate')
   const overlay = join(root, target)
@@ -170,9 +174,11 @@ export function buildOverlay(caseDir, region = null) {
   if (existsSync(zeroSrc)) {
     if (region && existsSync(join(zeroSrc, region))) {
       mkdirSync(join(overlay, '0'), { recursive: true })
-      linkOrCopy(resolve(join(zeroSrc, region)), join(overlay, '0', region), true)
+      if (copyZero) cpSync(join(zeroSrc, region), join(overlay, '0', region), { recursive: true })
+      else linkOrCopy(resolve(join(zeroSrc, region)), join(overlay, '0', region), true)
     } else if (!region) {
-      linkOrCopy(resolve(zeroSrc), join(overlay, '0'), true)
+      if (copyZero) cpSync(zeroSrc, join(overlay, '0'), { recursive: true })
+      else linkOrCopy(resolve(zeroSrc), join(overlay, '0'), true)
     }
   }
   const synthesized = ensureGateDicts(overlay)
@@ -180,23 +186,72 @@ export function buildOverlay(caseDir, region = null) {
 }
 
 /** Run `checkMesh -meshQuality` inside the overlay and return raw text + exit code. */
-export function runCheckMesh({ overlay, logPath, openfoamBashrc, timeoutMs, maxOutputChars, caseDir }) {
+export function runCheckMesh({ overlay, logPath, openfoamBashrc, timeoutMs, maxOutputChars, caseDir, writeFields = null }) {
   mkdirSync(join(caseDir, 'logs'), { recursive: true })
-  const result = runBash(`checkMesh -case ${q(overlay)} -meshQuality`, {
+  // `-writeFields '(nonOrthoAngle)'` makes checkMesh write the per-face angle of the *actual* cells as a
+  // volScalarField, so a render or a probe sees where the non-orthogonality sits instead of one number.
+  const fieldsArg = writeFields ? ` -writeFields ${q(writeFields)}` : ''
+  const command = `checkMesh -case ${q(overlay)} -meshQuality${fieldsArg}`
+  const result = runBash(command, {
     cwd: caseDir,
     openfoamBashrc,
     timeoutMs,
     maxBuffer: 128 * 1024 * 1024,
   })
   const header = [
-    `# checkMesh -meshQuality`,
+    `# checkMesh -meshQuality${fieldsArg ? ` -writeFields ${writeFields}` : ''}`,
     `# overlay: ${overlay}`,
-    `# command: checkMesh -case ${q(overlay)} -meshQuality`,
+    `# command: ${command}`,
     `# exit code: ${result.code}${result.timedOut ? ' (timed out)' : ''}`,
     '',
   ].join('\n')
   writeFileSync(logPath, `${header}${result.stdout}\n${result.stderr}\n`)
-  return { ...result, log: logPath, text: `${result.stdout}\n${result.stderr}`, stderrTail: tail(result.stderr, maxOutputChars) }
+  const written = writeFields ? collectWrittenFields(overlay, writeFields) : []
+  return {
+    ...result, log: logPath, text: `${result.stdout}\n${result.stderr}`,
+    stderrTail: tail(result.stderr, maxOutputChars), writeFields: writeFields ?? null, written,
+  }
+}
+
+/**
+ * Read the fields checkMesh just wrote (`-writeFields`) and summarise them.
+ * checkMesh writes into the overlay, which is disposable: the numbers are copied into the report.
+ */
+export function collectWrittenFields(overlay, writeFields) {
+  const names = String(writeFields).replace(/[()'"]/g, ' ').split(/\s+/).filter(Boolean)
+  const out = []
+  for (const name of names) {
+    let found = null
+    for (const dir of readdirSync(overlay, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink())) {
+      const file = join(overlay, dir.name, name)
+      if (existsSync(file)) { found = file; break }
+    }
+    if (!found) { out.push({ field: name, written: false }); continue }
+    let stats = null
+    try { stats = fieldStats(readFileSync(found, 'utf8')) } catch { stats = null }
+    out.push({ field: name, written: true, path: found, ...(stats ?? {}) })
+  }
+  return out
+}
+
+/** min/max/avg of a `volScalarField` written by checkMesh (uniform or nonuniform list). */
+export function fieldStats(text) {
+  const uniform = String(text).match(/internalField\s+uniform\s+([-+0-9.eE]+)\s*;/)
+  if (uniform) {
+    const value = Number(uniform[1])
+    return { n: null, min: value, max: value, avg: value }
+  }
+  const list = String(text).match(/internalField\s+nonuniform\s+List<scalar>\s*\n?(\d+)\s*\(([\s\S]*?)\)\s*;/)
+  if (!list) return null
+  const values = list[2].split(/\s+/).map(Number).filter((v) => Number.isFinite(v))
+  if (!values.length) return null
+  const sum = values.reduce((a, b) => a + b, 0)
+  return {
+    n: values.length,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    avg: sum / values.length,
+  }
 }
 
 /** Run an external gate script (`gate.engine: "script"`), e.g. `tools/qa/mesh_gate.sh`. */
@@ -223,7 +278,7 @@ export function runScriptGate({ script, caseDir, profile, minVol, timeoutMs, ope
 export function gateTarget(options) {
   const {
     config, caseDir: requestedCaseDir, region = null, profile = null, minVol = null, overrides = {},
-    openfoamBashrc, timeoutMs, maxOutputChars, engine, script, logName = null,
+    openfoamBashrc, timeoutMs, maxOutputChars, engine, script, logName = null, writeFields = null,
   } = options
   // Always work with an absolute case path: `checkMesh` runs with cwd = caseDir,
   // so a relative path would be resolved twice (case/case/.mesh-gate).
@@ -264,13 +319,14 @@ export function gateTarget(options) {
     }
   }
 
-  const built = buildOverlay(caseDir, region)
+  const built = buildOverlay(caseDir, region, { copyZero: Boolean(writeFields) })
   const synthesized = built.synthesized ?? []
   writeFileSync(join(built.overlay, 'system', 'meshQualityDict'), meshQualityDict(thresholds, effectiveMinVol, minTetQuality))
   const logPath = join(caseDir, 'logs', logName ?? `checkMesh-${built.target}.log`)
   const run = runCheckMesh({
     overlay: built.overlay, logPath, openfoamBashrc: bashrc,
     timeoutMs: timeoutMs ?? config?.timeoutMs, maxOutputChars, caseDir,
+    writeFields: writeFields ?? null,
   })
   const metrics = parseCheckMesh(run.text)
   const verdict = verdictOf(metrics)
@@ -312,6 +368,8 @@ export function gateTarget(options) {
     advisory,
     overlay: built.overlay,
     log: logPath,
+    writeFields: run.writeFields ?? null,
+    writtenFields: run.written ?? [],
     exitCode: run.code,
     timedOut: Boolean(run.timedOut),
     stdoutTail: tail(run.stdout, Math.min(maxOutputChars ?? 4000, 6000)),

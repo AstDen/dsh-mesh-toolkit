@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.1.0 — 2026-11-26
+
+OpenFOAM 2606/14 tutorials become a runnable oracle (`PLAN-tutorial-2606`, branch `tutorial-2606`).
+
+New tool `mesh_tutorial` (registered in `index.js`, CLI `scripts/tutorial.mjs`):
+
+- `list` — every case under `$WM_PROJECT_DIR/tutorials/mesh`, parsed from its own `Allrun`: 51 cases /
+  51 `controlDict` on com2606, 9 on org14, with family, steps, utilities and `requires`.
+- `run` — copies the case into the project, executes the parsed steps (file operations in JS with an
+  inside-the-project guard, applications via `runBash` with the chosen build's bashrc), writes one log per
+  step plus `tutorial-manifest.json` (steps, skipped, manual, mesh metrics, gate verdict), and stops before
+  solvers in `mesh-only` mode. `np` must match `system/decomposeParDict`, otherwise an explicit refusal rather
+  than a silent override; a serial plan ignores `np`. `mpirun` gets `--oversubscribe` when the MPI build needs
+  it (probed from `mpirun --version`), so cases with more subdomains than cores run.
+- `compare` — baseline drift: cells ±5 %, `maxNonOrtho` ±2°, patch set.
+- `mesh-only` skips motion and field-reconstruction utilities and records the reason; foamy meshers that write
+  into time directories (`foamyHexMesh/blob` → `82`) are promoted to `constant/polyMesh` before the gate and
+  reported as `meshFromTimeDir`.
+
+New capability matrix `data/capabilities.json` + `mesh_capabilities.matrix`: utilities × snappy keys × build
+(com2606, com2512, org14) with `file:line` evidence; the live `command -v`/annotated-dict probe wins over the
+declared table and every disagreement is reported.
+
+`scaffoldOptions.advanced` — gap, curvature, leak, directional, zones, distributed, domainSurface and
+`quality.writeFlags`. A key the build does not support is refused before any run (`curvature` on org14) or
+downgraded with a warning and recorded in `skipped` (`gapMode` on org14). `writeFlags` belongs at the top level
+of `snappyHexMeshDict`, not under `debug` — a live run proved the wrong place is a `FOAM FATAL IO ERROR`.
+
+`mesh_check` accepts `writeFields`; see sim-core 1.1.0 for the gate side.
+
+Engine routes: `blockmesh` (a `blockMeshDict` parses into a JSON spec, can be edited, written back and rebuilt —
+round-trip verified on 6 of 7 `blockMesh` tutorials; `pipe` needs named vertices/`projectCurve`/`transform`) and
+`ops` (14 mesh-surgery utilities plus `checkMesh` as gated steps). 14 new knowledge cards in
+`data/hints/tutorial-2606.json`, all with `case:line` evidence.
+
+Tests: 66 checks (65 pass, 1 environment skip) — dictionary texts for every advanced key, `blockMeshDict`
+round-trip, `Allrun` parsing (env prefix, `-s`, nested scripts), the tutorial inventory, the capability matrix
+against `PLAN` §2–§3, and the negative cases.
+
 ## 1.0.1 — 2026-11-26
 
 - TODO: describe the changes

@@ -10,7 +10,7 @@
  * @module mesh-build/lib/scaffold
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
-import { probeCaps } from './caps.js'
+import { capabilityMatrix, loadCapabilitiesMatrix, probeCaps } from './caps.js'
 import { basename, join } from 'node:path'
 import { displayPath, resolveProjectPath, stem } from './common.js'
 import { cellBudgetWarning, readStlBboxMm, stlOutsideDomainWarning } from './precheck.js'
@@ -147,15 +147,209 @@ mergePatchPairs
 `
 }
 
-function snappyDict({ surfaces, locations, defaultLevel, layers, resolveFeatureAngle, layerAxisKey = 'minMedialAxisAngle' }) {
+
+/**
+ * Advanced snappy options (TW-02). Each group is written only when requested: the default scaffold
+ * stays byte-identical, and an option the build cannot honour is refused or warned about instead of
+ * silently dropped.
+ *
+ *   gap          {level:[4,0,10], mode:"inside"}                    -> gapLevel / gapMode   (com + org for the level)
+ *   curvature    {cellsPerRadius:10, minRadiusLevel:-1, maxLevel:10} -> curvatureLevel       (com only)
+ *   leak         {closure:true, outsidePoints:[[.4,.4,.4]], level:2} -> useLeakClosure / outsidePoints / leakLevel (com only)
+ *   directional  {levels:[0,1], increment:[0,1,1]}                  -> levelIncrement        (com only)
+ *   zones        {"<surface>":{cellZone,faceZone,insidePoints}}      -> cellZone/faceZone/insidePoints (com + org)
+ *   distributed  {n:[2,2,2], method:"hierarchical", distributionType:"nodeMaster"}
+ *                                                                   -> type distributedTriSurfaceMesh + _decomp (com)
+ *   domainSurface "box"                                             -> geometry entry type box (com + org)
+ *   quality      {writeFlags:["layerFields"]}                       -> TOP-LEVEL writeFlags (...) (com + org)
+ */
+export const ADVANCED_KEYS = ['gap', 'curvature', 'leak', 'directional', 'zones', 'distributed', 'domainSurface', 'quality']
+
+const ADVANCED_REQUIRES_COM = {
+  'curvature.cellsPerRadius': 'curvatureLevel',
+  'leak.closure': 'useLeakClosure',
+  'leak.level': 'leakLevel',
+  'directional.levels': 'levelIncrement',
+}
+
+export function normalizeAdvanced(advanced) {
+  if (advanced == null) return null
+  if (typeof advanced !== 'object' || Array.isArray(advanced)) throw new Error('scaffoldOptions.advanced must be an object')
+  const unknown = Object.keys(advanced).filter((key) => !ADVANCED_KEYS.includes(key))
+  if (unknown.length) {
+    throw new Error(`scaffoldOptions.advanced has unknown key(s): ${unknown.join(', ')}; allowed: ${ADVANCED_KEYS.join(', ')}`)
+  }
+  const out = {}
+  if (advanced.gap != null) {
+    const gap = advanced.gap
+    const level = Array.isArray(gap.level) ? gap.level.map(Number) : null
+    if (!level || level.length !== 3 || !level.every(Number.isFinite)) {
+      throw new Error('advanced.gap.level must be [numGapCells, minLevel, maxLevel], e.g. [4, 0, 10]')
+    }
+    const mode = gap.mode == null ? null : String(gap.mode)
+    if (mode && !['inside', 'outside', 'mixed'].includes(mode)) throw new Error('advanced.gap.mode must be inside|outside|mixed')
+    out.gap = { level, mode, increment: gap.increment != null ? Math.max(0, Math.floor(Number(gap.increment))) : null }
+  }
+  if (advanced.curvature != null) {
+    const c = advanced.curvature
+    const cellsPerRadius = Number(c.cellsPerRadius ?? 10)
+    const minRadiusLevel = Number(c.minRadiusLevel ?? -1)
+    const maxLevel = Number(c.maxLevel ?? 10)
+    if (![cellsPerRadius, minRadiusLevel, maxLevel].every(Number.isFinite)) {
+      throw new Error('advanced.curvature needs numeric cellsPerRadius, minRadiusLevel, maxLevel')
+    }
+    out.curvature = { cellsPerRadius, minRadiusLevel, maxLevel }
+  }
+  if (advanced.leak != null) {
+    const leak = advanced.leak
+    const outsidePoints = Array.isArray(leak.outsidePoints) ? leak.outsidePoints.map((pt) => {
+      const point = Array.isArray(pt) ? pt.map(Number) : null
+      if (!point || point.length !== 3 || !point.every(Number.isFinite)) {
+        throw new Error('advanced.leak.outsidePoints must be [[x,y,z], ...] in meters')
+      }
+      return point
+    }) : []
+    out.leak = {
+      closure: leak.closure === true,
+      outsidePoints,
+      level: leak.level != null ? Math.max(0, Math.floor(Number(leak.level))) : null,
+    }
+  }
+  if (advanced.directional != null) {
+    const d = advanced.directional
+    const levels = Array.isArray(d.levels) ? d.levels.map(Number) : null
+    const increment = Array.isArray(d.increment) ? d.increment.map(Number) : null
+    if (!levels || levels.length !== 2 || !levels.every(Number.isFinite)) {
+      throw new Error('advanced.directional.levels must be [fromLevel, toLevel], e.g. [0, 1]')
+    }
+    if (!increment || increment.length !== 3 || !increment.every(Number.isFinite)) {
+      throw new Error('advanced.directional.increment must be a direction [dx, dy, dz], e.g. [0, 1, 1]')
+    }
+    const region = d.region && typeof d.region === 'object' ? { min: (d.region.min ?? []).map(Number), max: (d.region.max ?? []).map(Number) } : null
+    out.directional = { levels, increment, region }
+  }
+  if (advanced.zones != null) {
+    if (typeof advanced.zones !== 'object' || Array.isArray(advanced.zones)) {
+      throw new Error('advanced.zones must be {"<surface>": {cellZone, faceZone, insidePoints}}')
+    }
+    out.zones = {}
+    for (const [surface, spec] of Object.entries(advanced.zones)) {
+      const insidePoints = Array.isArray(spec?.insidePoints) ? spec.insidePoints.map((pt) => {
+        const point = Array.isArray(pt) ? pt.map(Number) : null
+        if (!point || point.length !== 3 || !point.every(Number.isFinite)) {
+          throw new Error(`advanced.zones["${surface}"].insidePoints must be [[x,y,z], ...] in meters`)
+        }
+        return point
+      }) : []
+      out.zones[surface] = {
+        cellZone: spec?.cellZone != null ? String(spec.cellZone) : null,
+        faceZone: spec?.faceZone != null ? String(spec.faceZone) : null,
+        insidePoints,
+      }
+    }
+  }
+  if (advanced.distributed != null) {
+    const d = advanced.distributed
+    const n = Array.isArray(d.n) ? d.n.map(Number) : null
+    if (!n || n.length !== 3 || !n.every((v) => Number.isInteger(v) && v > 0)) {
+      throw new Error('advanced.distributed.n must be [nx, ny, nz] positive integers')
+    }
+    const type = d.distributionType == null ? null : String(d.distributionType)
+    if (type && !['independent', 'nodeMaster'].includes(type)) {
+      throw new Error('advanced.distributed.distributionType must be independent|nodeMaster')
+    }
+    out.distributed = { n, method: String(d.method ?? 'hierarchical'), distributionType: type }
+  }
+  if (advanced.domainSurface != null) {
+    if (String(advanced.domainSurface) !== 'box') throw new Error('advanced.domainSurface currently supports "box" only')
+    out.domainSurface = 'box'
+  }
+  if (advanced.quality != null) {
+    const flags = advanced.quality.writeFlags
+    if (!Array.isArray(flags) || !flags.length) throw new Error('advanced.quality.writeFlags must be a non-empty array, e.g. ["layerFields"]')
+    const allowed = ['scalarLevels', 'layerSets', 'layerFields', 'meshQuality', 'surfaceIndex', 'additionalCellSets']
+    const bad = flags.map(String).filter((flag) => !allowed.includes(flag))
+    if (bad.length) throw new Error(`advanced.quality.writeFlags unknown flag(s): ${bad.join(', ')}; allowed: ${allowed.join(', ')}`)
+    out.quality = { writeFlags: flags.map(String) }
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/**
+ * Which requested advanced option this installation cannot honour.
+ * com-only keys come from the capability matrix (data/capabilities.json) merged with the live probe.
+ */
+export function advancedSupport(advanced, caps) {
+  const unsupported = []
+  const warnings = []
+  const skipped = []
+  if (!advanced) return { unsupported, warnings, skipped }
+  const matrix = caps?.matrix ?? null
+  const keySupport = (name) => {
+    if (matrix?.values?.snappyKeys && Object.prototype.hasOwnProperty.call(matrix.values.snappyKeys, name)) {
+      return matrix.values.snappyKeys[name]
+    }
+    return true // no matrix (unknown build): keep the option, the run will tell
+  }
+  for (const [path, key] of Object.entries(ADVANCED_REQUIRES_COM)) {
+    const [group, field] = path.split('.')
+    if (advanced[group] != null && (field === undefined || advanced[group][field] != null)) {
+      if (!keySupport(key)) unsupported.push({ option: path, needs: key })
+    }
+  }
+  if (advanced.gap?.mode && !keySupport('gapMode')) {
+    warnings.push(`advanced.gap.mode "${advanced.gap.mode}" is OpenCFD-only (gapMode): the option is skipped on this build`)
+    skipped.push('gap.mode')
+  }
+  if (advanced.distributed?.distributionType && !keySupport('distributionType')) {
+    warnings.push('advanced.distributed.distributionType is written by OpenCFD 2606+ only: the key is skipped')
+    skipped.push('distributed.distributionType')
+  }
+  return { unsupported, warnings, skipped }
+}
+
+/** Per-surface advanced lines (gapLevel, gapMode, curvatureLevel, leakLevel, zones). */
+function advancedSurfaceLines(surface, advanced) {
+  if (!advanced) return ''
+  const lines = []
+  if (advanced.gap) {
+    const [numGapCells, minLevel, maxLevel] = advanced.gap.level
+    lines.push(`gapLevel (${numGapCells} ${minLevel} ${maxLevel});  // gapLevel (<numGapCells> <minLevel> <maxLevel>)`)
+    if (advanced.gap.mode) lines.push(`gapMode ${advanced.gap.mode};    // inside/outside/mixed: keeps/drops cells while refining gaps`)
+  }
+  if (advanced.curvature) {
+    const c = advanced.curvature
+    lines.push(`curvatureLevel (${c.cellsPerRadius} 0 ${c.maxLevel} ${c.minRadiusLevel});`)
+  }
+  if (advanced.leak?.level != null) lines.push(`leakLevel ${advanced.leak.level};`)
+  const zone = advanced.zones?.[surface]
+  if (zone) {
+    if (zone.faceZone) lines.push(`faceZone ${zone.faceZone};`)
+    if (zone.cellZone) lines.push(`cellZone ${zone.cellZone};`)
+    if (zone.cellZone && zone.insidePoints.length) {
+      lines.push('cellZoneInside insidePoint;')
+      lines.push(`insidePoints (${zone.insidePoints.map((pt) => `(${pt.join(' ')})`).join(' ')});`)
+    }
+  }
+  return lines.length ? `\n            ${lines.join('\n            ')}` : ''
+}
+
+function snappyDict({
+  surfaces, locations, defaultLevel, layers, resolveFeatureAngle,
+  layerAxisKey = 'minMedialAxisAngle', advanced = null, domainMin = null, domainMax = null,
+}) {
+  const distributed = advanced?.distributed ?? null
   const geometry = surfaces
-    .map((s) => `        ${s.name}.stl\n        {\n            type triSurfaceMesh;\n            // Explicit file: OpenFOAM.org 14 no longer accepts the key as the filename.\n            file "${s.name}.stl";\n            name ${s.name};\n            scale 0.001;\n        }`)
+    .map((s) => `        ${s.name}.stl\n        {\n            type ${distributed ? 'distributedTriSurfaceMesh' : 'triSurfaceMesh'};\n            // Explicit file: OpenFOAM.org 14 no longer accepts the key as the filename.\n            file "${s.name}.stl";\n            name ${s.name};\n            scale 0.001;${distributed ? `\n            distributionType ${distributed.distributionType ?? 'independent'};${distributed.distributionType ? '' : '  // 2606+ key'}\n            _decomp\n            {\n                n      (${distributed.n.join(' ')});\n                method ${distributed.method};\n            }` : ''}\n        }`)
     .join('\n')
+    + (advanced?.domainSurface === 'box' && Array.isArray(domainMin) && Array.isArray(domainMax)
+      ? `\n        domain\n        {\n            type box;   // searchable box instead of a separate STL surface\n            min (${domainMin.join(' ')});\n            max (${domainMax.join(' ')});\n        }`
+      : '')
   const features = surfaces
     .map((s) => `        { file "${s.name}.eMesh"; level ${Math.max(0, s.level.max - 1)}; }`)
     .join('\n')
   const refinementSurfaces = surfaces
-    .map((s) => `        ${s.name}\n        {\n            level (${s.level.min} ${s.level.max});\n            patchInfo { type wall; }\n        }`)
+    .map((s) => `        ${s.name}\n        {\n            level (${s.level.min} ${s.level.max});\n            patchInfo { type wall; }${advancedSurfaceLines(s.name, advanced)}\n        }`)
     .join('\n')
   const locationsBlock = locations.map((l) => `        (${vec(l.point)} ${l.name})`).join('\n')
   const layerBlock = layers.length
@@ -212,8 +406,10 @@ ${refinementSurfaces}
 
     resolveFeatureAngle ${fmt(resolveFeatureAngle)};
 
+${advanced?.gap?.increment != null ? `    gapLevelIncrement ${advanced.gap.increment};\n` : ''}${advanced?.leak?.closure ? '    useLeakClosure true;\n' : ''}${advanced?.leak?.outsidePoints?.length ? `    outsidePoints\n    (\n${advanced.leak.outsidePoints.map((pt) => `        (${pt.join(' ')})`).join('\n')}\n    );\n` : ''}
     refinementRegions
     {
+${advanced?.directional ? `        directional\n        {\n            mode inside;\n            levels ((1000000 0));\n            levelIncrement (${advanced.directional.levels[0]} ${advanced.directional.levels[1]} (${advanced.directional.increment.join(' ')}));\n        }` : ''}
     }
 
 ${locations.length === 1
@@ -257,7 +453,14 @@ meshQualityControls
     }
 }
 
-mergeTolerance 1e-6;
+${advanced?.quality?.writeFlags?.length ? `// writeFlags is a TOP-LEVEL list in snappyHexMeshDict (annotated dict, "Advanced"):
+// layerFields writes the layer-coverage field, scalarLevels the cellLevel field.
+writeFlags
+(
+${advanced.quality.writeFlags.map((flag) => `    ${flag}`).join('\n')}
+);
+
+` : ''}mergeTolerance 1e-6;
 `
 }
 
@@ -493,12 +696,33 @@ export function writeSnappyCase(config, caseDir, options) {
     writeFile(full, content)
     files.push(relative)
   }
-  const caps = options.caps ?? probeCaps(config)
+  const caps = options.caps ?? (() => {
+    const probed = probeCaps(config)
+    // The capability matrix is what turns "asked for curvatureLevel on org14" into a refusal with a
+    // reason instead of a dictionary the binary rejects at read time.
+    return { ...probed, matrix: capabilityMatrix(probed, loadCapabilitiesMatrix(join(config.packageRoot, 'data'))) }
+  })()
   write('system/blockMeshDict', blockMeshDict({ domainMin, domainMax, cells, patchType, unitsKey: caps.dictKeys?.blockMeshUnits ?? 'scale' }))
+  const advanced = normalizeAdvanced(options.advanced ?? null)
+  const support = advancedSupport(advanced, caps)
+  if (support.unsupported.length) {
+    throw new Error(
+      `scaffoldOptions.advanced asks for keys this build does not accept: ${support.unsupported.map((u) => `${u.option} (needs ${u.needs})`).join(', ')}`
+      + ` — this is ${caps.distribution} ${caps.version}; switch to com2606 (matrix: data/capabilities.json) or drop the option`,
+    )
+  }
+  warnings.push(...support.warnings)
+  for (const option of support.skipped) {
+    const [group, field] = option.split('.')
+    if (advanced?.[group]) advanced[group][field] = null
+  }
   write('system/snappyHexMeshDict', snappyDict({
     surfaces, locations, defaultLevel, layers,
     resolveFeatureAngle: Number(options.resolveFeatureAngle ?? 30),
     layerAxisKey: caps.dictKeys?.layerAxis ?? 'minMedialAxisAngle',
+    advanced,
+    domainMin,
+    domainMax,
   }))
   write('system/meshQualityDict', meshQualityDict({ minVol, maxNonOrtho, minVolRatio, minTwist }))
   write('system/surfaceFeatureExtractDict', surfaceFeatureExtractDict(surfaces))
@@ -524,6 +748,7 @@ export function writeSnappyCase(config, caseDir, options) {
     patchType,
     minVol,
     np,
+    advanced,
     units: { case: 'm', stl: 'mm (scale 0.001 in snappy geometry)' },
   }
 }

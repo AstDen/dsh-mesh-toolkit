@@ -1,0 +1,485 @@
+{
+  "version": "1.1.0",
+  "topic": "tutorial-2606",
+  "cards": [
+    {
+      "id": "tutorial-allrun-env-prefix",
+      "title": "A leading VAR=value on an Allrun command is the environment of that one step",
+      "topics": [
+        "tutorial",
+        "allrun",
+        "parser",
+        "extrudeMesh"
+      ],
+      "status": "verified",
+      "when": "parsing or porting an Allrun that writes `USE_ARC=true runApplication -s arc extrudeMesh`",
+      "statement": "RunFunctions forwards a variable written before the command through the environment, so such a line is a command with an env prefix, not a variable assignment. A parser whose assignment branch matches `^\\w+=.*$` swallows the whole line and the step silently disappears from the plan.",
+      "recipe": [
+        "treat `VAR=value ` before a command as the env of that step and keep it in the log line",
+        "treat a bare `VAR=value` (no trailing command) as a shell variable and expand it later",
+        "assert on the parsed step count: polyline Allrun has 8 steps, the buggy parser produced 4"
+      ],
+      "evidence": [
+        "extrudeMesh/polyline/Allrun:13 — `USE_ARC=true runApplication -s arc extrudeMesh`, :21 — `USE_ARC=false … -s spline`",
+        "exp-025 tut-16 before the fix: 4 steps, then `FOAM FATAL ERROR: Cannot find file \"points\" in directory \"polyMesh\" in times \"1\"`",
+        "exp-025 tut-16 after the fix: 8 steps, 51 400 cells, maxNonOrtho 32.4679, PASS"
+      ],
+      "improves": [
+        "tutorial step coverage",
+        "silent step loss"
+      ],
+      "appliesTo": [
+        "mesh_tutorial",
+        "plugins/mesh-build/lib/tutorial.js"
+      ]
+    },
+    {
+      "id": "tutorial-np-vs-decomposepardict",
+      "title": "np must match decomposeParDict only when the plan actually calls mpirun",
+      "topics": [
+        "tutorial",
+        "parallel",
+        "decomposeParDict",
+        "np"
+      ],
+      "status": "verified",
+      "when": "running a tutorial case that ships a system/decomposeParDict but never starts runParallel",
+      "statement": "Refusing any np mismatch is too strict: several serial tutorials carry a decomposeParDict with many subdomains. The check must be limited to plans that contain a parallel step; a serial plan simply ignores np. When a parallel step does exist, rewriting numberOfSubdomains breaks hierarchical decomposition.",
+      "recipe": [
+        "compute needsParallel = steps.some(step => step.parallel)",
+        "refuse a mismatch only when needsParallel is true, and suggest np = numberOfSubdomains",
+        "never rewrite only numberOfSubdomains of a hierarchical decomposition"
+      ],
+      "evidence": [
+        "extrudeMesh/faceZoneExtrusion/system/decomposeParDict:17 — `numberOfSubdomains  9;` with a serial Allrun",
+        "exp-025 tut-15: np=1 accepted after the fix, 8 steps, 13 cells, 28.3936° (gate FAIL on face weights)",
+        "snappyHexMesh/insidePoints/system/decomposeParDict = 6 and the Allrun does run in parallel — there the refusal stands"
+      ],
+      "improves": [
+        "false refusals",
+        "tutorial runnability"
+      ],
+      "appliesTo": [
+        "mesh_tutorial",
+        "plugins/mesh-build/lib/tutorial.js"
+      ]
+    },
+    {
+      "id": "tutorial-mesh-only-skips-motion",
+      "title": "moveDynamicMesh is a solver: mesh-only stops before it and leaves the raw blockMesh",
+      "topics": [
+        "tutorial",
+        "moveDynamicMesh",
+        "mesh-only",
+        "quality"
+      ],
+      "status": "verified",
+      "when": "running blockMesh/pipe or any moveDynamicMesh tutorial with steps: \"mesh-only\"",
+      "statement": "moveDynamicMesh is a motion solver and also compiles a dynamicCode library, so in mesh-only mode it is skipped. What remains is the raw blockMesh result — for blockMesh/pipe maxNonOrtho 80.7713 — and the quality gate rightly fails. This is expected, not a defect: with steps: \"all\" the smoothing runs.",
+      "recipe": [
+        "for a motion tutorial use steps: \"all\" (and a timeout), or accept a documented gate FAIL in mesh-only",
+        "do not tune the gate profile to make the raw mesh pass",
+        "record the skipped step in the manifest `skipped[]` with its reason"
+      ],
+      "evidence": [
+        "exp-025 tut-09_blockMesh_pipe and tut-11_blockMesh_pipe: 2 816 cells, maxNonOrtho 80.7713, gate FAIL",
+        "exp-025 tut-11 manifest: `skipped[{util: moveDynamicMesh, reason: …}]`",
+        "moveDynamicMesh in mesh-only before the skip: `Could not load …/dynamicCode/…/librelaxationFactor_<hash>.so` then SIGSEGV"
+      ],
+      "improves": [
+        "honest verdicts",
+        "wasted runs"
+      ],
+      "appliesTo": [
+        "mesh_tutorial",
+        "blockMesh/pipe"
+      ]
+    },
+    {
+      "id": "checkmesh-writefields-copies-zero",
+      "title": "checkMesh -writeFields writes into 0/, so an overlay must copy 0/ instead of linking it",
+      "topics": [
+        "checkMesh",
+        "mergeFields",
+        "writeFields",
+        "gate",
+        "overlay"
+      ],
+      "status": "verified",
+      "when": "running the quality gate with writeFields to obtain a per-cell quality field",
+      "statement": "The gate runs checkMesh inside a disposable overlay with system/ copied and polyMesh/ linked. `-writeFields '(nonOrthoAngle)'` writes the field into `<overlay>/0/`, so if 0/ is a symlink to the case the field lands in the real case. Copy 0/ whenever writeFields is requested.",
+      "recipe": [
+        "buildOverlay(caseDir, region, {copyZero: Boolean(writeFields)})",
+        "after checkMesh read every requested field from the overlay and summarise {field, n, min, max, avg}",
+        "cross-check that max of nonOrthoAngle equals checkMesh maxNonOrtho"
+      ],
+      "evidence": [
+        "exp-025 tut-01_flange: writtenFields [{field: nonOrthoAngle, n: 19188, min: 0, max: 50.9531, avg: 15.668}] and maxNonOrtho 50.9531",
+        "before the fix the field appeared in `<case>/0/nonOrthoAngle` (real case), not in the overlay"
+      ],
+      "improves": [
+        "case cleanliness",
+        "field-based diagnosis"
+      ],
+      "appliesTo": [
+        "mesh_check",
+        "plugins/sim-core/lib/gate.js"
+      ]
+    },
+    {
+      "id": "snappy-writeflags-toplevel",
+      "title": "writeFlags is a top-level snappyHexMeshDict entry, not a debug sub-key",
+      "topics": [
+        "snappy",
+        "writeFlags",
+        "dictionary"
+      ],
+      "status": "verified",
+      "when": "writing layer fields (thickness, nSurfaceLayers) from snappyHexMesh",
+      "statement": "`writeFlags` sits at the top level of snappyHexMeshDict; placing it under `debug` fails with `FOAM FATAL IO ERROR: Attempt to return stream of primitives from a dictionary entry: debug`. The annotated dictionary shows the same placement.",
+      "recipe": [
+        "write `writeFlags ( layerFields scalarLevels );` at the top level",
+        "keep `debug` for its own boolean switches only",
+        "verify in the log: `Writing fields with layer information:`"
+      ],
+      "evidence": [
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/etc/caseDicts/annotated/snappyHexMeshDict:884 — `//writeFlags` at top level",
+        "exp-025 tw02-gap-curvature: `FOAM FATAL IO ERROR … file: system/snappyHexMeshDict/debug at line 125 to 127` before the move",
+        "exp-025 tw02-gap-curvature after the move: 4 436 cells, maxNonOrtho 38.4975, PASS, 0/ has thickness/nSurfaceLayers"
+      ],
+      "improves": [
+        "layer diagnostics",
+        "dictionary validity"
+      ],
+      "appliesTo": [
+        "mesh_build snappy",
+        "scaffoldOptions.advanced.quality.writeFlags"
+      ]
+    },
+    {
+      "id": "snappy-gapmode-com-only",
+      "title": "gapMode/curvatureLevel/leakLevel/useLeakClosure/levelIncrement exist only in the .com line",
+      "topics": [
+        "snappy",
+        "gapLevel",
+        "curvature",
+        "versions",
+        "org14"
+      ],
+      "status": "verified",
+      "when": "writing advanced snappy refinement on an OpenFOAM.org build",
+      "statement": "In the .org 14 sources there are zero occurrences of gapMode, curvatureLevel, leakLevel, useLeakClosure and levelIncrement, while the .com 2512/2606 dictionaries document them. Writing such a key on .org is a silent no-op, so the scaffolder must refuse or warn instead of emitting it.",
+      "recipe": [
+        "check the target build through the capability matrix before writing an advanced key",
+        "com-only: gapMode, curvatureLevel, leakLevel, useLeakClosure, levelIncrement, locationsInMesh",
+        "on .org either drop the key with a warning or refuse with `switch to com2606`"
+      ],
+      "evidence": [
+        "grep over env/openfoam/org14/opt/openfoam14/src: 0 files for gapMode/curvatureLevel/leakLevel/useLeakClosure/levelIncrement",
+        "env/openfoam/org14/opt/openfoam14/etc/caseDicts/annotated/snappyHexMeshDict has only gapLevelIncrement (lines 184, 219)",
+        "plugins/mesh-build/data/capabilities.json — builds.com2606.snappyKeys.gapMode = true, builds.org14.snappyKeys.gapMode = false"
+      ],
+      "improves": [
+        "no silent no-op keys",
+        "cross-version portability"
+      ],
+      "appliesTo": [
+        "mesh_build snappy",
+        "mesh_capabilities"
+      ]
+    },
+    {
+      "id": "snappy-gaplevel-both-flavours",
+      "title": "gapLevel exists in both lines; only gapMode is .com-only",
+      "topics": [
+        "snappy",
+        "gapLevel",
+        "versions"
+      ],
+      "status": "verified",
+      "when": "enabling gap refinement and choosing between the two OpenFOAM lines",
+      "statement": "The .org 14 sources carry gapLevel in refinementSurfaces and use it during refinement, so gapLevel itself is portable. The version matrix that marks gapLevel .com-only is wrong about the key; the real .com-only companion is gapMode.",
+      "recipe": [
+        "on .org pass `gapLevel (numGapCells minLevel maxLevel)` per surface and omit gapMode",
+        "on .com add `gapMode` when the default mode is not what you want",
+        "keep the capability matrix as the source of truth, not a version table"
+      ],
+      "evidence": [
+        "env/openfoam/org14/opt/openfoam14/src/mesh/snappyHexMesh/refinementSurfaces/refinementSurfaces.H:86,117,170 — gapLevel",
+        "env/openfoam/org14/opt/openfoam14/src/mesh/snappyHexMesh/meshRefinement/meshRefinementRefine.C:1788 — gapLevel used",
+        "exp-025 tw02-gap-curvature on com2606: `Big gap refinement iteration 0`, 4 436 cells, 38.4975°"
+      ],
+      "improves": [
+        "version portability"
+      ],
+      "appliesTo": [
+        "mesh_build snappy",
+        "PLAN-tutorial-2606 §3"
+      ]
+    },
+    {
+      "id": "snappy-outsidepoints-both",
+      "title": "outsidePoints (leak detection) is supported by .org 14 as well",
+      "topics": [
+        "snappy",
+        "leak",
+        "outsidePoints",
+        "versions"
+      ],
+      "status": "verified",
+      "when": "deciding whether leak detection is available on an OpenFOAM.org build",
+      "statement": "refinementParameters reads `outsidePoints` in the .org 14 tree, so the key is not .com-only: it is supported but undocumented in the annotated dictionary. The capability matrix records it for both lines.",
+      "recipe": [
+        "write `outsidePoints ((x y z) …)` with points in metres",
+        "expect the log line `Cell selection outsidePoints:`",
+        "do not gate the key on the distribution"
+      ],
+      "evidence": [
+        "env/openfoam/org14/opt/openfoam14/src/mesh/snappyHexMesh/snappyHexMeshDriver/refinementParameters/refinementParameters.C:94-95,108",
+        "plugins/mesh-build/data/capabilities.json — builds.org14.snappyKeys.outsidePoints = true, com2606 lists it in supportedButUndocumented"
+      ],
+      "improves": [
+        "leak detection availability"
+      ],
+      "appliesTo": [
+        "mesh_build snappy",
+        "mesh_capabilities"
+      ]
+    },
+    {
+      "id": "tutorial-scan-descends-into-cases",
+      "title": "Case discovery must descend into a case directory: sub-cases carry their own controlDict",
+      "topics": [
+        "tutorial",
+        "list",
+        "scan",
+        "createPatch"
+      ],
+      "status": "verified",
+      "when": "counting runnable tutorial cases or listing a family with sub-cases",
+      "statement": "A directory that already holds system/controlDict can still contain runnable sub-cases, each with its own controlDict (createPatch/TJunctionSwitching_createPatch/{bottom,inlet,top}). Stopping the walk at the first case undercounts the family; the per-family count is the sanity check.",
+      "recipe": [
+        "walk up to four levels and keep descending after finding a controlDict",
+        "skip constant/system/0/ephemeral/postProcessing/Make, processor* and numeric time dirs",
+        "report counts per family as well as the total, so an undercount is visible"
+      ],
+      "evidence": [
+        "exp-025 list: com2606 51 cases / 51 controlDict (blockMesh 7, createPatch 5, snappyHexMesh 15, …), org14 9/9",
+        "PLAN-tutorial-2606 expected 47 cases — the four TJunction sub-cases were missed by the plan"
+      ],
+      "improves": [
+        "case inventory correctness"
+      ],
+      "appliesTo": [
+        "mesh_tutorial list"
+      ]
+    },
+    {
+      "id": "blockmesh-pipe-out-of-subset",
+      "title": "blockMesh/pipe cannot be expressed by a vertices+blocks+edges+faces spec",
+      "topics": [
+        "blockMesh",
+        "spec",
+        "limitations"
+      ],
+      "status": "verified",
+      "when": "round-tripping a blockMeshDict through a JSON spec",
+      "statement": "blockMesh/pipe uses named projected vertices, `projectCurve` edges and a `transform{}` block. A spec with plain vertices, edges and boundary cannot represent it, so the parser must refuse with a reason instead of silently distorting the geometry.",
+      "recipe": [
+        "support `project (x y z) (names)` vertices, arc/spline/project edges, geometry{} and mergePatchPairs",
+        "refuse named vertices, projectCurve and transform{} explicitly",
+        "oracle check: cells/points/faces/maxNonOrtho must match the tutorial after regenerating the dict"
+      ],
+      "evidence": [
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/blockMesh/pipe/system/blockMeshDict:20 transform, :54 `name v0 project (…) (cylinder cylinder2)`, :121-122 projectCurve",
+        "exp-025 round-trip: 6 of 7 blockMesh cases identical (sphere 1 000/82.2028°, sphere7 4 600/51.0106°, spheroid7Projected 36 000/78.4345°, …), pipe refused"
+      ],
+      "improves": [
+        "honest refusals",
+        "geometry fidelity"
+      ],
+      "appliesTo": [
+        "blockmesh route",
+        "plugins/mesh-build/lib/blockmesh.js"
+      ]
+    },
+    {
+      "id": "route-case-dir-must-be-absolute",
+      "title": "A step that runs with cwd=<case> must not also receive a relative -case",
+      "topics": [
+        "routes",
+        "cwd",
+        "topoSet",
+        "engine.json"
+      ],
+      "status": "verified",
+      "when": "running mesh surgery utilities as engine.json steps",
+      "statement": "Engine steps execute with the case directory as cwd and also pass `-case {caseDir}`. With a relative caseDir the utility resolves the path twice and fails with `topoSet: cannot open root directory \"…/case/experiments/…\"`. Resolve the case directory once, before rendering the command.",
+      "recipe": [
+        "makeContext must return `caseDir: resolve(caseDir)`",
+        "log the rendered command line in the step log so a doubled path is visible",
+        "run preflight against the same absolute path the step will use"
+      ],
+      "evidence": [
+        "plugins/mesh-build/lib/routes.js:68 — `caseDir: resolve(caseDir)`",
+        "exp-025 tut-13: before the fix `topoSet: cannot open root directory \"…/tut-13…/experiments/exp-025_tutorial-2606/cases\"`; after — topoSet exit 0 (182 ms), checkMesh exit 0 (179 ms)"
+      ],
+      "improves": [
+        "step reliability",
+        "diagnosable failures"
+      ],
+      "appliesTo": [
+        "mesh_build route ops",
+        "plugins/mesh-build/lib/routes.js"
+      ]
+    },
+    {
+      "id": "checkmesh-mesh-ok-is-not-a-pass",
+      "title": "A bare `Mesh OK.` is not a quality pass: thresholds need checkMesh -meshQuality",
+      "topics": [
+        "checkMesh",
+        "meshQuality",
+        "gate",
+        "verdict"
+      ],
+      "status": "verified",
+      "when": "deciding whether a mesh is acceptable from a checkMesh log",
+      "statement": "Without -meshQuality, checkMesh only reports the numbers and fails on faces above 90°; it prints `Mesh OK.` for a mesh with 80.77° non-orthogonality. The same mesh under `checkMesh -meshQuality` says `Failed 1 mesh checks.`, so any gate must run with the threshold dictionary and judge the log text, not the exit code.",
+      "recipe": [
+        "run `checkMesh -meshQuality` with an explicit meshQualityDict (overlay, so the case is untouched)",
+        "decide the verdict from the log text (`Mesh OK.` vs `Failed N mesh checks`) — checkMesh exits 0 in both cases",
+        "quote the violated metric and its threshold, not just the verdict"
+      ],
+      "evidence": [
+        "exp-025 tut-11_blockMesh_pipe, plain checkMesh: `Max aspect ratio = 11.1405 OK.`, `Mesh non-orthogonality Max: 80.7713 average: 27.091`, `Mesh OK.`, exit 0",
+        "same case through the gate: `Failed 1 mesh checks.` (nonOrthoFaces set written, 40 faces)",
+        "plugins/sim-core/lib/gate.js — verdict computed from log text via verdictOf(metrics)"
+      ],
+      "improves": [
+        "verdict honesty",
+        "quality gate"
+      ],
+      "appliesTo": [
+        "mesh_check",
+        "tools/qa/mesh_gate.sh"
+      ]
+    },
+    {
+      "id": "features-util-differs-by-line",
+      "title": "Feature extraction is surfaceFeatures on .org and surfaceFeatureExtract on .com — the dict name follows",
+      "topics": [
+        "surfaceFeatures",
+        "surfaceFeatureExtract",
+        "versions",
+        "snappy"
+      ],
+      "status": "verified",
+      "when": "running the feature-extraction step of a snappyHexMesh pipeline",
+      "statement": "The utility and its dictionary are line-specific: .org ships `surfaceFeatures` with `system/surfaceFeaturesDict`, .com ships `surfaceFeatureExtract` with `system/surfaceFeatureExtractDict`. The same tutorial (flange) calls a different utility on each line, and the .org14 surfaceFeatureExtract exists only as a stub.",
+      "recipe": [
+        "pick the utility from the capability matrix (featuresNew on .com, featuresOld on .org)",
+        "write the matching dictionary name — surfaceFeaturesDict vs surfaceFeatureExtractDict",
+        "on a .com build never rely on surfaceFeatureExtract-less pipelines: features refine explicit edges"
+      ],
+      "evidence": [
+        "env/openfoam/org14/opt/openfoam14/etc/caseDicts/annotated/surfaceFeaturesDict vs env/openfoam/com2606/usr/lib/openfoam/openfoam2606/etc/caseDicts/annotated/surfaceFeatureExtractDict",
+        "env/openfoam/org14/opt/openfoam14/tutorials/mesh/snappyHexMesh/flange/Allrun:11 — `runApplication surfaceFeatures`",
+        "exp-025 tut-01_flange (com2606): step surfaceFeatureExtract, 19 186 cells, 50.9531°, PASS"
+      ],
+      "improves": [
+        "cross-version portability"
+      ],
+      "appliesTo": [
+        "mesh_build snappy",
+        "mesh_capabilities"
+      ]
+    },
+    {
+      "id": "tutorial-gate-profile-default",
+      "title": "Judge tutorial meshes with the `gate` profile, not the project profile",
+      "topics": [
+        "tutorial",
+        "gate",
+        "quality",
+        "minVolRatio"
+      ],
+      "status": "verified",
+      "when": "running a shipped tutorial as an oracle rather than producing project geometry",
+      "statement": "The project profile (minVolRatio 0.05, maxBoundarySkewness 4) is tuned for our pore meshes and fails shipped tutorials on volume ratio alone: flange reports 48 faces below 0.05 while the `gate` profile passes it. A tutorial is an oracle for the step plan, so `gate` is the honest default; `project` stays available as a flag.",
+      "recipe": [
+        "default profile for mesh_tutorial is `gate`",
+        "pass profile: \"project\" when the tutorial mesh itself must meet project thresholds",
+        "state the profile in the manifest (gate.profile) and in the experiment README"
+      ],
+      "evidence": [
+        "exp-025 tut-01_flange: gate PASS (19 186 cells, 50.9531°) vs project FAIL (48 faces volume ratio < 0.05)",
+        "plugins/mesh-build/lib/tutorial.js — `const profile = args.profile ?? 'gate'`"
+      ],
+      "improves": [
+        "verdict honesty",
+        "false failures"
+      ],
+      "appliesTo": [
+        "mesh_tutorial",
+        "mesh_check"
+      ]
+    },
+    {
+      "id": "tutorial-suffix-two-pass-runs",
+      "topics": ["tutorial", "Allrun", "suffix", "two-pass"],
+      "title": "Two mesher passes in one tutorial: -s suffix keeps both logs, -writeAllFields records the mesh",
+      "statement": "`airfoilWithLayers` runs snappyHexMesh twice with different `fvSchemes geometry/type` and a `-s` suffix (`basic`, then `highAspectRatio`); `runApplication -s <x>` writes `log.<app>.<x>` instead of `log.<app>`, so the second pass never collides with the first. The following `checkMesh -s <x> -writeAllFields` numbers the pass and forces a write, otherwise nothing is written for a mesh-only run.",
+      "when": "A tutorial (or a user case) needs the same mesher run twice with edited dictionaries in one directory.",
+      "recipe": [
+        "`foamDictionary system/fvSchemes -entry geometry/type -set basic` then `runApplication -s basic snappyHexMesh`",
+        "edit the dictionary again, then `runApplication -s highAspectRatio snappyHexMesh`",
+        "close each pass with `runApplication -s <same> checkMesh -writeAllFields` so the pass is numbered and the fields are written"
+      ],
+      "evidence": [
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/snappyHexMesh/airfoilWithLayers/Allrun:21",
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/snappyHexMesh/airfoilWithLayers/Allrun:22",
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/snappyHexMesh/airfoilWithLayers/Allrun:23",
+        "experiments/exp-025_tutorial-2606/cases/tut-30_airfoilLayers/tutorial-manifest.json"
+      ],
+      "improves": [
+        "Tutorial runner: two-pass cases must not overwrite the first log",
+        "Mesh-only verdict for the second pass"
+      ],
+      "appliesTo": [
+        "mesh_tutorial",
+        "snappyHexMesh",
+        "RunFunctions"
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "collated-decompose-needs-reconstruct",
+      "topics": ["tutorial", "collated", "decomposePar", "mpirun", "reconstructPar"],
+      "title": "A collated parallel mesh stays on the ranks until redistributePar -reconstruct -constant",
+      "statement": "`sphere_gapClosure` keeps `fileHandler=\"-fileHandler collated\"` in a variable, decomposes with `redistributePar -decompose -constant`, meshes with `mpirun snappyHexMesh -overwrite`, and only then calls `redistributePar -reconstruct -constant`. Without the reconstruct step the case has no whole mesh in `constant/polyMesh` — a gate or a renderer sees an empty case, not a mesh.",
+      "when": "A tutorial or case meshes in parallel with the collated file handler and must end with one mesh.",
+      "recipe": [
+        "`runParallel -s decompose redistributePar -decompose -constant -fileHandler collated`",
+        "`runParallel snappyHexMesh -overwrite -fileHandler collated`",
+        "`runParallel -s reconstruct redistributePar -reconstruct -constant -fileHandler collated` before any gate or render"
+      ],
+      "evidence": [
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/snappyHexMesh/sphere_gapClosure/Allrun:5",
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/snappyHexMesh/sphere_gapClosure/Allrun:15",
+        "env/openfoam/com2606/usr/lib/openfoam/openfoam2606/tutorials/mesh/snappyHexMesh/sphere_gapClosure/Allrun:18",
+        "experiments/exp-025_tutorial-2606/cases/tut-23_gapClosure/tutorial-manifest.json"
+      ],
+      "improves": [
+        "Tutorial runner: collated cases end with a usable constant/polyMesh",
+        "Gate runs after reconstruct, not before"
+      ],
+      "appliesTo": [
+        "mesh_tutorial",
+        "redistributePar",
+        "snappyHexMesh",
+        "collated"
+      ],
+      "status": "verified"
+    }
+  ]
+}

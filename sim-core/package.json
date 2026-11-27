@@ -1,6 +1,6 @@
 {
   "name": "sim-core",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Shared foundation for Sim DSH plugins: config layering, sim-project.json profile, path resolution, process runner, knowledge cards, checkMesh parsing, quality gate and artifact passports.",
   "type": "module",

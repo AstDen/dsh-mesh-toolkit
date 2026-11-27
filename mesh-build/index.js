@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   PACKAGE_ROOT, PKG_VERSION, displayPath, diskVersion, executionCwd, expandStlInputs, jsonSafe,
-  normalizeConfig, resolveProjectPath, tail, versionInfo,
+  normalizeConfig, readJson, resolveProjectPath, tail, versionInfo,
 } from './lib/common.js'
 import { gateCase } from './lib/gate.js'
 import { CAPABILITIES, ensureHints, provideService } from '../sim-core/lib/index.js'
@@ -35,7 +35,8 @@ import {
 } from '../sim-core/lib/passport.js'
 import { isEmptyDir, installStl, writeSnappyCase } from './lib/scaffold.js'
 import { scaleSuspicion } from './lib/domain.js'
-import { capsSentence, capsSummary, probeCaps } from './lib/caps.js'
+import { capabilityMatrix, capsSentence, capsSummary, loadCapabilitiesMatrix, probeCaps } from './lib/caps.js'
+import { compareTutorialManifest, listTutorials, runTutorial } from './lib/tutorial.js'
 import { compareSurfaces, exportPatchTriangles, readTriangles, writeTrianglesStl } from './lib/surfacecheck.js'
 import { readStlBboxMm } from './lib/precheck.js'
 import { cfmeshUnitsProblem, domainPatchProblem } from './lib/precheck.js'
@@ -72,6 +73,7 @@ const SCAFFOLD_KEYS = [
   'locationInMesh', 'locationsInMesh',
   'refinementLevels', 'defaultLevel', 'layerSurfaces', 'nLayers', 'layerThickness',
   'minThickness', 'symmetryDomain', 'minVol', 'maxNonOrtho', 'resolveFeatureAngle', 'expansionRatio', 'minTwist',
+  'advanced',
 ]
 
 /** Last "Added N out of M cells (P%)" line from a snappy log. */
@@ -1110,6 +1112,7 @@ export function apply(ctx, rawConfig) {
     },
     async execute(args, config) {
       const caps = probeCaps(config)
+      const matrix = capabilityMatrix(caps, loadCapabilitiesMatrix(join(config.packageRoot, 'data')))
       return {
         configured: true,
         tool: 'mesh_capabilities',
@@ -1121,15 +1124,89 @@ export function apply(ctx, rawConfig) {
         features: caps.features,
         dictKeys: caps.dictKeys,
         dicts: caps.dicts,
+        matrix,
         notes: caps.notes,
         summary: capsSentence(caps),
         next: [
           'mesh_build reports the same block as `caps`; scaffolded dictionaries follow dictKeys',
+          'matrix: utilities x snappyHexMesh keys x this build, live probe merged with data/capabilities.json',
           caps.features.cfmesh
             ? 'cfMesh is available: route "cfmesh" needs system/meshDict (see the cfmesh hint card)'
             : 'cfMesh is not in this installation: use route "snappy" or "gmsh" (the preflight refuses cfmesh on org builds)',
         ],
       }
+    },
+  })
+
+
+  register({
+    name: 'mesh_tutorial',
+    description: 'Reproduce an OpenFOAM mesh tutorial with one call: list the shipped cases (family, steps, '
+      + 'utilities, manual-only), then copy a case into the project, run its Allrun pipeline step by step '
+      + '(each `runApplication` line becomes a logged step, never a shell), gate the result with mesh_check '
+      + 'and write tutorial-manifest.json (cells, patches, metrics, verdict, duration). '
+      + '`steps: "mesh-only"` (default) stops before the first solver/motion utility. '
+      + 'A utility missing from the build is refused up front, never half-run.',
+    parameters: {
+      list: { type: 'boolean', description: 'List the tutorials instead of running one (families, controlDicts, runnable vs manual, missing utilities).' },
+      case: { type: 'string', description: 'Tutorial case id relative to tutorials/mesh, e.g. "snappyHexMesh/flange" or "blockMesh/sphere7".' },
+      out: { type: 'string', description: 'Output case directory inside the project (default experiments/tut-<n>_<slug>); the tutorial itself is never modified.' },
+      np: { type: 'number', description: 'Ranks for runParallel steps. Must equal numberOfSubdomains in the case decomposeParDict — mismatch is refused, not patched.' },
+      steps: { type: 'string', description: 'mesh-only (default: stop before the first solver/motion utility), all, or a comma list of utility names (blockMesh,snappyHexMesh).' },
+      force: { type: 'boolean', description: 'Replace an existing output directory.' },
+      allowManual: { type: 'boolean', description: 'Also run a case whose Allrun uses shell control flow (for loops, if, wmake): default is to refuse with the list of unsupported lines.' },
+      keepGoing: { type: 'boolean', description: 'Continue after a failing step, like the Allrun itself (no `set -e`). Needed for cases whose first pass exits on purpose (motorBike_leakDetection writes leakPath, then run with useLeakClosure true). Failures stay in failedSteps; the gate decides the verdict.' },
+      profile: { type: 'string', description: 'Gate profile for the final verdict (default gate — a tutorial mesh is an oracle, not project geometry).' },
+      minVol: { type: 'number', description: 'Absolute minVol for the gate (m^3); omitted = profile value, else the check is disabled and reported.' },
+      timeoutMs: { type: 'number', description: 'Per-step timeout (default 1800000).' },
+      dryRun: { type: 'boolean', description: 'Parse and show the plan without copying or running anything.' },
+      compare: { type: 'object', additionalProperties: true, description: 'Optional { baseline: <path to a baseline manifest or fixtures json>, cellsTolerance, nonOrthoTolerance } to compare the run against a saved oracle.' },
+      openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (com2606, com2512, org14) or an absolute bashrc path.' },
+    },
+    async execute(args, config) {
+      if (args.list) {
+        const listing = listTutorials(config, { parse: true })
+        if (!listing.ok) return listing
+        return {
+          configured: true, version: versionBlock(), tool: 'mesh_tutorial', action: 'list',
+          bashrc: listing.bashrc, project: listing.project, root: listing.root, counts: listing.counts,
+          families: listing.families,
+          cases: listing.cases.map((c) => ({
+            id: c.id, family: c.family, controlDicts: c.controlDict, steps: c.stepCount,
+            utils: c.utils, solvers: c.solvers ?? [], manual: c.manual, missingUtils: c.missingUtils,
+            runnable: c.runnable,
+          })),
+          next: ['mesh_tutorial({ case: "snappyHexMesh/flange", np: 4 }) — np must match the case decomposeParDict',
+            'cases with manual=true need allowManual:true or a hand-written pipeline'],
+        }
+      }
+      if (!args.case) return { ok: false, error: 'pass case:"<family>/<name>" or list:true', hint: 'mesh_tutorial({ list: true })' }
+      const run = runTutorial(config, {
+        case: args.case,
+        out: args.out,
+        np: args.np,
+        steps: args.steps,
+        force: Boolean(args.force),
+        allowManual: Boolean(args.allowManual),
+        keepGoing: Boolean(args.keepGoing),
+        profile: args.profile,
+        minVol: args.minVol,
+        timeoutMs: args.timeoutMs,
+        dryRun: Boolean(args.dryRun),
+      })
+      if (!run.ok) return run
+      if (args.compare?.baseline) {
+        try {
+          const baseline = readJson(resolveProjectPath(config, args.compare.baseline))
+          run.comparison = compareTutorialManifest(baseline, run, {
+            cellsTolerance: args.compare.cellsTolerance,
+            nonOrthoTolerance: args.compare.nonOrthoTolerance,
+          })
+        } catch (error) {
+          run.comparison = { ok: false, error: error.message }
+        }
+      }
+      return { configured: true, version: versionBlock(), tool: 'mesh_tutorial', ...run }
     },
   })
 
@@ -1145,6 +1222,7 @@ export function apply(ctx, rawConfig) {
       regions: { type: 'array', items: { type: 'string' }, description: 'Region names to check; default: auto-detect constant/<region>/polyMesh, else the base case.' },
       profile: { type: 'string', description: 'Gate profile: from sim-project.json gate.profile (project), gate or relaxed.' },
       minVol: { type: 'number', description: 'Absolute minVol threshold (m^3), e.g. 1e-14. Omit to use the profile value; when neither is set the check is disabled and reported.' },
+      writeFields: { type: 'string', description: 'Pass `-writeFields` to checkMesh, e.g. "(nonOrthoAngle)" or "(nonOrthoAngle skewness)": the per-cell quality field is written into the disposable overlay (0/ is copied, never the case) and summarised as {field, n, min, max, avg}.' },
       openfoam: { type: 'string', description: 'OpenFOAM installation id from sim-project.json (foam.installations, e.g. "org14" or "com2606") or an absolute bashrc path. Omit for the profile default.' },
     },
     async execute(args, config) {
@@ -1152,10 +1230,12 @@ export function apply(ctx, rawConfig) {
       if (!existsSync(join(caseDir, 'constant'))) {
         return { error: `no constant/ directory in ${displayPath(config, caseDir)}` }
       }
+      const writeFields = typeof args.writeFields === 'string' && args.writeFields.trim() ? args.writeFields.trim() : null
       const gate = gateCase(config, caseDir, {
         profile: args.profile ?? config.gate?.profile,
         minVol: args.minVol,
         regions: Array.isArray(args.regions) ? args.regions.map(String) : undefined,
+        writeFields,
       })
       const snappyLog = findSnappyLog(config, caseDir)
       if (snappyLog) {
@@ -1283,6 +1363,7 @@ export function apply(ctx, rawConfig) {
           advisory: r.advisory ?? [],
           metrics: r.metrics,
           log: r.log,
+          ...(r.writeFields ? { writeFields: r.writeFields, writtenFields: r.writtenFields ?? [] } : {}),
           stderrTail: r.pass ? undefined : tail(r.stderrTail ?? '', 2000),
         })),
         next: gate.pass
