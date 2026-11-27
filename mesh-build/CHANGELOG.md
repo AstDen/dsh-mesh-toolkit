@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.3.0 — 2026-11-27
+
+Final item of the plan S3 defect sprint (audit `AUDIT-implementation-map-2026-11-26.md`, D-5): the y+ layer formula.
+
+- **D-5 — y+ sized a wall distance, not a cell.** y+ is defined at the cell centroid, so the first cell is
+  twice `y+·ν/u_τ`; the previous code returned that distance as the cell height and every layer came out half as
+  thick as requested. `firstLayer_m` is now the cell height, `wallDistance_m` the distance that carries y+.
+  Pass `legacyYPlus: true` to `mesh_first_layer` (or `mesh_revise` `changes.legacyYPlus`) to reproduce the
+  pre-1.3 numbers.
+- **D-5 — the laminar branch was a note, not a formula.** Below Re 5e5 the flat-plate correlation is the laminar
+  Blasius `Cf = 0.664·Re^(-1/2)`; it is now selected automatically (`skinFriction(Re)`, `cfModel(Re)`, reported as
+  `formula.cfModel: 'laminar-blasius'`, `formula.regime: 'laminar'`) instead of using the turbulent 1/7-power law
+  everywhere with a warning.
+- **D-5 — no clamp to the near-wall cell.** A first cell taller than half the near-wall cell cannot be extruded by
+  snappy, so the height is clamped to `0.5·cellSize` when `cellSize` is known, `clamped: true` is reported
+  together with `firstLayerRequested_m` and the y+ actually obtained (`yPlusFirst`), and a note explains the
+  trade-off (refine the surface or raise the y+ target).
+- `yPlusFromThickness` now inverts the same convention: `yPlus` is the centroid value (a round-trip returns the
+  target), `wallDistance_m` is the distance behind it, and the full-height number stays available as `yPlusCellHeight`.
+- Tests: `test/firstlayer.test.mjs` — 8 cases (the ×2 factor, the legacy flag, the Blasius branch at Re 1e5, the
+  clamp, the scaffoldOptions block, the inverse round-trip, invalid input). Suite 101 tests / 99 pass / 2 skipped.
+
 ## 1.2.0 — 2026-11-27
 
 Second half of the plan S3 defect sprint (audit `AUDIT-implementation-map-2026-11-26.md`, items D-2, D-3, D-4, D-8, D-9)

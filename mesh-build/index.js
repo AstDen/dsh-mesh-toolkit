@@ -689,10 +689,11 @@ export function apply(ctx, rawConfig) {
 
   register({
     name: 'mesh_first_layer',
-    description: 'Size the near-wall layers from a y+ target (flat plate: Cf = 0.026·Re^(-1/7), uTau = U·sqrt(Cf/2), '
-      + 'first layer = y+·nu/uTau, delta = 0.37·L·Re^(-0.2)) and return a scaffoldOptions block for mesh_build — or invert it: '
-      + 'given a first-layer thickness, report the y+ it gives. Pure calculator: no case and no OpenFOAM needed, unless you pass '
-      + 'caseDir to read the STL surface names for layerSurfaces.',
+    description: 'Size the near-wall layers from a y+ target (flat plate: Cf = 0.026·Re^(-1/7) turbulent, 0.664·Re^(-1/2) '
+      + 'laminar below Re 5e5; uTau = U·sqrt(Cf/2); the wall distance that carries y+ is y+·nu/uTau and the FIRST CELL is twice '
+      + 'that height, clamped to half the near-wall cell; delta = 0.37·L·Re^(-0.2)) and return a scaffoldOptions block for '
+      + 'mesh_build — or invert it: given a first-layer thickness, report the y+ it gives. legacyYPlus:true reproduces the '
+      + 'pre-1.3 numbers. Pure calculator: no case and no OpenFOAM needed, unless you pass caseDir to read the STL surface names.',
     parameters: {
       uRef: { type: 'number', description: 'Free-stream speed, m/s (required).' },
       lRef: { type: 'number', description: 'Length along the wall (plate/chord), m (required).' },
@@ -703,6 +704,7 @@ export function apply(ctx, rawConfig) {
       layerSurfaces: { type: 'array', items: { type: 'string' }, description: 'STL surface names to get a scaffoldOptions block.' },
       firstLayer: { type: 'number', description: 'Inverse mode: existing first-layer thickness (m) → report its y+.' },
       cellSize: { type: 'number', description: 'Near-wall cell size after refinement, m (relative layerThickness = lastLayer/cellSize). Omitted: derived from caseDir handoff (background cell / 2^max level).' },
+      legacyYPlus: { type: 'boolean', description: 'Reproduce the pre-1.3 numbers: turbulent Cf at every Re, cell height = the y+ wall distance (no ×2), no clamp to half the cell.' },
       caseDir: { type: 'string', description: 'Optional case; its constant/triSurface names fill layerSurfaces and its handoff gives cellSize.' },
     },
     async execute(args, config) {
@@ -746,7 +748,7 @@ export function apply(ctx, rawConfig) {
             }
           }
         }
-        const common = { uRef: args.uRef, lRef: args.lRef, nu: args.nu ?? 1.5e-5, cellSize }
+        const common = { uRef: args.uRef, lRef: args.lRef, nu: args.nu ?? 1.5e-5, cellSize, legacyYPlus: args.legacyYPlus === true }
         const payload = args.firstLayer
           ? { ...yPlusFromThickness({ ...common, firstLayer: args.firstLayer }), mode: 'yplus-from-thickness' }
           : { ...computeFirstLayer({ ...common, yPlusTarget: args.yPlusTarget, expansionRatio: args.expansionRatio, coverage: args.coverage, layerSurfaces }), mode: 'layers-from-yplus' }

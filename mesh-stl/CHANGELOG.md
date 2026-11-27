@@ -1,8 +1,9 @@
 # Changelog
 
-## 1.2.0 — 2026-11-27
+## 1.3.0 — 2026-11-27
 
-- TODO: describe the changes
+- No functional change: `mesh-stl` is versioned together with `mesh-build` and `sim-core` so that one number
+  identifies one build of the toolkit. The knowledge catalogue is unchanged (12 cards in `stl_hints`).
 
 ## 1.0.1 — 2026-11-26
 

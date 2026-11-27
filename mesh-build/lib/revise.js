@@ -219,7 +219,8 @@ function applyOp({ rung, feedback, handoff, sizing, surfaces, attempt }) {
         problems.push('yplus: uTau needs uRef (m/s) and lRef (m); nu defaults to 1.5e-5 m^2/s. Pass feedback.changes.uRef/lRef or evidence.metrics.uRef/lRef')
         break
       }
-      const computed = firstLayerFromYPlus({ yPlus: target, uRef: source.uRef, lRef: source.lRef, nu: source.nu })
+      const legacyYPlus = changes.legacyYPlus ?? rung.defaults?.legacyYPlus === true
+      const computed = firstLayerFromYPlus({ yPlus: target, uRef: source.uRef, lRef: source.lRef, nu: source.nu, legacyYPlus: legacyYPlus === true })
       const localH = sizing.cellSize ? sizing.cellSize / Math.pow(2, maxLevel(sizing.levels)) : null
       const expansion = Number(changes.expansionRatio ?? rung.defaults?.expansionRatio ?? 1.2)
       // snappy's relativeSizes takes the FINAL layer thickness; derive it from the target first layer, and

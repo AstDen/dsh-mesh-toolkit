@@ -208,5 +208,33 @@
       "experiments/_scratch/verify-a8.mjs 24/24 (com v2512, com v2606, org 14, route plans, overridden caps)"
     ],
     "status": "verified"
+  },
+  {
+    "id": "yplus-cell-thickness",
+    "title": "A y+ target sizes a cell, not a wall distance: double it, and below Re 5e5 the correlation changes",
+    "statement": "y+ is defined at the cell centroid, so the first cell is 2·y+·nu/uTau tall — the pre-1.3 code used y+·nu/uTau and every layer came out half as thick as requested. Skin friction is 0.026·Re^(-1/7) only for a turbulent boundary layer; below Re 5e5 the laminar Blasius 0.664·Re^(-1/2) applies and the old code silently kept the turbulent law. A first cell taller than half the near-wall cell cannot be extruded, so the height is clamped to 0.5·cellSize and the y+ actually obtained is reported. mesh_first_layer({ legacyYPlus: true }) reproduces the old numbers when a report must stay comparable.",
+    "topics": [
+      "y+",
+      "layers",
+      "first layer",
+      "skin friction",
+      "Blasius",
+      "Reynolds",
+      "snappy"
+    ],
+    "when": "sizing near-wall layers from a y+ target, comparing layer counts with a report made before 1.3.0, or when snappy extrudes 0 of N faces",
+    "recipe": [
+      "mesh_first_layer({ uRef: 10, lRef: 1, nu: 1.5e-5, yPlusTarget: 1, layerSurfaces: ['walls'], cellSize: 2e-3 })",
+      "result.firstLayer_m is the CELL height; result.wallDistance_m is the distance to the wall that carries y+",
+      "result.formula.cfModel tells you which correlation ran (turbulent-1/7 or laminar-blasius) and cellThicknessFactor is 2 (or 1 with legacyYPlus)",
+      "a clamped result reports result.clamped: true and result.yPlusFirst — the y+ you actually get, not the target",
+      "yPlusFromThickness({ ..., firstLayer }) inverts the same convention: yPlus is the centroid value, yPlusCellHeight the full-height one"
+    ],
+    "evidence": [
+      "plugins/mesh-build/test/firstlayer.test.mjs: 8 tests covering the ×2 factor, the Blasius branch at Re 1e5, the 0.5·cellSize clamp, the legacy flag and the inverse round-trip"
+    ],
+    "status": "verified",
+    "source": "audit D-5 (plugins/AUDIT-implementation-map-2026-11-26.md); fixed in mesh-build 1.3.0",
+    "pitfall": "a y+ target of 1 on a coarse near-wall cell often cannot be honoured: the clamp fires and the honest answer is a smaller cell (refine) or a larger y+"
   }
 ]

@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/AstDen/dsh-mesh-toolkit/actions/workflows/ci.yml)
 
-> **1.2.0** · packages: mesh-build 1.2.0 · mesh-stl 1.2.0 · sim-core 1.2.0
+> **1.3.0** · packages: mesh-build 1.3.0 · mesh-stl 1.3.0 · sim-core 1.3.0
 > host-only plugins distilled from the `Mesh_3D_pore_scale` project. Build a
 > watertight STL, turn it into a checked OpenFOAM mesh, then package it as an
 > OpenFOAM case plus an ANSYS/Fluent `.msh`. Twelve tools, 40 searchable knowledge
@@ -32,7 +32,7 @@ in 25.5 s from the release tarball).
 Validated on **OpenFOAM.com v2512**, **v2606** and **OpenFOAM.org v14**, **ParaView 6.2.1**,
 **gmsh 4.15.2**, **CadQuery 2.8.0**, Node 24.
 
-**13 tools · 66 cards in files / 56 unique ids in the merged `mesh_hints` catalogue · 12 in `stl_hints` · 2 skills · 3 services · smoke and live tested**
+**13 tools · 57 cards in files / 57 unique ids in the merged `mesh_hints` catalogue · 12 in `stl_hints` · 2 skills · 3 services · smoke and live tested**
 
 ## 60 seconds
 

@@ -1,8 +1,9 @@
 # Changelog — sim-core
 
-## 1.2.0 — 2026-11-27
+## 1.3.0 — 2026-11-27
 
-- TODO: describe the changes
+- No functional change in the gate, the handoff or the service contract: 1.3.0 fixes the y+ layer formula in
+  `mesh-build` (audit D-5). `parseCheckMesh`, `layerCoverageCheck` and the `mesh-handoff/1` schemas are as in 1.1.1.
 
 ## 1.1.1 — 2026-11-27
 
