@@ -286,8 +286,9 @@ to report the leak, the second pass closes it). Two meshers stand outside the se
 
 ## Limits
 
-- No solvers and no Fluent run: the delivery builds the `.msh` and the journal, it does
-  not open Fluent. Meshing itself stops at a passing gate.
+- No solvers: the toolkit stops at a passing gate and a delivery. The delivered `.msh` was read back by
+  the real Fluent 2026 R1 once (148 288 cells, minimum orthogonal quality 0.389, `check mesh` clean —
+  `docs/ACCEPTANCE.md` § Fourth run), but the tools never start a solver.
 - The gate is JS (`sim-core/lib/gate.js`); `tools/qa/mesh_gate.sh` is kept only as a
   parity reference and `gate.engine: "script"` escape hatch.
 - `mesh-passport.json` records what the gate saw; `mesh_check` compares size+mtime,

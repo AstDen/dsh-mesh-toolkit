@@ -88,6 +88,14 @@ Status marks follow the project convention: ✅ observed with a real run · 🟡
 | `SKIP [openfoam] fixture missing: …/a1-cube.stl` | the OpenFOAM tier wants one closed STL | `CONTRACT_TEST_STL=/path/to/closed.stl` |
 | `SKIP [workbench] dsh-openfoam-workbench not installed — set CONTRACT_TEST_WORKBENCH=<package dir> to include this tier` | that plugin is not in any profile | `CONTRACT_TEST_WORKBENCH=/path/to/dsh-openfoam-workbench` |
 
+## ANSYS Fluent (`mesh_deliver` output)
+
+| String | Cause | Fix |
+|---|---|---|
+| `Cannot initialize ANSYS Licensing context` ✅ | Fluent started inside the agent's workspace sandbox: the licensing library needs paths it cannot reach there | run the session with full access (no sandbox) and `ANSYSLMD_LICENSE_FILE=1055@192.168.1.100` from the project `~/.bashrc` |
+| `Unexpected license problem; exiting.` ✅ + `basic_string::replace: __pos ... > this->size()` | same cause as above — the cryptic `std::out_of_range` is the licensing context failing, not the `.msh` | as above; the mesh itself reads fine afterwards (`148288 mixed cells`, `check mesh` → `Done.`) |
+| `Reading "demo.msh"... 148288 mixed cells, zone 1` ✅ then `Minimum Orthogonal Quality = 3.88782e-01` | normal: `foamMeshToFluent` writes polyhedra as `mixed` cells and Fluent accepts them | nothing to fix; Fluent's orthogonal quality is a different functional from our `maxNonOrtho` (26.41° here), so do not compare the numbers directly |
+
 ## Reload and cache traps
 
 - A **version-only** change never reloads: the module graph is evicted per *content* change. Append a comment, toggle

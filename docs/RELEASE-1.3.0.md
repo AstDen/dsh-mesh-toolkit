@@ -54,8 +54,10 @@ Plugin market index (pinned to the release commit):
 
 ## Known gaps
 
-- The `.msh` written for ANSYS is still only round-tripped through `fluent3DMeshToFoam`;
-  Fluent itself has not opened a delivered mesh in this project.
+- The ANSYS `.msh` is round-tripped through `fluent3DMeshToFoam` **and** was opened by Fluent 2026 R1 on
+  2026-11-27 (148 288 cells, total volume 4.400032e-04 m³, minimum orthogonal quality 0.389, aspect ratio
+  5.73, `check mesh` clean) — see `docs/ACCEPTANCE.md` § Fourth run. What is still missing is a *solver*
+  run on that mesh, not the mesh itself.
 - Multi-region CHT on OpenFOAM.org 14 is unverified (no `locationsInMesh` there).
 - The solver-side workbench still truncates hyphenated patch names in its own `boundary` parser
   (`lib/of-engine.js:972`); our contract tier `M3c` reports it as a `known-gap`.

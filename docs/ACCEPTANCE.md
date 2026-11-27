@@ -104,10 +104,42 @@ The same procedure with the published `v1.0.0` release asset (`mesh-toolkit-1.0.
 
 So the released artefact, not just the development tree, passes the clean-user acceptance.
 
+## Fourth run: the delivered `.msh` in a live Fluent (2026-11-27)
+
+The demo delivery `.cache/demo/deliver/ansys_demo/demo.msh` (27 459 561 B, written by `foamMeshToFluent`)
+was opened by the real Fluent 2026 R1 (v261, `fluent 3ddp -g -t1`) with the project journal
+`read_mesh.jou` (`/file/read-case`, `/mesh/check`, `/mesh/quality`, `/exit yes`):
+
+| Quantity | Fluent | Our `checkMesh` / gate |
+|---|---|---|
+| cells | **148 288** (zone 1) | 148 288 |
+| nodes | 161 812 | 161 812 |
+| face zones | 439 964 interior (2), 15 088 symmetry (10), 3 084 wall (11) | `world` 7 296 + `pore-demo` 560 boundary faces, 148 288 cells |
+| domain extents | x −0.035…0.055, y ±0.035, z ±0.035 m | identical |
+| minimum cell volume | **2.542498e-11 m³** | 2.5425e-11 m³ |
+| maximum cell volume | 4.199374e-09 m³ | 4.199e-09 m³ |
+| total volume | **4.400032e-04 m³** | 4.40003e-04 m³ (`delivery_demo.json`) |
+| mesh check | `Checking mesh................ Done.` (no errors) | `Mesh OK`, gate PASS |
+| minimum orthogonal quality | **0.388782** | — (max non-ortho 26.4119°) |
+| maximum aspect ratio | 5.72920 | — (max skewness 0.366894) |
+
+Zones as Fluent names them: `pore-demo` (wall), `world` (symmetry), `interior-1`, `fluid-1`.
+
+Reading it needs the project licence server (`ANSYSLMD_LICENSE_FILE=1055@192.168.1.100`) and, on this
+machine, a session without the workspace sandbox — inside it the ANSYS licensing context fails with
+`Cannot initialize ANSYS Licensing context`. Both are recorded in `docs/TROUBLESHOOTING.md`.
+
+Interpretation: the delivered file is a *valid* Fluent mesh with the cell count and the volume statistics of
+the OpenFOAM case, and its quality is comfortably inside the usual Fluent acceptance (orthogonal quality
+≥ 0.2 is "good"; this one is 0.389 at the worst cell, aspect ratio 5.73). The numbers are not directly
+comparable to our `maxNonOrtho`/`maxSkewness`: Fluent's orthogonal quality is a different functional of the
+face and cell centroids, so 0.389 here and 26.41° there describe the same mesh, not a disagreement.
+
 ## What this run does not cover
 
 - A real DSH host enabling the bundle through `install_bundle` (the peers were symlinked instead) — the
   plugin-market route is documented in `docs/QUICKSTART.md` and was exercised separately with
   `dsh plugin --profile test add`.
 - Windows/macOS, and any machine without OpenFOAM (the demo needs a mesher).
-- Fluent opening the delivered `.msh` (still unverified, see `docs/TROUBLESHOOTING.md`).
+- A *solver* run on the delivered mesh (only mesh reading and the mesh check were exercised; no boundary
+  conditions, no flow).
